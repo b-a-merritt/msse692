@@ -34,3 +34,19 @@ This ADR supersedes the following statements without modifying the earlier files
 The earlier filtering consequences apply to inputs rejected at ingestion, not to retained observations that match no activity definition.
 
 ADR 001's status definitions, model orientation, and intervention eligibility gate still apply. ADR 002's restrictions on descriptive event names, unsupported social judgments, and source-quality interpretation still apply.
+
+### Positive
+
+- Retained observations remain available when later observations or different definitions make them relevant.
+- Versioned definitions and source references allow activity derivations to be reproduced.
+
+### Negative
+
+- Keeping observations that match no current activity increases storage compared with retaining only matching activities.
+- Assessment repeats derivation work; cross-observation queries may cost more than reading stored activity labels.
+
+## Alternatives Considered
+
+- **Persist only upstream activity labels:** rejected because labels alone may omit attributes and relationships needed by the normative model.
+- **Maintain a separate derived activity log:** not selected because it duplicates information reproducible from observations and versioned definitions.
+- **Discard valid observations that match no activity:** rejected because later observations or different definitions may make those records relevant.

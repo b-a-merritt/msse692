@@ -35,6 +35,16 @@ Only a `conformant` assessment is eligible for the separate intervention policy.
 
 This decision does not choose the conformance algorithm, assessment window, rule formalism, or intervention strategy.
 
+### Positive
+
+- Distinguishes an unresolved assessment from a definite model match or mismatch.
+- Keeps intervention authorization separate from conformance and permits abstention.
+
+### Negative
+
+- The negative model orientation can be misread unless every result identifies the model and explains the status.
+- Four statuses require explicit temporal and conflict rules, with tests for each outcome.
+
 ## Alternatives rejected
 
 ### Treat `non-conformant` as the undesirable result

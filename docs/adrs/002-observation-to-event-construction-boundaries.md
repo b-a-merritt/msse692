@@ -59,6 +59,16 @@ filtered input receives no conformance status.
 
 This decision does not define the fixed norms, conformance algorithm, assessment window, rule formalism, or intervention strategy.
 
+### Positive
+
+- Activity names and explanations remain limited to the evidence actually reported.
+- Separating source quality from social interpretation prevents measurement confidence from being presented as confidence in a moral judgment.
+
+### Negative
+
+- Descriptive observations alone cannot establish intent, sincerity, or the legitimacy of a normative model.
+- Each activity requires explicit evidence criteria, limiting what the prototype can claim and increasing definition and testing work.
+
 ## Alternatives rejected
 
 ### Let providers emit norm-laden events
