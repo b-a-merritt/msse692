@@ -70,6 +70,9 @@ Presents Mirai, a wearable camera-and-speech prototype that anticipates user act
 #### Fernandes et al (2025) People 4.0 - A model for Human-in-the-Loop CPS-based systems
 Proposes the People 4.0 model for integrating human actions, intentions, emotions, and states throughout a cyber-physical control loop. The paper argues that CPS and IoT systems should treat people as active parts of the loop rather than merely data sources, and it supports the model with implementation examples and case studies.
 
+#### Poss & Schonig (2026) A synergistic engine paradigm for real-time context-aware decision-making integrating declarative processes and event streams
+Using declarative evaluation on one CEP engine for event abstraction. Very similar architecture to what we're planning. Will need to describe contribution relative to this.
+
 ### Ethical applications
 
 #### De Sanctis et al (2026) Runtime Enforcement for Operationalizing Ethics in Autonomous Systems
