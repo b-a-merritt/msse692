@@ -944,6 +944,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi", extra = ["standard"] },
+    { name = "persist-queue" },
     { name = "pydantic-settings" },
     { name = "sqlmodel" },
 ]
@@ -958,6 +959,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.141.1" },
+    { name = "persist-queue", specifier = ">=1.1.0" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "sqlmodel", specifier = ">=0.0.42" },
 ]
@@ -976,6 +978,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5a/82/42f767fc1c1143d6fd36efb827202a2d997a375e160a71eb2888a925aac1/pathspec-1.1.1.tar.gz", hash = "sha256:17db5ecd524104a120e173814c90367a96a98d07c45b2e10c2f3919fff91bf5a", size = 135180, upload-time = "2026-04-27T01:46:08.907Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl", hash = "sha256:a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189", size = 57328, upload-time = "2026-04-27T01:46:07.06Z" },
+]
+
+[[package]]
+name = "persist-queue"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2f/9e/865b2a173a272d2f52b0f50534e13c38c159877251a987e0863fc7376acd/persist_queue-1.1.0.tar.gz", hash = "sha256:4c042a3d39c9af4fa24497da76697fb4fff7abe6af04bcf55f099e0c23bc2c67", size = 39294, upload-time = "2025-10-25T13:21:28.339Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/88/7248345679ad5001cdc0211eb83303c62659f86ae7024170c0bc0afd4e4e/persist_queue-1.1.0-py3-none-any.whl", hash = "sha256:be431ad90cd57621be5563dcd2424e21d81db3bb8cdfb918ade722369d640763", size = 53076, upload-time = "2025-10-25T13:21:26.577Z" },
 ]
 
 [[package]]

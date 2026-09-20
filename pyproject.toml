@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.10"
 dependencies = [
     "fastapi[standard]>=0.141.1",
+    "persist-queue>=1.1.0",
     "pydantic-settings>=2.15.0",
     "sqlmodel>=0.0.42",
 ]
@@ -48,6 +49,9 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ANN"]  # don't force annotations on test functions
+
+[tool.ruff.lint.isort]
+force-single-line = true
 
 [tool.mypy]
 strict = true
