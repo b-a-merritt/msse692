@@ -1,6 +1,6 @@
 # ADR 005: Intervention Records
 
-- **Status:** Accepted
+- **Status:** Accepted; prototype scope clarified during design review on 2026-09-20
 - **Date:** 2026-09-12
 - **Decision owner:** Ben Merritt
 
@@ -10,11 +10,11 @@ A notification-only record cannot represent abstention. The earlier requirements
 
 ## Decision
 
-Use one incoming `observation` schema. Store observations, assessments, and interventions in their respective tables. Allow additional tables for normative model versions and associations between records. Do not create separate observation-type, intervention-decision, or notification tables.
+Use one incoming `observation` schema. Store observations, assessments, and interventions in their respective tables. Store immutable normative model versions separately. Do not create separate observation-type, intervention-decision, or notification tables.
 
-An intervention records a policy decision and references one or more source assessments. Those assessments identify the normative model versions and exact observations evaluated.
+An intervention records a policy decision and references exactly one conformant assessment through a unique `assessment_id`. That assessment identifies its model version and exact evaluated case prefix. Grouping interventions is outside scope.
 
-The intervention's `status` has these meanings:
+The response's `status` vocabulary has these meanings; this prototype produces only `pending` and `sent`:
 
 | Status | Meaning |
 |---|---|
@@ -25,29 +25,26 @@ The intervention's `status` has these meanings:
 
 Intervention `pending` is distinct from assessment `pending`, which means conformance is unresolved.
 
-Retain the policy identity, decision reason, and decision time. Persist an authorized intervention as `pending` before attempting delivery. Delivery status updates must preserve the decision evidence and source assessment references.
+Retain the policy identity, decision reason, message, and decision time. A stored intervention is always authorized. Derive response status from `sent_at_us`: null means pending, otherwise sent. Case and subject are read through the source assessment. Delivery sets the timestamp once while preserving all decision fields.
 
 ## Consequences
 
-Abstention and delivery failure remain distinguishable without a notification table.
+The intervention remains a separate decision record, with its own identity and
+creation time. A unique source assessment prevents duplicate authorization.
+Case, authorization status, and delivery status need no duplicate stored fields.
 
-The local outbox must define what constitutes successful delivery before using `sent`; it must not imply external delivery in the course prototype.
+`sent` means the consume-on-retrieval transaction committed before the HTTP
+response. It does not guarantee receipt by the client. A pre-commit failure
+leaves the record pending; response loss after commit leaves it sent.
 
-### Positive
-
-- Abstention, awaiting delivery, and delivery outcomes remain distinguishable in one record.
-- One intervention can retain references to several supporting assessments without duplicating its policy decision on each assessment.
-
-### Negative
-
-- One status field combines policy outcome and delivery progress; transition rules must preserve the original decision evidence.
-- Multiple assessment references require explicit link storage and referential integrity constraints.
+Failed delivery and abstention remain reserved response vocabulary. Supporting
+those states later requires extending the current storage model.
 
 ## Alternatives Considered
 
 | Alternative | Disposition |
 |---|---|
-| Separate decision and notification tables | Not selected. One intervention record retains both the policy decision and delivery state. |
-| Notifications only for authorized interventions | Rejected. Missing notification records would not distinguish abstention from an unevaluated policy or notification creation failure. |
-| Policy decision fields on each assessment | Not selected. One intervention may combine several assessments; storing its decision on each would duplicate it. |
-| Separate tables for observation types | Rejected. A shared observation table keeps the case history in one relation. |
+| Separate decision and notification tables | Unnecessary for one local delivery per decision. |
+| Multi-assessment link table | Removed; grouping is outside scope. |
+| Policy fields on the assessment | Rejected; policy decisions have a separate commit boundary and meaning. |
+| Separate observation-type tables | Rejected; raw chunks share one observation schema. |

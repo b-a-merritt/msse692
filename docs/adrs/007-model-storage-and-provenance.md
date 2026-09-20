@@ -1,47 +1,57 @@
 # ADR-007: Model Storage and Provenance
 
-- **Status:** Accepted
+- **Status:** Accepted; simplified during design review on 2026-09-20
 - **Date:** 2026-09-12
 - **Decision owner:** Ben Merritt
 
 ## Context
 
-Assessments must identify the model version and observations evaluated. Interventions can reference several assessments.
+Assessments must retain their model version and exact evaluated observations.
+Every evaluation uses a full immutable case prefix. Each intervention has one
+source assessment; grouping is outside the prototype scope.
 
 ## Decision
 
-Use these six tables (not-exclusive as there might be join tables):
+Use six application tables:
 
 | Table | Responsibility |
 |---|---|
-| `observation` | Store all supported incoming observation types in one table. |
-| `normative_model_version` | Store immutable model versions and their SQL definitions. |
-| `assessment` | Store the result, evaluation time, assessed extent, and reference to exactly one model version. |
-| `assessment_observation` | Link assessments to their exact evaluated observation sets, not only observations that matched an activity. |
-| `intervention` | Store the policy decision and delivery status defined by ADR 005. |
-| `intervention_assessment` | Link each intervention to one or more source assessments. |
+| `experiment_config` | Retain the singleton experiment subject and initialization time. |
+| `case_log` | Identify cases and their creation times. |
+| `observation` | Store raw speech chunks, identified by `(case_id, observation_id)`. |
+| `normative_model_version` | Store immutable definitions, keyed by `(model_id, version)`. |
+| `assessment` | Store the result, evaluation time, model reference, case, and history cutoff. |
+| `intervention` | Store a policy decision with one unique source assessment reference and delivery time. |
 
-Each normative model version stores a stable model identifier, name, version, `undesirable_pattern` orientation, definitions with rule identifiers, model parameters, and content hash. The hash covers the definitions and behavior-affecting parameters. The model identifier and version pair is unique. Changed content requires a new version and existing versions are not overwritten.
+Model versions retain their name, orientation, rules, and parameters. Startup
+compares supplied definitions directly with stored content and validates SQL and
+rule references. Conflicting or invalid definitions stop startup. Models are fixed
+while the server runs, and historical definitions cannot be overwritten.
 
-Initialization seeds the project-supplied versions without duplicating or replacing existing records. Startup loads the explicitly supplied versions and validates their metadata, hashes, rule references, and SQL against the database schema. Validation failure stops startup. Models remain fixed while the server runs. There is no runtime model-editing API provided.
+An assessment's `case_id` and `through_sequence` identify every evaluated
+observation, including context and nonmatching evidence. Observations cannot be
+updated or deleted; ingestion allocates increasing sequences under the writer
+lock. Later arrivals therefore leave historical extents unchanged. Derive extent
+IDs and counts on retrieval instead of storing duplicate memberships or counts.
 
-Association tables use foreign keys and unique reference pairs. Commit each assessment or intervention with its associations in one transaction. Later assessments and delivery updates do not change existing source associations.
+An intervention stores a unique `assessment_id` foreign key. Its source must be
+conformant. Retrieve case and subject through that reference. Delivery changes
+only `sent_at_us`; source and decision evidence remain immutable.
 
 ## Consequences
 
-### Positive
-
-- Historical assessments retain their original model definitions and observation references.
-- Explicit associations support shared observations and multi-assessment interventions without identifier lists embedded in records.
-
-### Negative
-
-- Association tables add rows, joins, and transactional integrity requirements.
-- Retaining model versions and evaluated observation links increases storage and migration work.
+- Historical results resolve their exact definitions and full evaluated prefixes.
+- Composite keys avoid parallel internal and external identifiers.
+- Foreign keys and uniqueness guards preserve source integrity without join tables.
+- Prefix provenance depends on append-only observations and increasing case sequences.
+  Supporting arbitrary subsets would require a new evidence representation.
+- Multiple source assessments per intervention would require a schema change;
+  the current prototype deliberately has one source.
 
 ## Alternatives Considered
 
-- **Model definitions only in repository files:** not selected as the sole stored source; assessments must resolve their exact model definitions from SQLite.
-- **Identifier lists inside assessments and interventions:** not selected; association tables provide explicit foreign keys and unique membership.
-- **A separate parent `normative_model` table:** deferred; the fixed-model prototype can retain model identity in each version record.
-- **Overwrite the current model definition:** rejected because it would change the definition associated with historical assessments.
+- **Explicit evidence membership rows:** unnecessary while every evaluation uses a full immutable prefix.
+- **Intervention/assessment association table:** unnecessary for one source per decision.
+- **Model definitions only in repository files:** insufficient for resolving stored historical definitions.
+- **Separate parent model table:** unnecessary for the fixed catalog.
+- **Overwrite definitions:** rejected because it changes historical assessment meaning.

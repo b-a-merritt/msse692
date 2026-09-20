@@ -35,7 +35,7 @@ The same rule applies to other behavior:
 
 Processing stages have distinct responsibilities:
 
-1. The provider reports a bounded observation and its source-native quality data, if any.
+1. The provider reports a bounded observation. The prototype does not collect provider identity, provider version, or source-quality metadata.
 2. Event construction checks the active event definition and either emits a descriptive event or filters the input.
 3. The conformance monitor evaluates constructed events against the fixed model.
 4. A separate intervention policy decides whether an eligible assessment should produce a notification or abstain.

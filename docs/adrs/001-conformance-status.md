@@ -14,7 +14,7 @@ Conformance and intervention answer different questions. A model match may be re
 
 Event construction emits only constructed events to the case log. An input that does not produce an event is filtered before conformance checking and receives no assessment. The system does not use `inapplicable` or `indeterminate` as statuses for filtered inputs.
 
-The fixed model has the orientation `undesirable_pattern`. Every assessment identifies the model name, version, content hash, and orientation.
+The fixed model has the orientation `undesirable_pattern`. Every assessment identifies the model name, version, and orientation.
 
 The conformance monitor returns exactly one of these statuses for the assessed event prefix or range:
 
