@@ -43,7 +43,7 @@ def _begin_transaction(connection: Connection) -> None:
     connection.exec_driver_sql("BEGIN IMMEDIATE" if mode == "immediate" else "BEGIN")
 
 
-def create_database_engine(path: Path) -> Engine:
+def create_database_engine(*, path: Path) -> Engine:
     """Create the shared engine; each request/worker opens its own Session."""
     path.parent.mkdir(parents=True, exist_ok=True)
     engine = create_engine(
@@ -55,7 +55,7 @@ def create_database_engine(path: Path) -> Engine:
     return engine
 
 
-def _migration_config(connection: Connection) -> Config:
+def _migration_config(*, connection: Connection) -> Config:
     """Point Alembic at the packaged revisions and the caller's open connection."""
     config = Config()
     config.set_main_option("script_location", MIGRATIONS_LOCATION)
@@ -63,7 +63,7 @@ def _migration_config(connection: Connection) -> Config:
     return config
 
 
-def initialize_database(engine: Engine) -> None:
+def initialize_database(*, engine: Engine) -> None:
     """Apply pending revisions atomically, or reopen a database already at head.
 
     Alembic treats SQLite DDL as nontransactional and would otherwise commit
@@ -78,13 +78,13 @@ def initialize_database(engine: Engine) -> None:
             engine.connect().execution_options(sqlite_transaction_mode="immediate") as connection,
             connection.begin(),
         ):
-            command.upgrade(_migration_config(connection), "head")
+            command.upgrade(_migration_config(connection=connection), "head")
     except (CommandError, OperationalError) as error:
         raise StorageUnavailable("The application database could not be migrated.") from error
 
 
 @contextmanager
-def write_session(engine: Engine) -> Iterator[Session]:
+def write_session(*, engine: Engine) -> Iterator[Session]:
     """Open a Session whose transactions acquire the SQLite writer lock first.
 
     The service commits each completed stage. Uncommitted work rolls back on
@@ -99,15 +99,7 @@ def write_session(engine: Engine) -> Iterator[Session]:
 
 
 @contextmanager
-def read_session(engine: Engine) -> Iterator[Session]:
-    """Open a read-only Session and reset the pooled connection before returning it."""
-    with engine.connect() as connection:
-        connection.exec_driver_sql("PRAGMA query_only=ON")
-        connection.commit()
-        try:
-            with Session(bind=connection, expire_on_commit=False) as session:
-                yield session
-        finally:
-            connection.rollback()
-            connection.exec_driver_sql("PRAGMA query_only=OFF")
-            connection.commit()
+def read_session(*, engine: Engine) -> Iterator[Session]:
+    """Open a session for database lookups."""
+    with Session(engine, expire_on_commit=False) as session:
+        yield session
