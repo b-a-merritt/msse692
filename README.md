@@ -14,6 +14,17 @@
 | `uv run ruff check . --fix` | Lint and apply safe auto-fixes |
 | `uv run ruff format .` | Format everything (black-compatible) |
 | `uv run mypy` | Type-check `src/` in strict mode |
+| `uv run alembic history` | List the revisions and their order |
 | `uv run pre-commit install` | Arm the git hooks (one time per clone) |
 | `uv run pre-commit run --all-files` | Run every hook against the whole repo |
 | `uv run pre-commit autoupdate` | Bump hook versions to latest |
+
+## Adding a migration
+
+Until the initial schema is used, edit `0001_initial_schema.py` directly.
+Once databases depend on an existing revision, add a new revision for schema changes.
+
+Copy the newest file in `src/normative_conformance/migrations/versions/`, change
+its `revision` and `down_revision`, and replace the body. The application applies
+pending revisions at startup. `alembic revision` is not wired up: revisions are
+written by hand, so the project ships no script template.

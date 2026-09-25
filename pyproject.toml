@@ -27,7 +27,7 @@ dev = [
 ]
 
 [tool.alembic]
-# The same location database.py resolves at runtime, as MIGRATIONS names it.
+# The same location database.py resolves at runtime, as MIGRATIONS_LOCATION names it.
 script_location = "normative_conformance:migrations"
 prepend_sys_path = ["src"]
 
