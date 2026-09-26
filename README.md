@@ -14,10 +14,17 @@
 | `uv run ruff check . --fix` | Lint and apply safe auto-fixes |
 | `uv run ruff format .` | Format everything (black-compatible) |
 | `uv run mypy` | Type-check `src/` in strict mode |
+| `uv run pytest` | Run the migration and model tests |
 | `uv run alembic history` | List the revisions and their order |
 | `uv run pre-commit install` | Arm the git hooks (one time per clone) |
 | `uv run pre-commit run --all-files` | Run every hook against the whole repo |
 | `uv run pre-commit autoupdate` | Bump hook versions to latest |
+
+## Tests
+
+Run `uv run pytest`. Pytest integration tests create a SQLite file under `tmp_path`
+for each test and apply the real Alembic migrations, including constraints and
+triggers. The application database is never used.
 
 ## Adding a migration
 

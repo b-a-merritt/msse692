@@ -23,6 +23,7 @@ build-backend = "uv_build"
 dev = [
     "mypy>=2.3.1",
     "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
     "ruff>=0.16.5",
 ]
 
@@ -30,6 +31,10 @@ dev = [
 # The same location database.py resolves at runtime, as MIGRATIONS_LOCATION names it.
 script_location = "normative_conformance:migrations"
 prepend_sys_path = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib", "--ignore=tests/migrations/versions"]
 
 [tool.ruff]
 line-length = 100
