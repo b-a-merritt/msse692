@@ -14,17 +14,55 @@
 | `uv run ruff check . --fix` | Lint and apply safe auto-fixes |
 | `uv run ruff format .` | Format everything (black-compatible) |
 | `uv run mypy` | Type-check `src/` in strict mode |
-| `uv run pytest` | Run the migration and model tests |
+| `uv run pytest` | Run the test suite |
 | `uv run alembic history` | List the revisions and their order |
 | `uv run pre-commit install` | Arm the git hooks (one time per clone) |
 | `uv run pre-commit run --all-files` | Run every hook against the whole repo |
 | `uv run pre-commit autoupdate` | Bump hook versions to latest |
+
+## Observation ingestion
+
+Start the API with `uv run fastapi dev src/normative_conformance/main.py`, then
+submit an observation through `/docs` or:
+
+```sh
+curl -X POST http://localhost:8000/api/v1/observations \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "case_id": "case-1",
+    "observation_id": "chunk-1",
+    "speaker_id": "speaker-1",
+    "start_at": "2026-09-26T09:00:00Z",
+    "end_at": "2026-09-26T09:00:01Z",
+    "transcript": "Hello",
+    "signal_level_min": -50,
+    "signal_level_avg": -30,
+    "signal_level_max": -10
+  }'
+```
+
+Submission commits the observation, then queues a case assessment request with a
+new evaluation ID. It returns `202 Accepted` with the observation, a UTC
+`received_at`, and the next sequence number within its case. A new case is
+created automatically. Duplicate observation IDs within a case return `409`;
+invalid input returns `422`. Neither requests assessment work.
+
+The queue uses a separate SQLite database under `data/assessment_queue`, configurable
+with `ASSESSMENT_QUEUE_PATH`. Requests survive reopening the queue. This stage
+enqueues one request per committed observation; the assessment worker, request
+coalescing, deadline scheduling, and worker restart policy remain unimplemented.
+
+If enqueueing fails after the observation commits, the API returns `503` with
+code `ENQUEUE_FAILED` and `error.committed_observation`. The observation remains
+stored. Resubmitting that same observation returns `409` and does not retry scheduling.
 
 ## Tests
 
 Run `uv run pytest`. Pytest integration tests create a SQLite file under `tmp_path`
 for each test and apply the real Alembic migrations, including constraints and
 triggers. The application database is never used.
+Schema validation tests run without a database. Ingestion tests cover the
+service and HTTP endpoint, including duplicates, concurrent writes, and rollback.
 
 ## Adding a migration
 

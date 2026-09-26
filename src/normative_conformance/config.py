@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     app_name: str = "normative-conformance"
     debug: bool = False
     app_db_path: Path = Path("data/prototype.sqlite3")
+    assessment_queue_path: Path = Path("data/assessment_queue")
 
 
 @lru_cache
