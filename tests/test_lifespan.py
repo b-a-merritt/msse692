@@ -25,7 +25,7 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(
     handled = Event()
     calls = []
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
         with Session(bind=engine) as session:
             assert session.get(Observation, (case_id, "chunk")) is not None
         calls.append((case_id, evaluation_id, now()))
@@ -68,7 +68,7 @@ def test_shutdown_finishes_active_work_and_leaves_waiting_work(*, tmp_path, monk
     release = Event()
     evaluated = []
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
         evaluated.append(case_id)
         entered.set()
         assert release.wait(timeout=5)

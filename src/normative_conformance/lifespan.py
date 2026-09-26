@@ -13,6 +13,7 @@ from sqlalchemy import Engine
 from normative_conformance.config import Settings
 from normative_conformance.database import create_database_engine
 from normative_conformance.database import initialize_database
+from normative_conformance.database import initialize_experiment_config
 from normative_conformance.queue import create_assessment_queue
 from normative_conformance.services.scheduler.run_worker import run_worker
 from normative_conformance.services.scheduler.state import SchedulerState
@@ -54,6 +55,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     try:
         initialize_database(engine=engine)
+        initialize_experiment_config(
+            engine=engine,
+            subject_speaker_id=settings.subject_speaker_id,
+            now=app.state.clock,
+        )
         app.state.engine = engine
         with _scheduler_lifespan(app=app, engine=engine, queue_path=settings.assessment_queue_path):
             yield

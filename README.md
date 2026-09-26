@@ -31,7 +31,7 @@ curl -X POST http://localhost:8000/api/v1/observations \
   -d '{
     "case_id": "case-1",
     "observation_id": "chunk-1",
-    "speaker_id": "speaker-1",
+    "speaker_id": "subject",
     "start_at": "2026-09-26T09:00:00Z",
     "end_at": "2026-09-26T09:00:01Z",
     "transcript": "Hello",
@@ -55,13 +55,30 @@ This coordination assumes one application process.
 
 The worker passes each case and evaluation ID to `assessment.evaluate_case`,
 acknowledges successful work, and records evaluation failures without automatically
-retrying them. **Evaluation is still a stub**, so requests currently produce logged
-failures and failed queue entries; they do not create assessments. Deadline
-scheduling is also unimplemented.
+retrying them. Evaluation runs the database's `undesired` models. A repairable match
+creates a pending assessment with a ten-second deadline starting when the match is
+detected. Further matches reuse that pending assessment and its original deadline.
+The worker queues a separate repair check, then checks again at the deadline if needed.
+Nonrepairable matches are confirmed immediately.
+
+Repair checks run the `repairs` models. A qualifying repair appends a non-conformant
+resolution; an expired deadline appends a conformant resolution. Both link to the
+original row through `resolves_assessment_id`, which can be used only once. Original
+assessments remain immutable. Receipt time determines whether repair was timely,
+even if the check runs late. Speech order determines the repair boundary. Repair
+currently applies to whole observation chunks; phrase order within a chunk is not
+represented by the boolean rule results.
+
+The seed migration stores three undesired models and an apology model. On first
+startup, `SUBJECT_SPEAKER_ID` (default `subject`) initializes `experiment_config`.
+Subsequent evaluations read the subject from that immutable database configuration.
+Recognized repairs reset future detection. Finalized positives are retained and
+suppressed until repair permits a new occurrence. Intervention services remain stubs.
 
 Shutdown finishes the active request before closing the queue and database.
 Waiting requests survive restart and are processed when the worker starts again.
-Recovery of work interrupted by a crash remains unimplemented. Queue read or
+The worker also recovers deadlines for unresolved pending assessments. Recovery
+of a request interrupted before it stores any assessment remains unimplemented. Queue read or
 acknowledgment failures stop the worker; further submissions return `503 NOT_READY`.
 
 If enqueueing fails after the observation commits, the API returns `503` with

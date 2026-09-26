@@ -1,11 +1,3 @@
-"""Initial application schema, expressed directly as SQLite DDL.
-
-Timestamps are signed Unix microseconds; source and receipt times stay distinct.
-Text validation and JSON structure belong to the application schemas. The database
-enforces storage types, JSON syntax, keys, references, and basic value relationships.
-Connection settings are configured in database.py.
-"""
-
 from alembic import op
 
 revision: str = "0001"
@@ -77,6 +69,8 @@ CREATE TABLE assessment (
         CHECK (status IN ('conformant', 'non-conformant', 'pending', 'conflicted')),
     explanation_json TEXT NOT NULL CHECK (json_valid(explanation_json)),
     next_due_at_us INTEGER,
+    resolves_assessment_id INTEGER UNIQUE REFERENCES assessment(assessment_id),
+    CHECK (resolves_assessment_id IS NULL OR status IN ('conformant', 'non-conformant')),
     UNIQUE (evaluation_id, model_id, model_version),
     FOREIGN KEY (model_id, model_version) REFERENCES normative_model_version(model_id, version),
     FOREIGN KEY (case_id, through_sequence) REFERENCES observation(case_id, sequence)
@@ -116,6 +110,18 @@ BEGIN SELECT RAISE(ABORT, 'assessment is immutable'); END
     op.execute("""
 CREATE TRIGGER assessment_no_delete BEFORE DELETE ON assessment
 BEGIN SELECT RAISE(ABORT, 'assessment is immutable'); END
+""")
+    op.execute("""
+CREATE TRIGGER assessment_resolution BEFORE INSERT ON assessment
+WHEN NEW.resolves_assessment_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM assessment original
+    WHERE original.assessment_id = NEW.resolves_assessment_id AND original.status = 'pending'
+      AND original.case_id = NEW.case_id AND original.model_id = NEW.model_id
+      AND original.model_version = NEW.model_version
+      AND NEW.evaluated_at_us >= original.evaluated_at_us
+      AND NEW.through_sequence >= original.through_sequence
+)
+BEGIN SELECT RAISE(ABORT, 'resolution must reference a matching pending assessment'); END
 """)
     op.execute("""
 CREATE TRIGGER intervention_no_delete BEFORE DELETE ON intervention

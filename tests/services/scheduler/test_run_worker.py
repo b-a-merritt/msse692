@@ -2,15 +2,19 @@
 
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from datetime import timezone
 from threading import Event
 from threading import Thread
 from unittest.mock import Mock
+from uuid import uuid4
 
 import pytest
 
 from normative_conformance.errors import EnqueueFailed
 from normative_conformance.services import assessment
 from normative_conformance.services.scheduler.request_assessment import request_assessment
+from normative_conformance.services.scheduler.request_repair_check import request_repair_check
 from normative_conformance.services.scheduler.run_worker import run_worker
 
 
@@ -20,7 +24,7 @@ def test_success_is_acknowledged_after_evaluation(
     request_assessment(case_id="case", scheduler=scheduler)
     queued = assessment_queue.queue()[0]["data"]
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
         assert case_id == "case"
         assert str(evaluation_id) == queued["evaluation_id"]
         assert now() == received_at
@@ -43,7 +47,7 @@ def test_arrivals_during_evaluation_share_one_follow_up(
     release = Event()
     evaluations = []
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
         evaluations.append(evaluation_id)
         if len(evaluations) == 1:
             entered.set()
@@ -88,7 +92,7 @@ def test_failed_evaluation_does_not_retry_or_stop_other_cases(
     request_assessment(case_id="next", scheduler=scheduler)
     evaluated = []
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
         evaluated.append(case_id)
         if case_id == "failing":
             raise RuntimeError("Evaluation failed")
@@ -104,7 +108,7 @@ def test_failed_evaluation_does_not_retry_or_stop_other_cases(
     assert "Case assessment failed" in caplog.text
 
 
-def test_unimplemented_evaluation_is_marked_failed(
+def test_missing_case_is_marked_failed(
     *, scheduler, assessment_queue, engine, received_at, monkeypatch
 ):
     request_assessment(case_id="case", scheduler=scheduler)
@@ -118,6 +122,122 @@ def test_unimplemented_evaluation_is_marked_failed(
     run_worker(scheduler=scheduler, engine=engine, now=lambda: received_at)
     assert assessment_queue.acked_count() == 0
     assert assessment_queue.ack_failed_count() == 1
+
+
+def test_unknown_task_is_failed_without_stopping_other_cases(
+    *, scheduler, assessment_queue, engine, received_at, monkeypatch, caplog
+):
+    assessment_queue.put(
+        item={"kind": "unknown", "case_id": "invalid", "evaluation_id": str(uuid4())}
+    )
+    request_assessment(case_id="next", scheduler=scheduler)
+    evaluated = []
+
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+        evaluated.append(case_id)
+        scheduler.stopped.set()
+        return []
+
+    monkeypatch.setattr(assessment, "evaluate_case", evaluate_case)
+    run_worker(scheduler=scheduler, engine=engine, now=lambda: received_at)
+
+    assert evaluated == ["next"]
+    assert assessment_queue.ack_failed_count() == 1
+    assert assessment_queue.acked_count() == 1
+    assert "Unknown assessment task kind" in caplog.text
+
+
+@pytest.mark.parametrize("restart", [False, True])
+def test_worker_checks_deadline_without_more_observations(
+    *,
+    engine,
+    scheduler,
+    assessment_queue,
+    add_observation,
+    monkeypatch,
+    restart,
+):
+    add_observation(start=0, end=0.9, transcript="you are wrong", level=-17.0)
+    deadline = Event()
+    checked_early = Event()
+    completed = Event()
+    resolutions = []
+    original_check = assessment.check_repairs
+
+    def clock():
+        return datetime.fromtimestamp(110 if deadline.is_set() else 100, timezone.utc)
+
+    if restart:
+        # Simulate an assessment finishing during shutdown, leaving only its stored deadline.
+        scheduler.stopped.set()
+        assessment.evaluate_case(
+            case_id="case", evaluation_id=uuid4(), engine=engine, now=clock, scheduler=scheduler
+        )
+        scheduler.stopped.clear()
+        assert assessment_queue.empty()
+        deadline.set()
+    else:
+        request_assessment(case_id="case", scheduler=scheduler)
+
+    def check_repairs(*, case_id, evaluation_id, engine, now, scheduler):
+        results = original_check(
+            case_id=case_id,
+            evaluation_id=evaluation_id,
+            engine=engine,
+            now=now,
+            scheduler=scheduler,
+        )
+        checked_early.set()
+        resolutions.extend(row for row in results if row.resolves_assessment_id is not None)
+        if resolutions:
+            scheduler.stopped.set()
+            completed.set()
+        return results
+
+    monkeypatch.setattr(assessment, "check_repairs", check_repairs)
+    worker = Thread(
+        target=run_worker, kwargs={"scheduler": scheduler, "engine": engine, "now": clock}
+    )
+    worker.start()
+    try:
+        if not restart:
+            assert checked_early.wait(timeout=5)
+            deadline.set()
+        assert completed.wait(timeout=5)
+    finally:
+        scheduler.stopped.set()
+        worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert len(resolutions) == 1
+    assert resolutions[0].status == "conformant"
+    assert assessment_queue.acked_count() == (1 if restart else 3)
+
+
+def test_repaired_match_requests_another_assessment(
+    *, engine, scheduler, add_observation, monkeypatch
+):
+    add_observation(start=0, end=0.9, transcript="you are wrong", level=-17.0)
+
+    def clock():
+        return datetime.fromtimestamp(100, timezone.utc)
+
+    assessment.evaluate_case(
+        case_id="case", evaluation_id=uuid4(), engine=engine, now=clock, scheduler=scheduler
+    )
+    add_observation(start=1, end=2, transcript="I apologize", received=105)
+    request_repair_check(case_id="case", scheduler=scheduler)
+    assessed = []
+
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+        assessed.append(case_id)
+        scheduler.stopped.set()
+        return []
+
+    monkeypatch.setattr(assessment, "evaluate_case", evaluate_case)
+    run_worker(
+        scheduler=scheduler, engine=engine, now=lambda: datetime.fromtimestamp(105, timezone.utc)
+    )
+    assert assessed == ["case"]
 
 
 @pytest.mark.parametrize("operation", ["get", "ack", "ack_failed"])

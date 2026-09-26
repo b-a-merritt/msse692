@@ -81,3 +81,44 @@ def test_later_observations_do_not_extend_a_saved_assessment(*, session, records
         .where(models.Assessment.assessment_id == records["assessment"].assessment_id)
     ).all()
     assert [row.observation_id for row in evidence] == ["chunk"]
+
+
+def test_pending_assessment_accepts_one_appended_resolution(*, session, records):
+    pending = models.Assessment(
+        **(
+            records["assessment"].model_dump()
+            | {
+                "assessment_id": None,
+                "evaluation_id": "pending",
+                "status": "pending",
+                "next_due_at_us": 20,
+            }
+        )
+    )
+    session.add(pending)
+    session.commit()
+    resolution = records["assessment"].model_dump() | {
+        "assessment_id": None,
+        "evaluation_id": "resolution",
+        "evaluated_at_us": 20,
+        "resolves_assessment_id": pending.assessment_id,
+    }
+    session.add(models.Assessment(**resolution))
+    session.commit()
+    session.refresh(pending)
+    assert pending.status == "pending"
+    assert pending.next_due_at_us == 20
+    session.add(models.Assessment(**(resolution | {"evaluation_id": "duplicate"})))
+    with pytest.raises(IntegrityError, match="UNIQUE"):
+        session.commit()
+
+
+def test_finalized_assessment_cannot_be_resolved(*, session, records):
+    values = records["assessment"].model_dump() | {
+        "assessment_id": None,
+        "evaluation_id": "resolution",
+        "resolves_assessment_id": records["assessment"].assessment_id,
+    }
+    session.add(models.Assessment(**values))
+    with pytest.raises(IntegrityError, match="matching pending assessment"):
+        session.commit()

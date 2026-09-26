@@ -30,3 +30,6 @@ class Assessment(SQLModel, table=True):
     status: str = Field(sa_type=Text)
     explanation_json: str = Field(sa_type=Text)
     next_due_at_us: int | None = None
+    resolves_assessment_id: int | None = Field(
+        default=None, foreign_key="assessment.assessment_id", unique=True
+    )

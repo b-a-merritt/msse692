@@ -19,6 +19,8 @@ def test_model_version_round_trip(*, session, records):
         pytest.param({"version": "1"}, "UNIQUE", id="duplicate-version"),
         pytest.param({"rules_json": "invalid"}, "CHECK", id="invalid-rules-json"),
         pytest.param({"parameters_json": "invalid"}, "CHECK", id="invalid-parameters-json"),
+        pytest.param({"type": "unknown"}, "CHECK", id="unknown-type"),
+        pytest.param({"type": "repairs", "repairable": True}, "CHECK", id="repairable-repair"),
     ],
 )
 def test_invalid_model_versions_are_rejected(*, session, records, changes, constraint):

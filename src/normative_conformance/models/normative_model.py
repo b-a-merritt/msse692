@@ -11,5 +11,7 @@ class NormativeModelVersion(SQLModel, table=True):
     model_id: str = Field(primary_key=True, sa_type=Text)
     name: str = Field(sa_type=Text)
     version: str = Field(primary_key=True, sa_type=Text)
+    type: str = Field(default="undesired", sa_type=Text)
+    repairable: bool = True
     rules_json: str = Field(sa_type=Text)
     parameters_json: str = Field(sa_type=Text)

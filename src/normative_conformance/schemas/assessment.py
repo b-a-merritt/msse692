@@ -35,6 +35,7 @@ class Explanation(ContractModel):
 
 class Assessment(ContractModel):
     assessment_id: int = Field(strict=True, ge=1)
+    resolves_assessment_id: int | None = Field(default=None, strict=True, ge=1)
     evaluation_id: UUID
     case_id: str = Field(strict=True, min_length=1, pattern=r"^[^/]+$")
     subject_speaker_id: str = Field(strict=True, min_length=1, pattern=r"^[^/]+$")

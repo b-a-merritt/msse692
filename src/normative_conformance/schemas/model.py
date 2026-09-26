@@ -1,4 +1,5 @@
 from typing import Annotated
+from typing import Literal
 
 from pydantic import Field
 
@@ -12,12 +13,13 @@ class ModelRule(ContractModel):
 
 
 class ModelVersion(ContractModel):
-    """A versioned definition of an undesirable behavior pattern."""
+    """A versioned model whose rules identify undesired behavior or repairs."""
 
     model_id: str = Field(strict=True, min_length=1, pattern=r"^[^/]+$")
     name: str
     version: str = Field(strict=True, min_length=1)
-    subject_speaker_id: str = Field(strict=True, min_length=1, pattern=r"^[^/]+$")
+    type: Literal["undesired", "repairs"]
+    repairable: bool = Field(strict=True)
     rules: list[ModelRule] = Field(min_length=1)
     parameters: dict[
         Annotated[str, Field(strict=True, min_length=1, pattern=r"^[^/]+$")],
