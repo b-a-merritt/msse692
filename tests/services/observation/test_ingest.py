@@ -24,14 +24,14 @@ from normative_conformance.services.observation.ingest import ingest
 
 
 def test_commits_case_and_observation_with_exact_timestamps(
-    *, engine, observation_input, received_at, assessment_queue
+    *, engine, observation_input, received_at, assessment_queue, scheduler
 ):
     with write_session(engine=engine) as session:
         record = ingest(
             input=observation_input,
             session=session,
             now=lambda: received_at,
-            queue=assessment_queue,
+            scheduler=scheduler,
         )
 
     assert record.sequence == 1
@@ -59,7 +59,7 @@ def test_commits_case_and_observation_with_exact_timestamps(
 
 
 def test_sequences_follow_arrival_order_within_each_case(
-    *, engine, observation_data, received_at, assessment_queue
+    *, engine, observation_data, received_at, assessment_queue, scheduler
 ):
     inputs = [
         observation_data,
@@ -79,7 +79,7 @@ def test_sequences_follow_arrival_order_within_each_case(
                 input=ObservationInput.model_validate(values),
                 session=session,
                 now=lambda timestamp=timestamp: timestamp,
-                queue=assessment_queue,
+                scheduler=scheduler,
             )
         sequences.append(record.sequence)
     assert sequences == [1, 2, 1]
@@ -89,14 +89,14 @@ def test_sequences_follow_arrival_order_within_each_case(
 
 @pytest.mark.parametrize("changed_content", [False, True])
 def test_duplicates_leave_original_unchanged_and_do_not_consume_sequence(
-    *, engine, observation_input, received_at, changed_content, assessment_queue
+    *, engine, observation_input, received_at, changed_content, assessment_queue, scheduler
 ):
     with write_session(engine=engine) as session:
         ingest(
             input=observation_input,
             session=session,
             now=lambda: received_at,
-            queue=assessment_queue,
+            scheduler=scheduler,
         )
     duplicate = observation_input.model_copy(
         update={"transcript": "Different content"} if changed_content else {}
@@ -109,7 +109,7 @@ def test_duplicates_leave_original_unchanged_and_do_not_consume_sequence(
                 input=duplicate,
                 session=session,
                 now=lambda: received_at + timedelta(seconds=1),
-                queue=assessment_queue,
+                scheduler=scheduler,
             )
         assert not session.in_transaction()
         assert assessment_queue.qsize() == 1
@@ -117,7 +117,7 @@ def test_duplicates_leave_original_unchanged_and_do_not_consume_sequence(
             input=observation_input.model_copy(update={"observation_id": "next"}),
             session=session,
             now=lambda: received_at + timedelta(seconds=2),
-            queue=assessment_queue,
+            scheduler=scheduler,
         )
     assert next_record.sequence == 2
     with Session(bind=engine) as session:
@@ -128,7 +128,7 @@ def test_duplicates_leave_original_unchanged_and_do_not_consume_sequence(
 
 
 def test_storage_failure_rolls_back_new_case_and_observation(
-    *, engine, observation_input, received_at, assessment_queue
+    *, engine, observation_input, received_at, assessment_queue, scheduler
 ):
     with engine.begin() as connection:
         connection.exec_driver_sql("""
@@ -141,7 +141,7 @@ def test_storage_failure_rolls_back_new_case_and_observation(
                 input=observation_input,
                 session=session,
                 now=lambda: received_at,
-                queue=assessment_queue,
+                scheduler=scheduler,
             )
         assert not session.in_transaction()
     assert str(caught.value) == "The observation could not be stored"
@@ -153,7 +153,7 @@ def test_storage_failure_rolls_back_new_case_and_observation(
 
 
 def test_stores_signed_microseconds_without_float_rounding(
-    *, engine, observation_data, assessment_queue
+    *, engine, observation_data, assessment_queue, scheduler
 ):
     input = ObservationInput.model_validate(
         observation_data
@@ -167,7 +167,7 @@ def test_stores_signed_microseconds_without_float_rounding(
             input=input,
             session=session,
             now=lambda: datetime(2500, 1, 1, 0, 0, 0, 1, tzinfo=timezone.utc),
-            queue=assessment_queue,
+            scheduler=scheduler,
         )
     with Session(bind=engine) as session:
         observation = session.get(Observation, ("case", "chunk"))
@@ -177,7 +177,7 @@ def test_stores_signed_microseconds_without_float_rounding(
 
 
 def test_concurrent_ingestion_assigns_distinct_sequences(
-    *, engine, observation_input, received_at, assessment_queue
+    *, engine, observation_input, received_at, assessment_queue, scheduler
 ):
     ready = Barrier(2, timeout=10)
 
@@ -188,21 +188,21 @@ def test_concurrent_ingestion_assigns_distinct_sequences(
                 input=observation_input.model_copy(update={"observation_id": observation_id}),
                 session=session,
                 now=lambda: received_at,
-                queue=assessment_queue,
+                scheduler=scheduler,
             )
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(submit, observation_id=name) for name in ("first", "second")]
         records = [future.result(timeout=10) for future in futures]
     assert {record.sequence for record in records} == {1, 2}
-    assert assessment_queue.qsize() == 2
+    assert assessment_queue.qsize() == 1
     with Session(bind=engine) as session:
         assert len(session.exec(select(CaseLog)).all()) == 1
         assert len(session.exec(select(Observation)).all()) == 2
 
 
 def test_concurrent_duplicates_commit_once(
-    *, engine, observation_input, received_at, assessment_queue
+    *, engine, observation_input, received_at, assessment_queue, scheduler
 ):
     ready = Barrier(2, timeout=10)
 
@@ -214,7 +214,7 @@ def test_concurrent_duplicates_commit_once(
                     input=observation_input,
                     session=session,
                     now=lambda: received_at,
-                    queue=assessment_queue,
+                    scheduler=scheduler,
                 )
             except ObservationExists:
                 return "duplicate"
@@ -232,7 +232,7 @@ def test_concurrent_duplicates_commit_once(
 
 
 def test_observation_is_committed_before_enqueueing(
-    *, engine, observation_input, received_at, assessment_queue, monkeypatch
+    *, engine, observation_input, received_at, assessment_queue, scheduler, monkeypatch
 ):
     original_put = assessment_queue.put
 
@@ -247,13 +247,13 @@ def test_observation_is_committed_before_enqueueing(
             input=observation_input,
             session=session,
             now=lambda: received_at,
-            queue=assessment_queue,
+            scheduler=scheduler,
         )
     assert assessment_queue.qsize() == 1
 
 
 def test_enqueue_failure_keeps_committed_observation(
-    *, engine, observation_input, received_at, assessment_queue, monkeypatch
+    *, engine, observation_input, received_at, assessment_queue, scheduler, monkeypatch
 ):
     monkeypatch.setattr(
         assessment_queue, "put", Mock(side_effect=sqlite3.OperationalError("private queue details"))
@@ -264,7 +264,7 @@ def test_enqueue_failure_keeps_committed_observation(
                 input=observation_input,
                 session=session,
                 now=lambda: received_at,
-                queue=assessment_queue,
+                scheduler=scheduler,
             )
         assert not session.in_transaction()
 

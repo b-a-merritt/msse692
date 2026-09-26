@@ -48,9 +48,21 @@ created automatically. Duplicate observation IDs within a case return `409`;
 invalid input returns `422`. Neither requests assessment work.
 
 The queue uses a separate SQLite database under `data/assessment_queue`, configurable
-with `ASSESSMENT_QUEUE_PATH`. Requests survive reopening the queue. This stage
-enqueues one request per committed observation; the assessment worker, request
-coalescing, deadline scheduling, and worker restart policy remain unimplemented.
+with `ASSESSMENT_QUEUE_PATH`. FastAPI's lifespan opens the queue and starts one
+assessment worker thread. Requests for a case already waiting in the queue share
+that request. Once evaluation starts, new observations can queue one follow-up.
+This coordination assumes one application process.
+
+The worker passes each case and evaluation ID to `assessment.evaluate_case`,
+acknowledges successful work, and records evaluation failures without automatically
+retrying them. **Evaluation is still a stub**, so requests currently produce logged
+failures and failed queue entries; they do not create assessments. Deadline
+scheduling is also unimplemented.
+
+Shutdown finishes the active request before closing the queue and database.
+Waiting requests survive restart and are processed when the worker starts again.
+Recovery of work interrupted by a crash remains unimplemented. Queue read or
+acknowledgment failures stop the worker; further submissions return `503 NOT_READY`.
 
 If enqueueing fails after the observation commits, the API returns `503` with
 code `ENQUEUE_FAILED` and `error.committed_observation`. The observation remains

@@ -1,4 +1,4 @@
-"""Request case assessments through the persistent queue."""
+"""Requests for one waiting case share a single queued evaluation."""
 
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
@@ -10,40 +10,48 @@ from normative_conformance.errors import EnqueueFailed
 from normative_conformance.services.scheduler.request_assessment import request_assessment
 
 
-def test_enqueues_case_and_new_evaluation_id(*, assessment_queue):
-    request_assessment(case_id="case", queue=assessment_queue)
-    request_assessment(case_id="case", queue=assessment_queue)
+def test_reuses_waiting_case_request(*, scheduler, assessment_queue):
+    request_assessment(case_id="case", scheduler=scheduler)
+    request_assessment(case_id="case", scheduler=scheduler)
+    request_assessment(case_id="other", scheduler=scheduler)
 
-    first = assessment_queue.get(block=False)
-    second = assessment_queue.get(block=False)
-    assert set(first) == set(second) == {"kind", "case_id", "evaluation_id"}
-    assert first["kind"] == second["kind"] == "assess_case"
-    assert first["case_id"] == second["case_id"] == "case"
-    assert UUID(first["evaluation_id"]).version == 4
-    assert UUID(second["evaluation_id"]).version == 4
-    assert first["evaluation_id"] != second["evaluation_id"]
+    tasks = [assessment_queue.get(block=False) for _ in range(2)]
+    assert assessment_queue.empty()
+    assert {task["case_id"] for task in tasks} == {"case", "other"}
+    assert len({task["evaluation_id"] for task in tasks}) == 2
+    for task in tasks:
+        assert set(task) == {"kind", "case_id", "evaluation_id"}
+        assert task["kind"] == "assess_case"
+        assert UUID(task["evaluation_id"]).version == 4
 
 
-def test_queue_failure_has_fixed_message_and_preserves_cause(*, assessment_queue):
+def test_queue_failure_has_fixed_message_and_preserves_cause(*, scheduler, assessment_queue):
     assessment_queue.close()
 
     with pytest.raises(EnqueueFailed) as caught:
-        request_assessment(case_id="case", queue=assessment_queue)
+        request_assessment(case_id="case", scheduler=scheduler)
 
     assert str(caught.value) == "The assessment request could not be queued"
     assert isinstance(caught.value.__cause__, sqlite3.ProgrammingError)
     assert caught.value.committed_observation is None
+    assert scheduler.queued_cases == set()
 
 
-def test_requests_can_be_enqueued_from_multiple_threads(*, assessment_queue):
+def test_concurrent_requests_for_same_case_enqueue_once(*, scheduler, assessment_queue):
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = [
-            executor.submit(request_assessment, case_id=str(index), queue=assessment_queue)
-            for index in range(8)
+            executor.submit(request_assessment, case_id="case", scheduler=scheduler)
+            for _ in range(8)
         ]
         for future in futures:
             future.result(timeout=10)
 
-    tasks = [assessment_queue.get(block=False) for _ in range(8)]
-    assert {task["case_id"] for task in tasks} == {str(index) for index in range(8)}
-    assert len({task["evaluation_id"] for task in tasks}) == 8
+    assert assessment_queue.qsize() == 1
+    assert assessment_queue.get(block=False)["case_id"] == "case"
+
+
+def test_stopped_worker_rejects_request(*, scheduler, assessment_queue):
+    scheduler.stopped.set()
+    with pytest.raises(EnqueueFailed, match="The assessment worker is not running"):
+        request_assessment(case_id="case", scheduler=scheduler)
+    assert assessment_queue.empty()

@@ -8,12 +8,13 @@ import pytest
 from normative_conformance.errors import StorageUnavailable
 from normative_conformance.queue import create_assessment_queue
 from normative_conformance.services.scheduler.request_assessment import request_assessment
+from normative_conformance.services.scheduler.state import SchedulerState
 
 
 def test_queued_request_survives_reopening(*, tmp_path):
     path = tmp_path / "queue"
     with closing(create_assessment_queue(path=path)) as queue:
-        request_assessment(case_id="case", queue=queue)
+        request_assessment(case_id="case", scheduler=SchedulerState(queue=queue))
         task = queue.queue()[0]["data"]
 
     with closing(create_assessment_queue(path=path)) as reopened:

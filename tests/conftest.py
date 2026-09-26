@@ -11,6 +11,7 @@ from normative_conformance.database import create_database_engine
 from normative_conformance.database import initialize_database
 from normative_conformance.queue import create_assessment_queue
 from normative_conformance.schemas.observation import ObservationInput
+from normative_conformance.services.scheduler.state import SchedulerState
 
 
 @pytest.fixture
@@ -45,6 +46,11 @@ def assessment_queue(*, tmp_path):
         yield queue
     finally:
         queue.close()
+
+
+@pytest.fixture
+def scheduler(*, assessment_queue):
+    return SchedulerState(queue=assessment_queue)
 
 
 @pytest.fixture

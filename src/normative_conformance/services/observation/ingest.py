@@ -2,7 +2,6 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 
-from persistqueue import SQLiteAckQueue
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
@@ -16,7 +15,8 @@ from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.schemas.observation import ObservationRecord
-from normative_conformance.services import scheduler
+from normative_conformance.services.scheduler.request_assessment import request_assessment
+from normative_conformance.services.scheduler.state import SchedulerState
 
 
 def _unix_microseconds(
@@ -65,7 +65,7 @@ def ingest(
     input: ObservationInput,
     session: Session,
     now: Clock,
-    queue: SQLiteAckQueue,
+    scheduler: SchedulerState,
 ) -> ObservationRecord:
     """Commit an observation, then request assessment of its case."""
     try:
@@ -117,7 +117,7 @@ def ingest(
         raise
 
     try:
-        scheduler.request_assessment(case_id=record.case_id, queue=queue)
+        request_assessment(case_id=record.case_id, scheduler=scheduler)
     except EnqueueFailed as error:
         raise EnqueueFailed(
             message="The observation was stored but its assessment could not be requested",

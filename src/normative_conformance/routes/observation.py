@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from normative_conformance.routes.dependencies import AssessmentQueue
+from normative_conformance.routes.dependencies import Scheduler
 from normative_conformance.routes.dependencies import ServerClock
 from normative_conformance.routes.dependencies import WriteSession
 from normative_conformance.routes.errors import ERROR_RESPONSES
@@ -23,7 +23,7 @@ def submit_observation(
     input: ObservationInput,
     session: WriteSession,
     now: ServerClock,
-    queue: AssessmentQueue,
+    scheduler: Scheduler,
 ) -> ObservationRecord:
     """Commit an observation, then request assessment of its case."""
-    return observation.ingest(input=input, session=session, now=now, queue=queue)
+    return observation.ingest(input=input, session=session, now=now, scheduler=scheduler)

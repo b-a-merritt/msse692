@@ -18,7 +18,11 @@ from normative_conformance.models.observation import Observation
 
 
 @pytest.fixture
-def client(*, tmp_path, received_at):
+def client(*, tmp_path, received_at, monkeypatch):
+    def idle_worker(*, scheduler, engine, now):
+        scheduler.stopped.wait()
+
+    monkeypatch.setattr("normative_conformance.lifespan.run_worker", idle_worker)
     application = create_app(
         settings=Settings(
             app_db_path=tmp_path / "api.sqlite3",
@@ -176,10 +180,10 @@ def test_enqueue_failure_returns_committed_observation(*, client, observation_da
     assert queue.qsize() == 1
 
 
-def test_uninitialized_queue_rejects_submission_before_writing(
+def test_uninitialized_scheduler_rejects_submission_before_writing(
     *, client, observation_data, monkeypatch
 ):
-    monkeypatch.setattr(client.app.state, "assessment_queue", None)
+    monkeypatch.setattr(client.app.state, "scheduler", None)
     response = client.post("/api/v1/observations", json=observation_data)
 
     assert response.status_code == 503
@@ -197,3 +201,13 @@ def test_openapi_describes_ingestion_responses(*, client):
     assert responses["202"]["content"]["application/json"]["schema"]["$ref"] == (
         "#/components/schemas/ObservationRecord"
     )
+
+
+def test_stopped_worker_rejects_submission_before_writing(*, client, observation_data):
+    client.app.state.scheduler.stopped.set()
+    response = client.post("/api/v1/observations", json=observation_data)
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "NOT_READY"
+    with Session(bind=client.app.state.engine) as session:
+        assert session.exec(select(Observation)).all() == []

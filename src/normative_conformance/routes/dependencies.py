@@ -4,7 +4,6 @@ from typing import cast
 
 from fastapi import Depends
 from fastapi import Request
-from persistqueue import SQLiteAckQueue
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
@@ -14,6 +13,7 @@ from normative_conformance.database import write_session
 from normative_conformance.errors import NotReady
 from normative_conformance.errors import StorageUnavailable
 from normative_conformance.schemas.internal import Clock
+from normative_conformance.services.scheduler.state import SchedulerState
 
 
 def get_engine(
@@ -54,14 +54,14 @@ def get_clock(
     return cast(Clock, request.app.state.clock)
 
 
-def get_assessment_queue(*, request: Request) -> SQLiteAckQueue:
-    queue = cast(SQLiteAckQueue | None, getattr(request.app.state, "assessment_queue", None))
-    if queue is None:
-        raise NotReady("The assessment queue is not initialized")
-    return queue
+def get_scheduler(*, request: Request) -> SchedulerState:
+    scheduler = cast(SchedulerState | None, getattr(request.app.state, "scheduler", None))
+    if scheduler is None or scheduler.stopped.is_set():
+        raise NotReady("The assessment worker is not running")
+    return scheduler
 
 
 ReadSession = Annotated[Session, Depends(get_read_session)]
 WriteSession = Annotated[Session, Depends(get_write_session)]
 ServerClock = Annotated[Clock, Depends(get_clock)]
-AssessmentQueue = Annotated[SQLiteAckQueue, Depends(get_assessment_queue)]
+Scheduler = Annotated[SchedulerState, Depends(get_scheduler)]
