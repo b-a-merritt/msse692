@@ -21,7 +21,7 @@ MIGRATIONS_LOCATION = "normative_conformance:migrations"
 
 def _configure_connection(connection: object, record: object) -> None:
     if not isinstance(connection, sqlite3.Connection):
-        raise TypeError("The application database requires SQLite.")
+        raise TypeError("The application database requires SQLite")
 
     # SQLAlchemy owns transactions, so disable legacy BEGIN behavior
     connection.isolation_level = None
@@ -80,7 +80,7 @@ def initialize_database(*, engine: Engine) -> None:
         ):
             command.upgrade(_migration_config(connection=connection), "head")
     except (CommandError, OperationalError) as error:
-        raise StorageUnavailable("The application database could not be migrated.") from error
+        raise StorageUnavailable("The application database could not be migrated") from error
 
 
 @contextmanager

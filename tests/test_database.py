@@ -41,7 +41,7 @@ def test_unknown_revision_is_rejected_without_rewriting_it(*, engine):
     with pytest.raises(StorageUnavailable) as caught:
         database.initialize_database(engine=engine)
 
-    assert str(caught.value) == "The application database could not be migrated."
+    assert str(caught.value) == "The application database could not be migrated"
     assert caught.value.__cause__ is not None
     with engine.connect() as connection:
         assert (
@@ -88,7 +88,7 @@ def test_failed_migration_rolls_back_schema_and_data(
     with pytest.raises(StorageUnavailable) as caught:
         database.initialize_database(engine=empty_engine)
 
-    assert str(caught.value) == "The application database could not be migrated."
+    assert str(caught.value) == "The application database could not be migrated"
     assert isinstance(caught.value.__cause__, OperationalError)
     assert inspect(empty_engine).get_table_names() == original_tables
     if already_initialized:

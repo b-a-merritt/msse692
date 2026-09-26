@@ -14,7 +14,7 @@ class ObservationExists(RuntimeError):
 
 
 class NotReady(RuntimeError):
-    """A required runtime resource has not been initialized."""
+    """A required runtime resource is not available to process requests."""
 
 
 class EnqueueFailed(RuntimeError):

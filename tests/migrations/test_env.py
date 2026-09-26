@@ -26,7 +26,7 @@ def test_requires_a_supplied_connection(*, migration_config):
 
     assert str(caught.value) == (
         "Migrations run through normative_conformance.database.initialize_database, "
-        "which the application calls at startup. Use alembic to list revisions."
+        "which the application calls at startup. Use alembic to list revisions"
     )
 
 

@@ -14,7 +14,10 @@ from normative_conformance.routes.errors import register_error_handlers
 from normative_conformance.schemas.internal import Clock
 
 
-async def response_metadata(request: Request, call_next: RequestResponseEndpoint) -> Response:
+async def response_metadata(
+    request: Request,
+    call_next: RequestResponseEndpoint,
+) -> Response:
     """Assign one server request ID and disable caching for each response."""
     request.state.request_id = uuid4()
     response = await call_next(request)
@@ -23,7 +26,11 @@ async def response_metadata(request: Request, call_next: RequestResponseEndpoint
     return response
 
 
-def create_app(*, settings: Settings | None = None, now: Clock = utc_now) -> FastAPI:
+def create_app(
+    *,
+    settings: Settings | None = None,
+    now: Clock = utc_now,
+) -> FastAPI:
     settings = settings if settings is not None else get_settings()
 
     application = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)

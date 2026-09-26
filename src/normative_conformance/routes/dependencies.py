@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from threading import Thread
 from typing import Annotated
 from typing import cast
 
@@ -61,7 +62,15 @@ def get_scheduler(*, request: Request) -> SchedulerState:
     return scheduler
 
 
+def get_assessment_worker(*, request: Request) -> Thread:
+    worker = cast(Thread | None, getattr(request.app.state, "assessment_worker", None))
+    if worker is None:
+        raise NotReady("The assessment worker is not initialized")
+    return worker
+
+
 ReadSession = Annotated[Session, Depends(get_read_session)]
 WriteSession = Annotated[Session, Depends(get_write_session)]
 ServerClock = Annotated[Clock, Depends(get_clock)]
 Scheduler = Annotated[SchedulerState, Depends(get_scheduler)]
+AssessmentWorker = Annotated[Thread, Depends(get_assessment_worker)]
