@@ -12,6 +12,6 @@ class NormativeModelVersion(SQLModel, table=True):
     name: str = Field(sa_type=Text)
     version: str = Field(primary_key=True, sa_type=Text)
     type: str = Field(default="undesired", sa_type=Text)
-    repairable: bool = True
+    repair_allowance_us: int | None = None
     rules_json: str = Field(sa_type=Text)
     parameters_json: str = Field(sa_type=Text)

@@ -8,7 +8,11 @@ def test_seeded_catalog_is_read_from_database(*, session):
         "high_intensity_address",
         "extended_turn",
     }
-    assert all(model.repairable for model in models if model.type == "undesired")
-    assert [(model.model_id, model.repairable) for model in models if model.type == "repairs"] == [
-        ("apology", False),
+    assert all(
+        model.repair_allowance_us == 10_000_000 for model in models if model.type == "undesired"
+    )
+    assert [
+        (model.model_id, model.repair_allowance_us) for model in models if model.type == "repairs"
+    ] == [
+        ("apology", None),
     ]

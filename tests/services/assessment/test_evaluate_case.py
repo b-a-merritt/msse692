@@ -46,7 +46,9 @@ def test_no_match_creates_no_pending_assessment(*, add_observation, assess, asse
     assert assessment_queue.empty()
 
 
-def test_nonrepairable_match_is_immediate(*, add_observation, assess, session, assessment_queue):
+def test_no_repair_allowance_confirms_immediately(
+    *, add_observation, assess, session, assessment_queue
+):
     add_observation(start=0, end=1)
     session.add(
         NormativeModelVersion(
@@ -54,7 +56,7 @@ def test_nonrepairable_match_is_immediate(*, add_observation, assess, session, a
             version="1",
             name="Immediate",
             type="undesired",
-            repairable=False,
+            repair_allowance_us=None,
             rules_json='[{"rule_id":"always","description":"Always matches","sql":"SELECT 1"}]',
             parameters_json="{}",
         )
@@ -73,6 +75,42 @@ def test_nonrepairable_match_is_immediate(*, add_observation, assess, session, a
     repeated = assess(at=101)
     assert [row.assessment_id for row in repeated] == [result[0].assessment_id]
     assert len(session.exec(select(Assessment)).all()) == 1
+
+
+def test_models_use_their_own_allowance_and_keep_existing_deadlines(
+    *, add_observation, assess, check, session
+):
+    add_observation(start=0, end=1)
+    for model_id, allowance in [("short", 2_000_000), ("long", 20_000_000)]:
+        session.add(
+            NormativeModelVersion(
+                model_id=model_id,
+                version="1",
+                name=model_id,
+                type="undesired",
+                repair_allowance_us=allowance,
+                rules_json='[{"rule_id":"always","description":"Always matches","sql":"SELECT 1"}]',
+                parameters_json="{}",
+            )
+        )
+    session.commit()
+
+    originals = {row.model_id: row for row in assess(at=100)}
+
+    assert originals["short"].next_due_at_us == 102_000_000
+    assert originals["long"].next_due_at_us == 120_000_000
+    for row in originals.values():
+        assert row.status == "pending"
+        explanation = Explanation.model_validate_json(row.explanation_json)
+        assert explanation.rules[0].deadline_at.timestamp() * 1_000_000 == row.next_due_at_us
+    assert [row.model_dump() for row in assess(at=101)] == [
+        row.model_dump() for row in originals.values()
+    ]
+
+    checked = {row.model_id: row for row in check(at=102)}
+    assert checked["short"].status == "conformant"
+    assert checked["short"].resolves_assessment_id == originals["short"].assessment_id
+    assert checked["long"].model_dump() == originals["long"].model_dump()
 
 
 def test_replay_requests_repair_after_enqueue_failure_without_repeating_assessment(

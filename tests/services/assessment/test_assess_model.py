@@ -40,9 +40,9 @@ def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
     assert new.next_due_at_us == 122_000_000
 
 
-@pytest.mark.parametrize("repairable", [False, True])
+@pytest.mark.parametrize("repair_allowance_us", [None, 5_000_000])
 def test_reuse_is_specific_to_model_and_version(
-    *, add_observation, assess, assess_one, session, repairable
+    *, add_observation, assess, assess_one, session, repair_allowance_us
 ):
     add_observation(start=0, end=1)
     identities = [("always", "1"), ("always", "2"), ("other", "1")]
@@ -53,7 +53,7 @@ def test_reuse_is_specific_to_model_and_version(
                 version=version,
                 name=model_id,
                 type="undesired",
-                repairable=repairable,
+                repair_allowance_us=repair_allowance_us,
                 rules_json='[{"rule_id":"always","description":"Always matches","sql":"SELECT 1"}]',
                 parameters_json="{}",
             )

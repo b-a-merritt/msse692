@@ -66,12 +66,12 @@ def test_failed_migration_rolls_back_schema_and_data(
         migration_dir,
         ignore=ignore_patterns("__pycache__"),
     )
-    (migration_dir / "versions" / "0003_failure.py").write_text(
+    (migration_dir / "versions" / "0004_failure.py").write_text(
         dedent("""\
             from alembic import op
 
-            revision = "0003"
-            down_revision = "0002"
+            revision = "0004"
+            down_revision = "0003"
 
             def upgrade():
                 op.execute("CREATE TABLE partial (id INTEGER PRIMARY KEY)")
@@ -95,6 +95,6 @@ def test_failed_migration_rolls_back_schema_and_data(
         with empty_engine.connect() as connection:
             assert (
                 connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
-                == "0002"
+                == "0003"
             )
             assert connection.exec_driver_sql("SELECT * FROM case_log").all() == [("retained", 123)]

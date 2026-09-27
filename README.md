@@ -57,13 +57,13 @@ This coordination assumes one application process.
 
 The worker passes each case and evaluation ID to `assessment.evaluate_case`,
 acknowledges successful work, and records evaluation failures without automatically
-retrying them. Evaluation runs the database's `undesired` models. A repairable match
-creates a pending assessment with a ten-second deadline starting at the case's
-evaluation time. The worker captures that time once with the case sequence; all
-new matches in that evaluation share it. Further matches reuse an existing pending
-assessment and its original deadline.
+retrying them. Evaluation runs the database's `undesired` models. Each model's
+`repair_allowance_us` defines its repair period in positive integer microseconds;
+`null` confirms a match immediately. The seeded undesired models allow ten seconds.
+A pending assessment's deadline starts at the case's evaluation time. The worker
+captures that time once with the case sequence; all new matches in that evaluation
+share it. Further matches reuse an existing pending assessment and its original deadline.
 The worker queues a separate repair check, then checks again at the deadline if needed.
-Nonrepairable matches are confirmed immediately.
 
 Repair checks run the `repairs` models. A qualifying repair appends a non-conformant
 resolution; an expired deadline appends a conformant resolution. Both link to the

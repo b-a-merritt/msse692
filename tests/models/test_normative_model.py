@@ -20,7 +20,11 @@ def test_model_version_round_trip(*, session, records):
         pytest.param({"rules_json": "invalid"}, "CHECK", id="invalid-rules-json"),
         pytest.param({"parameters_json": "invalid"}, "CHECK", id="invalid-parameters-json"),
         pytest.param({"type": "unknown"}, "CHECK", id="unknown-type"),
-        pytest.param({"type": "repairs", "repairable": True}, "CHECK", id="repairable-repair"),
+        pytest.param({"repair_allowance_us": 0}, "CHECK", id="zero-repair-allowance"),
+        pytest.param({"repair_allowance_us": -1}, "CHECK", id="negative-repair-allowance"),
+        pytest.param(
+            {"type": "repairs", "repair_allowance_us": 1}, "CHECK", id="repair-with-allowance"
+        ),
     ],
 )
 def test_invalid_model_versions_are_rejected(*, session, records, changes, constraint):

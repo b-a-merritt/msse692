@@ -19,7 +19,7 @@ class ModelVersion(ContractModel):
     name: str
     version: str = Field(strict=True, min_length=1)
     type: Literal["undesired", "repairs"]
-    repairable: bool = Field(strict=True)
+    repair_allowance_us: int | None = Field(default=None, strict=True, gt=0)
     rules: list[ModelRule] = Field(min_length=1)
     parameters: dict[
         Annotated[str, Field(strict=True, min_length=1, pattern=r"^[^/]+$")],

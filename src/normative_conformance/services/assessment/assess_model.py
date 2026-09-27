@@ -9,8 +9,6 @@ from normative_conformance.schemas.model import ModelVersion
 from normative_conformance.services.assessment.create_assessment import create_assessment
 from normative_conformance.services.model.evaluate_model import evaluate_model
 
-_REPAIR_ALLOWANCE_US = 10_000_000
-
 
 def assess_model(
     *,
@@ -52,14 +50,18 @@ def assess_model(
         ):
             return previous
 
+    deadline = (
+        snapshot.evaluated_at_us + model.repair_allowance_us
+        if model.repair_allowance_us is not None
+        else None
+    )
+
     return create_assessment(
         model=model,
         snapshot=snapshot,
-        status="pending" if model.repairable else "conformant",
+        status="pending" if deadline is not None else "conformant",
         session=session,
-        next_due_at_us=(
-            snapshot.evaluated_at_us + _REPAIR_ALLOWANCE_US if model.repairable else None
-        ),
+        next_due_at_us=deadline,
     )
 
 
