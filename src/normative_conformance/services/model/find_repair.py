@@ -13,6 +13,7 @@ def find_repair(
     *,
     models: Sequence[ModelVersion],
     case_id: str,
+    subject_speaker_id: str,
     through_sequence: int,
     session: Session,
     after_observation: Observation | None = None,
@@ -36,6 +37,7 @@ def find_repair(
             if evaluate_model(
                 model=model,
                 case_id=case_id,
+                subject_speaker_id=subject_speaker_id,
                 through_sequence=through_sequence,
                 session=session,
                 after_observation=after_observation,

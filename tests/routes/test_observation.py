@@ -5,33 +5,13 @@ from unittest.mock import Mock
 from uuid import UUID
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session
 from sqlmodel import select
 
-from normative_conformance.config import Settings
-from normative_conformance.main import create_app
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.case import CaseLog
 from normative_conformance.models.observation import Observation
-
-
-@pytest.fixture
-def client(*, tmp_path, received_at, monkeypatch):
-    def idle_worker(*, scheduler, engine, now):
-        scheduler.stopped.wait()
-
-    monkeypatch.setattr("normative_conformance.lifespan.run_worker", idle_worker)
-    application = create_app(
-        settings=Settings(
-            app_db_path=tmp_path / "api.sqlite3",
-            assessment_queue_path=tmp_path / "queue",
-        ),
-        now=lambda: received_at,
-    )
-    with TestClient(application) as client:
-        yield client
 
 
 def test_ingestion_returns_committed_observation_and_requests_assessment(

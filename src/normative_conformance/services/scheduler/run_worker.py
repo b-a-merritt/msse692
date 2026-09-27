@@ -8,7 +8,6 @@ from normative_conformance.database import read_session
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.services import assessment
-from normative_conformance.services.assessment.list_pending import list_pending
 from normative_conformance.services.scheduler.request_repair_check import request_repair_check
 from normative_conformance.services.scheduler.state import SchedulerState
 from normative_conformance.timestamps import to_microseconds
@@ -25,7 +24,10 @@ def run_worker(
     """Process requests serially, finishing active work before shutdown."""
     try:
         with read_session(engine=engine) as session:
-            deadlines = _earliest_deadlines(rows=list_pending(session=session))
+            pending = assessment.list_assessments(
+                status="pending", unresolved=True, session=session
+            )
+            deadlines = _earliest_deadlines(rows=pending)
         while not scheduler.stopped.is_set():
             _enqueue_due_repairs(deadlines=deadlines, scheduler=scheduler, now=now)
             try:

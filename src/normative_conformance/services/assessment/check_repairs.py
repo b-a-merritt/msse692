@@ -1,23 +1,22 @@
+from dataclasses import replace
 from uuid import UUID
 
 from sqlalchemy import Engine
-from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import select
 
 from normative_conformance.database import write_session
-from normative_conformance.errors import NotFound
 from normative_conformance.errors import StorageUnavailable
 from normative_conformance.models.assessment import Assessment
-from normative_conformance.models.observation import Observation
+from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.services.assessment.create_assessment import create_assessment
 from normative_conformance.services.assessment.get_last_repair import get_last_repair
-from normative_conformance.services.assessment.list_pending import list_pending
-from normative_conformance.services.model.evaluate_model import evaluate_model
+from normative_conformance.services.assessment.list_assessments import list_assessments
+from normative_conformance.services.assessment.resolve_pending import resolve_pending
 from normative_conformance.services.model.find_repair import find_repair
-from normative_conformance.services.model.get_model import get_model
+from normative_conformance.services.model.get_subject_speaker_id import get_subject_speaker_id
 from normative_conformance.services.model.list_models import list_models
+from normative_conformance.services.observation.get_case_sequence import get_case_sequence
 from normative_conformance.services.scheduler.request_assessment import request_assessment
 from normative_conformance.services.scheduler.state import SchedulerState
 from normative_conformance.timestamps import to_microseconds
@@ -34,85 +33,57 @@ def check_repairs(
     """Record repairs and append one final result for each resolved pending match."""
     try:
         with write_session(engine=engine) as session:
-            through_sequence = session.exec(
-                select(func.max(Observation.sequence)).where(
-                    Observation.case_id == case_id,
-                )
-            ).one()
-            if through_sequence is None:
-                raise NotFound("The case has no observations")
-            evaluated_at_us = to_microseconds(value=now())
-            repairs = [
-                model for model in list_models(session=session).items if model.type == "repairs"
-            ]
-            results = []
-            last_repair = get_last_repair(case_id=case_id, session=session)
-            latest = find_repair(
-                models=repairs,
+            snapshot = CaseSnapshot(
                 case_id=case_id,
-                through_sequence=through_sequence,
-                session=session,
-                after_observation=last_repair,
+                evaluation_id=str(evaluation_id),
+                through_sequence=get_case_sequence(case_id=case_id, session=session),
+                evaluated_at_us=to_microseconds(value=now()),
             )
-            if latest:
-                repair_model, observation = latest
+            subject_speaker_id = get_subject_speaker_id(session=session)
+            models = {
+                (model.model_id, model.version): model for model in list_models(session=session)
+            }
+            repair_models = [model for model in models.values() if model.type == "repairs"]
+            new_repair = find_repair(
+                models=repair_models,
+                case_id=case_id,
+                subject_speaker_id=subject_speaker_id,
+                through_sequence=snapshot.through_sequence,
+                session=session,
+                after_observation=get_last_repair(case_id=case_id, session=session),
+            )
+            results = []
+            if new_repair is not None:
+                repair_model, observation = new_repair
                 results.append(
                     create_assessment(
                         model=repair_model,
-                        case_id=case_id,
-                        evaluation_id=evaluation_id,
-                        through_sequence=observation.sequence,
-                        evaluated_at_us=evaluated_at_us,
+                        snapshot=replace(snapshot, through_sequence=observation.sequence),
                         status="conformant",
                         session=session,
                         observation_ids=[observation.observation_id],
                     )
                 )
-            for pending in list_pending(case_id=case_id, session=session):
-                model = get_model(
-                    model_id=pending.model_id, version=pending.model_version, session=session
-                )
-                repair = find_repair(
-                    models=repairs,
-                    case_id=case_id,
-                    through_sequence=through_sequence,
-                    session=session,
-                    deadline_at_us=pending.next_due_at_us,
-                )
-                # Recheck the original snapshot after the repair's source boundary.
-                # This associates a boolean repair rule with the behavior it can cancel.
-                repaired = repair is not None and not evaluate_model(
-                    model=model,
-                    case_id=case_id,
-                    through_sequence=pending.through_sequence,
-                    session=session,
-                    after_observation=repair[1],
-                )
-                assert pending.next_due_at_us is not None
-                if not repaired and evaluated_at_us < pending.next_due_at_us:
-                    results.append(pending)
-                    continue
+            for pending in list_assessments(
+                case_id=case_id, status="pending", unresolved=True, session=session
+            ):
                 results.append(
-                    create_assessment(
-                        model=model,
-                        case_id=case_id,
-                        evaluation_id=evaluation_id,
-                        through_sequence=through_sequence,
-                        evaluated_at_us=evaluated_at_us,
-                        status="non-conformant" if repaired else "conformant",
+                    resolve_pending(
+                        pending=pending,
+                        model=models[pending.model_id, pending.model_version],
+                        repair_models=repair_models,
+                        snapshot=snapshot,
+                        subject_speaker_id=subject_speaker_id,
                         session=session,
-                        resolves_assessment_id=pending.assessment_id,
-                        observation_ids=[repair[1].observation_id] if repaired and repair else [],
                     )
                 )
             session.commit()
     except SQLAlchemyError as error:
         raise StorageUnavailable("Repairs could not be checked") from error
 
-    if not scheduler.stopped.is_set() and any(
-        row.status == "non-conformant"
-        or (row.status == "conformant" and row.resolves_assessment_id is None)
-        for row in results
-    ):
+    needs_assessment = new_repair is not None or any(
+        row.status == "non-conformant" for row in results
+    )
+    if needs_assessment and not scheduler.stopped.is_set():
         request_assessment(case_id=case_id, scheduler=scheduler)
     return results

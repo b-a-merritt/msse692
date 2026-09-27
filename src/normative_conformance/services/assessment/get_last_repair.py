@@ -8,6 +8,7 @@ from normative_conformance.models.observation import Observation
 
 
 def get_last_repair(*, case_id: str, session: Session) -> Observation | None:
+    """Find the latest recorded repair in speech order, regardless of receipt order."""
     return session.exec(
         select(Observation)
         .join(

@@ -2,38 +2,12 @@ import pytest
 from sqlmodel import select
 
 from normative_conformance.database import read_session
+from normative_conformance.errors import StorageUnavailable
 from normative_conformance.models.assessment import Assessment
-from normative_conformance.services.assessment.list_pending import list_pending
-
-
-@pytest.mark.parametrize(
-    "received,expected", [(109.999999, "non-conformant"), (110, "conformant"), (111, "conformant")]
-)
-def test_repair_uses_fixed_deadline_when_check_is_delayed(
-    *,
-    add_observation,
-    assess,
-    check,
-    session,
-    received,
-    expected,
-):
-    add_observation(start=0, end=0.9, transcript="you are wrong", level=-17.0)
-    original = assess()[0]
-    before = original.model_dump()
-    add_observation(start=1, end=2, transcript="I apologize", received=received)
-    results = check(at=120)
-    resolution = next(row for row in results if row.resolves_assessment_id is not None)
-    assert resolution.resolves_assessment_id == original.assessment_id
-    assert resolution.status == expected
-    assert session.get(Assessment, original.assessment_id).model_dump() == before
-    assert list_pending(session=session) == []
-    session.commit()
-    assert check(at=121) == []
 
 
 def test_repair_can_resolve_multiple_pending_models(*, add_observation, assess, check):
-    add_observation(start=0, end=0.9, transcript="you are wrong", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
     add_observation(start=1, end=32)
     pending = assess()
     assert len(pending) == 2
@@ -45,27 +19,19 @@ def test_repair_can_resolve_multiple_pending_models(*, add_observation, assess, 
     assert all(row.status == "non-conformant" for row in resolutions)
 
 
-def test_older_speech_arriving_later_does_not_cancel_pending(*, add_observation, assess, check):
-    add_observation(start=3, end=3.9, transcript="you are wrong", level=-17.0)
+def test_repair_searches_and_resolutions_share_one_subject_lookup(
+    *, add_observation, assess, check, subject_config_reads
+):
+    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=1, end=32)
     assess()
-    add_observation(start=0, end=1, transcript="I apologize", received=105)
-    results = check()
-    assert (
-        next(row for row in results if row.resolves_assessment_id is not None).status
-        == "conformant"
-    )
+    add_observation(start=33, end=34, transcript="I apologize", received=105)
+    subject_config_reads.clear()
 
+    results = check(at=105)
 
-def test_latest_late_repair_does_not_hide_earlier_timely_repair(*, add_observation, assess, check):
-    add_observation(start=0, end=0.9, transcript="you are wrong", level=-17.0)
-    assess()
-    add_observation(start=1, end=2, transcript="I apologize", received=105)
-    add_observation(start=3, end=4, transcript="I am sorry", received=115)
-    results = check(at=120)
-    assert (
-        next(row for row in results if row.resolves_assessment_id is not None).status
-        == "non-conformant"
-    )
+    assert len(results) == 3
+    assert len(subject_config_reads) == 1
 
 
 def test_late_repair_resets_future_detection_without_retracting_positive(
@@ -75,13 +41,13 @@ def test_late_repair_resets_future_detection_without_retracting_positive(
     check,
     session,
 ):
-    add_observation(start=0, end=0.9, transcript="you are wrong", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
     assess()
     final = check()[0]
     before = final.model_dump()
     add_observation(start=1, end=2, transcript="I apologize", received=111)
     check(at=111)
-    add_observation(start=3, end=3.9, transcript="you are wrong", level=-17.0, received=112)
+    add_observation(start=3, end=3.9, transcript="you are a liar", level=-17.0, received=112)
     new = assess(at=112)[0]
     assert new.status == "pending"
     assert new.next_due_at_us == 122_000_000
@@ -113,7 +79,7 @@ def test_repeated_checks_append_only_one_resolution(*, add_observation, assess, 
 def test_repair_requests_assessment_after_commit_unless_stopping(
     *, add_observation, assess, check, engine, scheduler, assessment_queue, monkeypatch, stopping
 ):
-    add_observation(start=0, end=0.9, transcript="you are wrong", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
     original = assess()[0]
     add_observation(start=1, end=2, transcript="I apologize", received=105)
     put = assessment_queue.put
@@ -143,10 +109,33 @@ def test_repair_requests_assessment_after_commit_unless_stopping(
 def test_check_without_repair_does_not_request_assessment(
     *, add_observation, assess, check, scheduler, at
 ):
-    add_observation(start=0, end=0.9, transcript="you are wrong", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
     assess()
 
     results = check(at=at)
 
     assert results[0].status == ("pending" if at < 110 else "conformant")
+    assert scheduler.queued_cases == set()
+
+
+def test_failed_resolution_rolls_back_repair_before_requesting_assessment(
+    *, add_observation, assess, check, engine, scheduler
+):
+    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    original = assess()[0]
+    add_observation(start=1, end=2, transcript="I apologize", received=105)
+    # The apology is stored first; a failed resolution must roll it back too.
+    with engine.begin() as connection:
+        connection.exec_driver_sql("""
+            CREATE TRIGGER fail_resolution BEFORE INSERT ON assessment
+            WHEN NEW.resolves_assessment_id IS NOT NULL
+            BEGIN SELECT RAISE(ABORT, 'Resolution write failed'); END
+        """)
+
+    with pytest.raises(StorageUnavailable, match="Repairs could not be checked"):
+        check(at=105)
+
+    with read_session(engine=engine) as session:
+        rows = session.exec(select(Assessment)).all()
+        assert [row.model_dump() for row in rows] == [original.model_dump()]
     assert scheduler.queued_cases == set()

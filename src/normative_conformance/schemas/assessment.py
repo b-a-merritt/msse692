@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Annotated
 from typing import Literal
 from uuid import UUID
@@ -8,7 +7,6 @@ from pydantic import AwareDatetime
 from pydantic import Field
 
 from normative_conformance.schemas.common import ContractModel
-from normative_conformance.schemas.observation import ObservationRecord
 
 
 class Extent(ContractModel):
@@ -48,24 +46,9 @@ class Assessment(ContractModel):
     next_due_at: AwareDatetime | None
 
 
-class AssessmentList(ContractModel):
-    items: list[Assessment]
-
-
 @dataclass(frozen=True, kw_only=True)
 class CaseSnapshot:
-    evaluation_id: UUID
+    evaluation_id: str
     case_id: str
-    subject_speaker_id: str
-    evaluated_at: datetime
     through_sequence: int
-    observations: tuple[ObservationRecord, ...]
-
-
-@dataclass(frozen=True, kw_only=True)
-class ModelEvaluation:
-    model_id: str
-    model_version: str
-    status: Literal["conformant", "non-conformant", "pending", "conflicted"]
-    explanation: Explanation
-    next_due_at: datetime | None
+    evaluated_at_us: int

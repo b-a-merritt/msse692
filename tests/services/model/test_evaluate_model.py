@@ -6,8 +6,16 @@ def test_interruption_counts_distinct_entries_in_captured_prefix(*, add_observat
     add_observation(start=0.5, end=10, speaker="another")
     for start in [1, 4, 7]:
         add_observation(start=start, end=start + 0.3, level=-50.0)
-    assert not matches(model_id="repeated_interruption", through_sequence=4)
+    assert not matches(model_id="repeated_interruption", through_sequence=3)
     assert matches(model_id="repeated_interruption")
+
+
+@pytest.mark.parametrize("overlap,expected", [(0.15, True), (0.149999, False)])
+def test_interruption_requires_minimum_overlap(*, add_observation, matches, overlap, expected):
+    add_observation(start=0, end=10, speaker="other")
+    for start in [1, 4]:
+        add_observation(start=start, end=start + overlap)
+    assert matches(model_id="repeated_interruption") is expected
 
 
 def test_continuous_speech_does_not_manufacture_interruptions(*, add_observation, matches):
@@ -20,14 +28,16 @@ def test_continuous_speech_does_not_manufacture_interruptions(*, add_observation
 @pytest.mark.parametrize(
     "transcript,level,end,expected",
     [
-        ("YOU, are WRONG!", -17.0, 0.9, True),
-        ("you are ridiculous", -17.0, 0.9, True),
-        ("you are wrongheaded", -17.0, 0.9, False),
-        ("you are wrong", -18.0, 0.9, False),
-        ("you are wrong", -17.0, 1.0, False),
+        ("YOU'RE A, liar!", -17.0, 0.9, True),
+        ("you are a liar", -17.0, 0.9, True),
+        ("oh, FUCKING hell", -17.0, 0.9, True),
+        ("you are wrong", -17.0, 0.9, False),
+        ("what a shitty day", -17.0, 0.9, False),
+        ("you're a liar", -18.0, 0.9, False),
+        ("you're a liar", -17.0, 1.0, False),
     ],
 )
-def test_address_conditions_apply_to_same_chunk(
+def test_address_requires_loud_fast_speech_and_insult(
     *,
     add_observation,
     matches,
@@ -40,8 +50,15 @@ def test_address_conditions_apply_to_same_chunk(
     assert matches(model_id="high_intensity_address") is expected
 
 
+def test_address_rules_may_match_different_chunks(*, add_observation, matches):
+    add_observation(start=0, end=0.9, transcript="stop right now", level=-17.0)
+    assert not matches(model_id="high_intensity_address")
+    add_observation(start=2, end=5, transcript="you're a slob")
+    assert matches(model_id="high_intensity_address")
+
+
 def test_subject_comes_from_experiment_config(*, add_observation, matches):
-    add_observation(start=0, end=0.9, transcript="you are wrong", level=-17.0, speaker="subject")
+    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0, speaker="subject")
     assert not matches(model_id="high_intensity_address")
 
 

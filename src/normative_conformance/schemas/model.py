@@ -25,7 +25,3 @@ class ModelVersion(ContractModel):
         Annotated[str, Field(strict=True, min_length=1, pattern=r"^[^/]+$")],
         str | int | float | bool | list[str | int | float | bool | None] | None,
     ]
-
-
-class ModelList(ContractModel):
-    items: list[ModelVersion]
