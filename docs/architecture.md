@@ -10,16 +10,6 @@
 
 **Status:** Draft
 
-**Design-review amendment (2026-09-19):**
-[The accepted review decisions](detailed_design.md#review-decisions) supersede the
-earlier sliding-window, active abstention, four-produced-status, and delivery
-failure descriptions below. It also removes baseline comparison and records the
-full-case, positive-uniqueness, shared-repair, and consume-on-retrieval decisions.
-The numerical performance qualification below is superseded by the current
-prototype scope. Detailed interface contracts are maintained in the
-[detailed design](detailed_design.md); the remaining
-architecture prose and diagrams will be reconciled as those sections are completed.
-
 # **Executive Summary**
 
 The HiTLCPS prototype assesses simulated conversational observations against predefined normative models of undesirable behaviors. It begins research into a Human-in-the-Loop Cyber-Physical Systems (HiTLCPS) prototype that uses normative conformance checking to assess human behavior and intervene to correct habits. It comprises three stages: collecting mocked (for now) observations, evaluating conformance, and implementing interventions.
@@ -56,7 +46,7 @@ Lost evidence, duplicates, or changed models would undermine experiment reconstr
 
 ## **Performance**
 
-**Scenario:** After model initialization and validation, run 100 assessments of a case containing 1,000 observations. Every result must include its status and explanation fields without error, with p95 assessment latency at most 250 ms.
+Assessment runs outside request handling. Query work grows with the case history.
 
 Execution overhead must be distinguishable from the model's intentional repair allowance.&nbsp;
 
@@ -78,7 +68,7 @@ The architecture is a modular monolith: one server application with separate ing
 | Model loader | Seed supplied versions without duplication or replacement Validate definitions before readiness |
 | Scheduler | Enqueue case tasks in `persistqueue` after observation commits and at model deadlines; combine waiting requests using in-memory case coordination |
 | Assessment service | Run each supplied normative model's full set of declarative queries Derive activities and store the status, explanation, and exact evaluated observation references |
-| Intervention service | Evaluate conformant assessments and record authorization or abstention, policy identity, reason, and source assessment references |
+| Intervention service | Create interventions from conformant assessments, retaining the message, creation time, and source assessment reference |
 
 Domain records and ready assessment tasks are persisted in SQLite; `persistqueue` owns queue delivery and acknowledgment state. The scheduler keeps future deadlines and queued-case membership in memory. On restart, old messages are drained without evaluation, and cases resume on new observations. Diagnostic logging writes decisions, record references, and rule references to stdout and a file.
 
@@ -93,7 +83,7 @@ Each assessment describes the selected case history, with exactly one status
 | `conformant` | The history matches the pattern. |
 | `non-conformant` | The history definitely does not match the pattern. |
 | `pending` | The result depends on a future observation or an unexpired deadline. |
-| `conflicted` | Applicable checks give unresolved, incompatible results. |
+| `conflicted` | Reserved; the prototype does not produce this status. |
 
 The processing sequence is:
 
@@ -103,7 +93,7 @@ The processing sequence is:
 4. Only a `conformant` assessment reaches the intervention policy. In a separate transaction, the policy commits an intervention with a unique source assessment ID and null sent timestamp. All stored interventions are authorized.
 5. Delivery sets `sent_at_us` on all selected pending interventions before returning the HTTP response. Response status is derived from that timestamp; the decision and source reference remain unchanged.
 
-| Note that intervention pending means delivery is authorized and awaiting completion, while assessment pending means conformance is unresolved. Repair deadlines and relevant window expirations can also trigger assessment without an HTTP submission. Evaluation errors are operational failures, separate from conformance statuses. A later-stage failure leaves earlier commits intact. |
+| Note that intervention pending means delivery is authorized and awaiting completion, while assessment pending means conformance is unresolved. Repair deadlines can also trigger assessment without an HTTP submission. Evaluation errors are operational failures, separate from conformance statuses. A later-stage failure leaves earlier commits intact. |
 | :---- |
 
 &nbsp;
@@ -140,7 +130,7 @@ The server is the prototype's only application container. The database and event
 
 ## **Assessment Flow**
 
-Observation, assessment, and intervention records are committed before the next stage begins. Abstention stops interventions before delivery.
+Observation, assessment, and intervention records are committed before the next stage begins.
 
 ## **Shared Components**
 
@@ -159,33 +149,19 @@ The model loader seeds and validates versions before the server reports health r
 
 ## **Performance**
 
-**Target**&nbsp;
-Complete 100 assessments of a case containing 1,000 observations without errors, returning the status and all explanation fields. The p95 assessment latency must be at most 250 ms.
-
 **Tactics**
 
 | Tactic | Purpose |
 | :---- | :---- |
-| Limit assessment scope | Evaluate the affected case's sliding window, plus evidence needed by pending repair checks. |
+| Capture assessment scope | Evaluate the affected case's full history through the captured sequence number. |
 | Index query access paths | Index case/time filters and source-reference lookups based on actual predicates and query plans. |
 | Separate request handling from assessment | Queue SQL work for the background worker. |
 | Load and validate normative models at startup | Validate models before assessment begins. |
 
 Index effectiveness depends on predicates and data distribution ([SQLite query planning](https://www.sqlite.org/queryplanner.html)). Background execution separates ingestion from assessment.
 
-6. &nbsp;
-
 | Note that while the system should eventually enable the user to change the normative models, that is out of scope. When that functionality is added, create an invalidation strategy to handle model changes while assessments are in progress. |
 | :---- |
-
-**Verification**
-
-1. Initialize the database, validate models, and load 1,000 observations. Record model versions, parameters, timestamp distribution, and expected assessed extent.
-2. Schedule 100 immediate assessments sequentially, using distinct request identities so all execute. Hold observations and logical evaluation time fixed. Retain assessment writes between requests.
-3. Measure real elapsed time from scheduling submission until the harness receives the persisted status and complete explanation. Include queueing, SQL, persistence, and retrieval. Exclude startup, fixture loading, and intentional waiting for a repair deadline. Pending results can have the same latency target.
-4. Validate results. The nearest-rank p95—the 95th value in ascending order—must be at most 250 ms. Any failed request fails the scenario.
-
-Record hardware, software versions, database settings, and background workload. This benchmark does not establish concurrent-ingestion capacity, sustained throughput, or a bound on unresolved repair history.
 
 ## **Reliability and Recovery**
 
@@ -227,13 +203,13 @@ For each completed result, stdout and the database records must explain every de
 | Tactic | Purpose |
 | :---- | :---- |
 | Assessment provenance | Store model identity, version, evaluation time, rule identifiers, reasons, and the case and sequence cutoff identifying the exact evaluated prefix |
-| Policy provenance | Store policy identity, reason, decision time, and source assessment ID |
+| Intervention provenance | Store message, creation time, and source assessment ID |
 | Correlated diagnostics | Log readable outcomes and references to stdout and the event log, including rejected input and operational failures |
 
 These references let an evaluator trace delivery through the policy decision and assessments to the model definitions and observations. Explanations of absent repairs identify the evaluated history and deadline.
 
 **Verification**
-Independently write expectations covering all four assessment statuses: authorization, abstention, pending delivery, delivery failure, and success. Include invalid input, retained observations matching no activity, and SQL failure. Inspect both logging outputs for reasons and references at each executed stage.
+Independently write expectations covering conformant, non-conformant, and pending assessments; intervention creation; pending and sent delivery; and failures before and after delivery commits. Include invalid input, retained observations matching no activity, and SQL failure. Inspect both logging outputs for reasons and references at each executed stage.
 
 ## **Reproducibility**
 
@@ -262,7 +238,7 @@ Supply commands for initialization and the expected results. Run them in two fre
 
 ## **Database and Query Execution**
 
-**SQLite and SQL** for persistence and transactions. SQLite needs no separate database service, but allows only one writer at a time, meaning that ingestion and assessment can contend with each other ([SQLite use cases](https://www.sqlite.org/whentouse.html)). Short transactions, suitable indexes, and benchmarking will mitigate this.
+**SQLite and SQL** for persistence and transactions. SQLite needs no separate database service, but allows only one writer at a time, meaning that ingestion and assessment can contend with each other ([SQLite use cases](https://www.sqlite.org/whentouse.html)). Short transactions and suitable indexes will mitigate this.
 
 [**SQLModel**](https://sqlmodel.tiangolo.com/) supplies typed table definitions and Object Relation Mapping (ORM) using Pydantic.
 
@@ -270,9 +246,9 @@ Supply commands for initialization and the expected results. Run them in two fre
 
 **HTTP/JSON** lets mock clients submit observations and retrieve records.
 
-**Service calls and [`persistqueue`](https://github.com/peter-wangxu/persist-queue)** keep deployment local, with the queue's SQLite backend retaining queued work across restarts. Assessment work is enqueued only after the triggering observation commits. The scheduler manages repair-deadline and window-expiration timers and duplicate prevention. The queue stores work for the background worker. Timers must work without incoming requests.
+**Service calls and [`persistqueue`](https://github.com/peter-wangxu/persist-queue)** keep deployment local, with the queue's SQLite backend retaining queued work across restarts. Assessment work is enqueued only after the triggering observation commits. The scheduler manages repair deadlines and duplicate prevention. The queue stores work for the background worker. Timers must work without incoming requests.
 
-**Local deployment** avoids service administration but leaves one process and one machine as single points of failure. Run performance and recovery evaluations without development auto-reload.
+**Local deployment** avoids service administration but leaves one process and one machine as single points of failure. Run recovery evaluations without development auto-reload.
 
 # **Architectural Constraints and Assumptions**
 
@@ -306,11 +282,11 @@ The requirements exclude application security. Authentication, authorization, TL
 | Risks and Mitigations |  |
 | :---- | :---- |
 | **Risk** | **Mitigation Strategy** |
-| SQL evaluation or write contention exceeds the latency target | Measure queueing, SQL, and persistence separately. Optimize query plans and indexes against unchanged expectations before adding processes or services. |
-| Timestamp ambiguity changes repair or window outcomes | Resolve Section 5.5's time rules; test equal timestamps and before/at/after boundaries with controlled time. |
-| Multiple triggers duplicate work or interventions | Define work identity and policy handling for repeated matches. Test overlapping windows and simultaneous triggers. |
+| SQL evaluation or write contention delays assessment | Inspect query plans and transaction duration. Optimize queries and indexes against unchanged expectations before adding processes or services. |
+| Timestamp ambiguity changes repair outcomes | Use the detailed design's time rules; test equal timestamps and before/at/after boundaries with controlled time. |
+| Multiple triggers duplicate work or interventions | Define work identity and policy handling for repeated matches. Test simultaneous observation and repair-deadline triggers. |
 | Restart leaves checks or delivery inactive | Test stage-boundary recovery and document the next-observation resume rule. Cases without later observations stay inactive. |
 | A crash leaves commits without diagnostic entries | Preserve relational provenance; test interrupted stages. SQLite and log writes are not atomic together. |
-| Observations and historical results grow without bound | Bound evaluation runs and archive completed databases. Retain active-case evidence beyond window expiration; long-term retention remains future work. |
-| Passing traces is mistaken for ethical accuracy | Use independent expectations and the rules-engine baseline; report technical outcomes separately from claims of normative legitimacy or human benefit. |
+| Observations and historical results grow without bound | Bound evaluation runs and archive completed databases. Retain the full case history; long-term retention remains future work. |
+| Passing traces is mistaken for ethical accuracy | Use independent expectations; report technical outcomes separately from claims of normative legitimacy or human benefit. |
 | Documents or tests use superseded assumptions | Trace tests to current ADRs and Section 2.5, especially observation persistence and intervention records. |

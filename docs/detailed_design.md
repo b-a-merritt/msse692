@@ -66,7 +66,7 @@ One process runs at `http://127.0.0.1:8000`. Product endpoints use `/api/v1`. He
 
 A UUID request ID is generated for each response to be used for logging and tracing requests. API timestamps require a timezone and are returned in UTC, for example `2026-09-20T12:00:00.000000Z`. Database timestamps use integer Unix microseconds, identified by `_us`. Unknown request fields and query parameters are rejected. Responses generated UUID in `X-Request-ID`. Every application error uses `ErrorEnvelope`:
 
-| {   "error": {    "code": "VALIDATION\_ERROR",    "message": "The observation fields are invalid.",    "request\_id": "ea65e629-082b-4c8b-a6c2-bd387878e7af",    "details": \[      {         "location": "/end\_at",          "message": "Must exceed start\_at."       }     \],    "committed\_observation": null  }} |
+| {   "error": {    "code": "VALIDATION\_ERROR",    "message": "The observation fields are invalid",    "request\_id": "ea65e629-082b-4c8b-a6c2-bd387878e7af",    "details": \[      {         "location": "/end\_at",          "message": "Must exceed start\_at"       }     \],    "committed\_observation": null  }} |
 | :---- |
 
 The following status codes are used.
@@ -92,15 +92,14 @@ The following status codes are used.
 | `POST /observations` | `ObservationInput` | 202 `ObservationAccepted`&nbsp; |
 | `GET/cases/{case_id}/observations` | Case ID | 200 `ListResponse[ObservationRecord]` |
 | `GET/cases/{case_id}/observations/{observation_id}` | Case and observation IDs | 200 `ObservationRecord` |
-| `GET /models` | None | 200 `ModelList` |
-| `GET /models/{model_version_id}` | Model-version ID | 200 `ModelVersion` |
-| `GET /cases/{case_id}/assessments` | Case ID | 200 `AssessmentList` |
+| `GET /models` | None | 200 `ListResponse[ModelVersion]` |
+| `GET /models/{model_id}/versions/{version}` | Model ID and version | 200 `ModelVersion` |
+| `GET /cases/{case_id}/assessments` | Case ID | 200 `ListResponse[Assessment]` |
 | `GET /assessments/{assessment_id}` | Assessment ID | 200 `Assessment` |
-| `GET /interventions` | `case_id`, `status` | 200`InterventionList` |
-| `POST /interventions/deliver` | None | 200 `DeliveryResult` |
+| `GET /interventions` | `case_id`, `status` | 200`ListResponse[Intervention]` |
+| `POST /interventions/deliver` | None | 200 `ListResponse[Intervention]` |
 | `GET /health/live` | None | 200 `Liveness` (HTTP process is responsive) |
 | `GET /health/ready` | None | 200 `Readiness` (models validated, database/queue usable, scheduler/worker running) |
-| `POST /observations` | `ObservationInput` | 202 `ObservationAccepted`&nbsp; |
 
 Every list has the shape `{"items": [...]}` and returns all matching records.
 
@@ -151,7 +150,7 @@ All three fields are required. Extras are rejected. The evaluation UUID is gener
 | Note that the queue has it’s own SQLite database as part of the persist-queue package. |
 | :---- |
 
-The configuration is a singleton for the whole database. It fixes the assessed speaker without repeating an experiment ID on every case. Observation sequence is unique within its case. An assessment's `(case_id, last_observation_sequence)` references that case's last included observation.
+The configuration is a singleton for the whole database. It fixes the assessed speaker without repeating an experiment ID on every case. Observation sequence is unique within its case. An assessment's `(case_id, through_sequence)` references that case's last included observation.
 
 ## **Tables and constraints** {#tables-and-constraints}
 
@@ -163,21 +162,21 @@ The tables use SQLite `STRICT`. Unless marked nullable, every column is `NOT NUL
 | `case_log` | `case_id TEXT PK``created_at_us INTEGER` |
 | `observation` | `case_id TEXT PK``observation_id TEXT PK``sequence INTEGER``received_at_us INTEGER``speaker_id TEXT``start_at_us INTEGER``end_at_us INTEGER``transcript TEXT``signal_level_min REAL``signal_level_avg REAL``signal_level_max REAL` |
 | `normative_model_version` | `model_id TEXT PK``version TEXT PK``name TEXT``orientation TEXT``rules_json TEXT``parameters_json TEXT` |
-| `assessment` | `assessment_id INTEGER PK``evaluation_id TEXT``case_id TEXT``model_id TEXT``model_version TEXT``evaluated_at_us INTEGER``last_observation_sequence INTEGER``status TEXT``explanation_json TEXT``next_due_at_us INTEGER nullable` |
+| `assessment` | `assessment_id INTEGER PK``evaluation_id TEXT``case_id TEXT``model_id TEXT``model_version TEXT``evaluated_at_us INTEGER``through_sequence INTEGER``status TEXT``explanation_json TEXT``next_due_at_us INTEGER nullable` |
 | `intervention` | `intervention_id INTEGER PK``assessment_id INTEGER``message TEXT``created_at_us INTEGER``sent_at_us INTEGER nullable` |
 
 ### Constraints
 
 1. **Observations:** `(case_id, observation_id)` is the primary key and link `case_id` to `case_log`. Require a unique `(case_id, sequence)`, positive sequence, nonempty IDs and transcript, and `end_at_us > start_at_us`.&nbsp;
 2. **Models:** Use `(model_id, version)` as the primary key and require both fields to be nonempty. Set orientation to `undesirable_pattern`. Rules must be a nonempty JSON array and parameters a JSON object.&nbsp;
-3. **Assessments:** foreign keys to the case, `(model_id, model_version)` to the model key, and `(case_id, last_observation_sequence)` to observation sequence. Unique `(evaluation_id, model_id, model_version)`. Status uses the four defined values.&nbsp;
+3. **Assessments:** foreign keys to the case, `(model_id, model_version)` to the model key, and `(case_id, through_sequence)` to observation sequence. Unique `(evaluation_id, model_id, model_version)`. Status uses the four defined values.&nbsp;
 4. **Interventions:** unique `assessment_id` with a foreign key to assessment. An insert trigger requires a conformant source.&nbsp;
 
 ## **Indexes and queries** {#indexes-and-queries}
 
 Every model query begins with the same case history:
 
-| WITH history AS (    SELECT \* FROM observation    WHERE case\_id \= :case\_id      AND sequence \<= :last\_observation\_sequence)\-- Derive this model's conditions from history. |
+| WITH history AS (    SELECT \* FROM observation    WHERE case\_id \= :case\_id      AND sequence \<= :through\_sequence)\-- Derive this model's conditions from history. |
 | :---- |
 
 Historical extent retrieval uses the same predicate and `ORDER BY sequence`. The model's time rules are additional SQL conditions, never a server-imposed history window. Use bound parameters for values supplied to queries.
@@ -195,7 +194,7 @@ Intervention creation follows the assessment commit and cannot roll that back. F
 | Pydantic and pydantic-settings | Validate request data and load typed configuration from environment variables or `.env`. | Relationships between fields, such as signal-level ordering, still need application checks. |
 | SQLite | Stores records and executes conformance queries without a separate database service. Transactions and foreign keys protect related records. | Only one writer can run at a time, so write transactions must be short. |
 | SQLModel | Maps tables to typed Python records and handles ordinary database access. | Conformance queries, triggers, and some constraints still need SQL. |
-| Numbered SQL migrations | Keep schema changes visible and easy to review for this small database. | The project must maintain and test the migration sequence. |
+| Alembic with SQL revisions | Versions the schema and applies pending revisions at startup, while the SQL inside each revision keeps changes visible and easy to review. | The project must maintain and test the revision sequence, and Alembic treats SQLite DDL as nontransactional unless the caller owns the transaction. |
 | persist-queue | Provides a local persistent queue with acknowledgments, so ingestion can return before assessment finishes. | The application must schedule deadlines and combine duplicate requests. Queue and application writes commit separately. |
 | Ruff and mypy | Apply consistent formatting and catch common code and type errors before execution. | Runtime behavior still needs tests. |
 | pre-commit and GitHub Actions | Run checks locally and on pushes and pull requests. | CI must run the same tests and checks used during development. |
@@ -204,13 +203,15 @@ Intervention creation follows the assessment commit and cannot roll that back. F
 
 ## **Structure and interfaces** {#structure-and-interfaces}
 
-The system will use module-level functions for observation, model, assessment, scheduler, and intervention services. Pydantic models and dataclasses will carry values, and SQLModel classes will map tables.&nbsp;
+The system will use module-level functions for observation, model, assessment, scheduler, and intervention services. Each service has its own directory, with one exported function per file named after that function. Pydantic models and dataclasses will carry values, and SQLModel classes will map tables.&nbsp;
 
 ![][image2]
 
 ## **Assessment and declarative models** {#assessment-and-declarative-models}
 
 The assessment component captures one case history and evaluation time, runs each fixed model, and stores its result. Queries determine conformance. Python binds values and formats the returned evidence.
+
+Each model version has a nullable `repair_allowance_us` field. A positive integer specifies the repair period in microseconds; `null` confirms a match immediately. This field replaces `repairable`. The seeded undesired models use `10000000`, and repair models use `null`. Pending assessments retain their stored deadlines.
 
 ![][image3]
 
@@ -237,7 +238,7 @@ Models will use the parameter names and defaults below. Validation will require 
 
 | Parameters | Used by |
 | :---- | :---- |
-| `repair_allowance_us: 10000000`, `repair_terms: ["i am sorry", "i apologize"]` | All models |
+| `repair_terms: ["i am sorry", "i apologize"]` | Repair models |
 | `address_terms: ["you are wrong", "you are ridiculous"]` | Shared phrase query, with address matches used by intensity |
 | `overlap_min_us: 300000`, `level_rise_db: 0` | Interruption |
 | `volume_threshold_dbfs: -18`, `rate_threshold_wpm: 180` | Intensity |
