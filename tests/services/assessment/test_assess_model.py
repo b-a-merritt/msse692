@@ -10,11 +10,11 @@ from normative_conformance.models.observation import Observation
 def test_finalized_match_is_not_repeated_before_repair(
     *, add_observation, assess, assess_one, check, session
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     original = assess()[0]
     final = check()[0]
     assert final.resolves_assessment_id == original.assessment_id
-    add_observation(start=2, end=2.9, transcript="you are a liar", level=-17.0, received=111)
+    add_observation(start=2, end=2.9, transcript="stop that right now", level=-17.0, received=111)
     assert assess_one(at=111).assessment_id == final.assessment_id
     assert len(session.exec(select(Assessment)).all()) == 2
 
@@ -22,9 +22,9 @@ def test_finalized_match_is_not_repeated_before_repair(
 def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
     *, add_observation, assess, assess_one, check
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     original = assess()[0]
-    add_observation(start=3, end=3.9, transcript="you are a fool", level=-17.0, received=109)
+    add_observation(start=3, end=3.9, transcript="stop it right now", level=-17.0, received=109)
     final = check(at=110)[0]
     assert final.resolves_assessment_id == original.assessment_id
     assert original.through_sequence == 1
@@ -71,7 +71,7 @@ def test_reuse_is_specific_to_model_and_version(
 def test_unresolved_pending_takes_precedence_over_a_later_result(
     *, add_observation, assess, assess_one, session
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     pending = assess()[0]
     later = Assessment(
         **(
@@ -91,7 +91,7 @@ def test_unresolved_pending_takes_precedence_over_a_later_result(
 
 
 def test_reuse_is_specific_to_the_case(*, add_observation, assess, assess_one, session):
-    observation = add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    observation = add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     original = assess()[0]
     session.add(CaseLog(case_id="other", created_at_us=0))
     session.flush()

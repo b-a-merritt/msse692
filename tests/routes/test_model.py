@@ -7,9 +7,14 @@ def test_catalog_exposes_repair_allowances(*, client):
     assert response.status_code == 200
     items = response.json()["items"]
     assert {item["model_id"]: item["repair_allowance_us"] for item in items} == {
+        "absolutist_phrase": 20_000_000,
+        "agreement_phrase": None,
         "apology": None,
+        "character_label": 10_000_000,
         "extended_turn": 10_000_000,
+        "harm_phrase": None,
         "high_intensity_address": 10_000_000,
+        "intent_disclaimer": None,
         "repeated_interruption": 10_000_000,
     }
     assert all("repairable" not in item for item in items)

@@ -17,7 +17,7 @@ def test_repair_uses_fixed_deadline_when_check_is_delayed(
     received,
     expected,
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     original = assess()[0]
     before = original.model_dump()
     add_observation(start=1, end=2, transcript="I apologize", received=received)
@@ -34,7 +34,7 @@ def test_repair_uses_fixed_deadline_when_check_is_delayed(
 
 
 def test_older_speech_arriving_later_does_not_cancel_pending(*, add_observation, assess, resolve):
-    add_observation(start=3, end=3.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=3, end=3.9, transcript="stop that right now", level=-17.0)
     pending = assess()[0]
     add_observation(start=0, end=1, transcript="I apologize", received=105)
     assert resolve(pending=pending).status == "conformant"
@@ -43,7 +43,7 @@ def test_older_speech_arriving_later_does_not_cancel_pending(*, add_observation,
 def test_latest_late_repair_does_not_hide_earlier_timely_repair(
     *, add_observation, assess, resolve
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     pending = assess()[0]
     add_observation(start=1, end=2, transcript="I apologize", received=105)
     add_observation(start=3, end=4, transcript="I am sorry", received=115)
@@ -53,9 +53,9 @@ def test_latest_late_repair_does_not_hide_earlier_timely_repair(
 def test_repair_checks_original_evidence_even_when_later_speech_matches(
     *, add_observation, assess, resolve
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     pending = assess()[0]
-    add_observation(start=3, end=3.9, transcript="you are a fool", level=-17.0, received=104)
+    add_observation(start=3, end=3.9, transcript="stop it right now", level=-17.0, received=104)
     add_observation(start=1, end=2, transcript="I apologize", received=105)
 
     result = resolve(pending=pending, at=105)

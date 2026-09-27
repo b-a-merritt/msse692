@@ -6,28 +6,61 @@ from sqlalchemy import text
 revision: str = "0002"
 down_revision: str | None = "0001"
 
+REPEATED_INTERRUPTION_PARAMETERS = {"overlap_min_us": 150_000, "interruption_count": 2}
+HIGH_INTENSITY_ADDRESS_PARAMETERS = {"volume_threshold_dbfs": -18, "rate_threshold_wpm": 180}
+EXTENDED_TURN_PARAMETERS = {"duration_threshold_us": 30_000_000, "turn_gap_us": 1_000_000}
+HARM_PHRASE_PARAMETERS = {
+    "phrases": [
+        "hope you die",
+        "hope you're dead",
+        "wish you were dead",
+        "kill you",
+        "i swear to god",
+    ],
+}
+CHARACTER_LABEL_PARAMETERS = {
+    "address_phrases": [
+        "you're a",
+        "you are a",
+        "you're such a",
+        "you're just like",
+        "you're exactly like",
+        "like your mother",
+        "like your father",
+    ],
+    "descriptor_terms": [
+        "selfish",
+        "selfishness",
+        "pathetic",
+        "insane",
+        "melodramatic",
+        "slob",
+    ],
+    "vulgar_terms": [
+        "fuck",
+        "fucked",
+        "fucker",
+        "fucking",
+        "shit",
+        "damn",
+        "goddamn",
+        "dick",
+        "bitch",
+        "bastard",
+        "asshole",
+        "crap",
+        "piss",
+        "pissed",
+    ],
+}
+ABSOLUTIST_PHRASE_PARAMETERS = {
+    "phrases": ["you always", "you never", "you'll never", "you will never", "every time you"],
+}
+APOLOGY_PARAMETERS = {"phrases": ["i am sorry", "i'm sorry", "i apologize"]}
+AGREEMENT_PHRASE_PARAMETERS = {"phrases": ["you're right", "you are right"]}
+INTENT_DISCLAIMER_PARAMETERS = {"phrases": ["i didn't mean", "i did not mean"]}
 
-def upgrade() -> None:
-    op.execute("""
-        ALTER TABLE normative_model_version ADD COLUMN type TEXT NOT NULL
-        DEFAULT 'undesired' CHECK (type IN ('undesired', 'repairs'))
-    """)
-    op.execute("""
-        ALTER TABLE normative_model_version ADD COLUMN repairable INTEGER NOT NULL
-        DEFAULT 1 CHECK (repairable IN (0, 1) AND (type = 'undesired' OR repairable = 0))
-    """)
-    models = [
-        {
-            "model_id": "repeated_interruption",
-            "name": "Repeated interruption",
-            "type": "undesired",
-            "repairable": True,
-            "parameters": {"overlap_min_us": 150_000, "interruption_count": 2},
-            "rules": [
-                {
-                    "rule_id": "distinct_interruptions",
-                    "description": "The subject makes at least two distinct interruptions",
-                    "sql": """
+DISTINCT_INTERRUPTIONS_SQL = """
 SELECT 1
 FROM observation s
 JOIN observation o ON o.case_id = s.case_id AND o.speaker_id != s.speaker_id
@@ -46,41 +79,9 @@ WHERE s.case_id = :case_id AND s.speaker_id = :subject_speaker_id
   )
 GROUP BY s.case_id HAVING count(DISTINCT s.sequence) >= :interruption_count
 LIMIT 1
-""",
-                }
-            ],
-        },
-        {
-            "model_id": "high_intensity_address",
-            "name": "High intensity address",
-            "type": "undesired",
-            "repairable": True,
-            "parameters": {
-                "volume_threshold_dbfs": -18,
-                "rate_threshold_wpm": 180,
-                "address_phrases": ["you're a", "you are a"],
-                "vulgar_terms": [
-                    "fuck",
-                    "fucked",
-                    "fucker",
-                    "fucking",
-                    "shit",
-                    "damn",
-                    "goddamn",
-                    "dick",
-                    "bitch",
-                    "bastard",
-                    "asshole",
-                    "crap",
-                    "piss",
-                    "pissed",
-                ],
-            },
-            "rules": [
-                {
-                    "rule_id": "loud_fast_speech",
-                    "description": "A subject chunk is loud and fast",
-                    "sql": """
+"""
+
+LOUD_FAST_SPEECH_SQL = """
 SELECT 1 FROM observation
 WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
   AND sequence <= :through_sequence
@@ -91,40 +92,9 @@ WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
       - length(replace(normalize_text(transcript), ' ', '')) + 1)
       / (end_at_us - start_at_us) > :rate_threshold_wpm
 LIMIT 1
-""",
-                },
-                {
-                    "rule_id": "insulting_address",
-                    "description": "A subject chunk contains vulgarity or an address phrase",
-                    "sql": """
-SELECT 1 FROM observation
-WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
-  AND sequence <= :through_sequence
-  AND (:after_sequence IS NULL OR (start_at_us, end_at_us, sequence)
-       > (:after_start_at_us, :after_end_at_us, :after_sequence))
-  AND EXISTS (
-      SELECT 1 FROM json_each(:address_phrases)
-      WHERE instr(' ' || normalize_text(transcript) || ' ', ' ' || value || ' ') > 0
-      UNION ALL
-      SELECT 1 FROM json_each(:vulgar_terms)
-      WHERE instr(' ' || normalize_text(transcript) || ' ', ' ' || value || ' ') > 0
-  )
-LIMIT 1
-""",
-                },
-            ],
-        },
-        {
-            "model_id": "extended_turn",
-            "name": "Extended turn",
-            "type": "undesired",
-            "repairable": True,
-            "parameters": {"duration_threshold_us": 30_000_000, "turn_gap_us": 1_000_000},
-            "rules": [
-                {
-                    "rule_id": "long_turn",
-                    "description": "A subject turn exceeds thirty seconds",
-                    "sql": """
+"""
+
+LONG_TURN_SQL = """
 WITH chunks AS (
     SELECT *, max(end_at_us) OVER (
         ORDER BY start_at_us, end_at_us, sequence
@@ -150,21 +120,39 @@ WITH chunks AS (
 SELECT 1 FROM turns GROUP BY turn_id
 HAVING max(end_at_us) - min(start_at_us) > :duration_threshold_us
 LIMIT 1
-""",
-                }
-            ],
-        },
-        {
-            "model_id": "apology",
-            "name": "Apology",
-            "type": "repairs",
-            "repairable": False,
-            "parameters": {},
-            "rules": [
-                {
-                    "rule_id": "apology_phrase",
-                    "description": "The subject apologizes within the supplied repair window",
-                    "sql": """
+"""
+
+SUBJECT_PHRASE_SQL = """
+SELECT 1 FROM observation
+WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
+  AND sequence <= :through_sequence
+  AND (:after_sequence IS NULL OR (start_at_us, end_at_us, sequence)
+       > (:after_start_at_us, :after_end_at_us, :after_sequence))
+  AND EXISTS (
+      SELECT 1 FROM json_each(:phrases)
+      WHERE instr(' ' || normalize_text(transcript) || ' ', ' ' || value || ' ') > 0
+  )
+LIMIT 1
+"""
+
+CHARACTER_LABEL_SQL = """
+SELECT 1 FROM observation
+WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
+  AND sequence <= :through_sequence
+  AND (:after_sequence IS NULL OR (start_at_us, end_at_us, sequence)
+       > (:after_start_at_us, :after_end_at_us, :after_sequence))
+  AND EXISTS (
+      SELECT 1 FROM (
+          SELECT value FROM json_each(:address_phrases)
+          UNION ALL SELECT value FROM json_each(:descriptor_terms)
+          UNION ALL SELECT value FROM json_each(:vulgar_terms)
+      )
+      WHERE instr(' ' || normalize_text(transcript) || ' ', ' ' || value || ' ') > 0
+  )
+LIMIT 1
+"""
+
+REPAIR_PHRASE_SQL = """
 SELECT 1 FROM observation
 WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
   AND sequence <= :through_sequence
@@ -172,10 +160,148 @@ WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
   AND (:after_sequence IS NULL OR (start_at_us, end_at_us, sequence)
        > (:after_start_at_us, :after_end_at_us, :after_sequence))
   AND (:deadline_at_us IS NULL OR received_at_us < :deadline_at_us)
-  AND (instr(' ' || normalize_text(transcript) || ' ', ' i am sorry ') > 0
-       OR instr(' ' || normalize_text(transcript) || ' ', ' i apologize ') > 0)
+  AND EXISTS (
+      SELECT 1 FROM json_each(:phrases)
+      WHERE instr(' ' || normalize_text(transcript) || ' ', ' ' || value || ' ') > 0
+  )
 LIMIT 1
-""",
+"""
+
+
+def upgrade() -> None:
+    op.execute("""
+        ALTER TABLE normative_model_version ADD COLUMN type TEXT NOT NULL
+        DEFAULT 'undesired' CHECK (type IN ('undesired', 'repairs'))
+    """)
+    op.execute("""
+        ALTER TABLE normative_model_version ADD COLUMN repair_allowance_us INTEGER
+        CHECK (repair_allowance_us IS NULL OR (type = 'undesired' AND repair_allowance_us > 0))
+    """)
+    models: list[dict[str, object]] = [
+        {
+            "model_id": "repeated_interruption",
+            "name": "Repeated interruption",
+            "type": "undesired",
+            "repair_allowance_us": 10_000_000,
+            "parameters": REPEATED_INTERRUPTION_PARAMETERS,
+            "rules": [
+                {
+                    "rule_id": "distinct_interruptions",
+                    "description": "The subject makes at least two distinct interruptions",
+                    "sql": DISTINCT_INTERRUPTIONS_SQL,
+                }
+            ],
+        },
+        {
+            "model_id": "high_intensity_address",
+            "name": "High intensity address",
+            "type": "undesired",
+            "repair_allowance_us": 10_000_000,
+            "parameters": HIGH_INTENSITY_ADDRESS_PARAMETERS,
+            "rules": [
+                {
+                    "rule_id": "loud_fast_speech",
+                    "description": "A subject chunk is loud and fast",
+                    "sql": LOUD_FAST_SPEECH_SQL,
+                },
+            ],
+        },
+        {
+            "model_id": "extended_turn",
+            "name": "Extended turn",
+            "type": "undesired",
+            "repair_allowance_us": 10_000_000,
+            "parameters": EXTENDED_TURN_PARAMETERS,
+            "rules": [
+                {
+                    "rule_id": "long_turn",
+                    "description": "A subject turn exceeds thirty seconds",
+                    "sql": LONG_TURN_SQL,
+                }
+            ],
+        },
+        {
+            "model_id": "harm_phrase",
+            "name": "Harm phrase",
+            "type": "undesired",
+            "repair_allowance_us": None,
+            "parameters": HARM_PHRASE_PARAMETERS,
+            "rules": [
+                {
+                    "rule_id": "harm_phrase",
+                    "description": "A subject chunk contains a harm or threat phrase",
+                    "sql": SUBJECT_PHRASE_SQL,
+                }
+            ],
+        },
+        {
+            "model_id": "character_label",
+            "name": "Character label",
+            "type": "undesired",
+            "repair_allowance_us": 10_000_000,
+            "parameters": CHARACTER_LABEL_PARAMETERS,
+            "rules": [
+                {
+                    "rule_id": "character_label",
+                    "description": "A subject chunk contains an address phrase, descriptor, "
+                    "or vulgar term",
+                    "sql": CHARACTER_LABEL_SQL,
+                }
+            ],
+        },
+        {
+            "model_id": "absolutist_phrase",
+            "name": "Absolutist phrase",
+            "type": "undesired",
+            "repair_allowance_us": 20_000_000,
+            "parameters": ABSOLUTIST_PHRASE_PARAMETERS,
+            "rules": [
+                {
+                    "rule_id": "absolutist_phrase",
+                    "description": "A subject chunk contains an always or never phrase",
+                    "sql": SUBJECT_PHRASE_SQL,
+                }
+            ],
+        },
+        {
+            "model_id": "apology",
+            "name": "Apology",
+            "type": "repairs",
+            "repair_allowance_us": None,
+            "parameters": APOLOGY_PARAMETERS,
+            "rules": [
+                {
+                    "rule_id": "apology_phrase",
+                    "description": "The subject apologizes within the supplied repair window",
+                    "sql": REPAIR_PHRASE_SQL,
+                }
+            ],
+        },
+        {
+            "model_id": "agreement_phrase",
+            "name": "Agreement phrase",
+            "type": "repairs",
+            "repair_allowance_us": None,
+            "parameters": AGREEMENT_PHRASE_PARAMETERS,
+            "rules": [
+                {
+                    "rule_id": "agreement_phrase",
+                    "description": "The subject agrees within the supplied repair window",
+                    "sql": REPAIR_PHRASE_SQL,
+                }
+            ],
+        },
+        {
+            "model_id": "intent_disclaimer",
+            "name": "Intent disclaimer",
+            "type": "repairs",
+            "repair_allowance_us": None,
+            "parameters": INTENT_DISCLAIMER_PARAMETERS,
+            "rules": [
+                {
+                    "rule_id": "intent_disclaimer_phrase",
+                    "description": "The subject disclaims intent within the supplied repair window",
+                    "sql": REPAIR_PHRASE_SQL,
                 }
             ],
         },
@@ -184,8 +310,8 @@ LIMIT 1
         op.get_bind().execute(
             text("""
             INSERT INTO normative_model_version
-                (model_id, name, version, type, repairable, rules_json, parameters_json)
-            VALUES (:model_id, :name, '1', :type, :repairable, :rules, :parameters)
+                (model_id, name, version, type, repair_allowance_us, rules_json, parameters_json)
+            VALUES (:model_id, :name, '1', :type, :repair_allowance_us, :rules, :parameters)
         """),
             {
                 **model,
@@ -201,12 +327,14 @@ def downgrade() -> None:
     op.execute("""
         DELETE FROM normative_model_version WHERE version = '1'
         AND model_id IN (
-            'repeated_interruption', 'high_intensity_address', 'extended_turn', 'apology'
+            'repeated_interruption', 'high_intensity_address', 'extended_turn', 'harm_phrase',
+            'character_label', 'absolutist_phrase', 'apology', 'agreement_phrase',
+            'intent_disclaimer'
         )
     """)
     op.execute("""
         CREATE TRIGGER model_no_delete BEFORE DELETE ON normative_model_version
         BEGIN SELECT RAISE(ABORT, 'model version is immutable'); END
     """)
-    op.execute("ALTER TABLE normative_model_version DROP COLUMN repairable")
+    op.execute("ALTER TABLE normative_model_version DROP COLUMN repair_allowance_us")
     op.execute("ALTER TABLE normative_model_version DROP COLUMN type")

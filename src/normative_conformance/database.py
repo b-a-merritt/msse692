@@ -25,8 +25,8 @@ MIGRATIONS_LOCATION = "normative_conformance:migrations"
 def _normalize_text(value: str) -> str:
     """SQLite callback for consistent token boundaries in stored rules."""
     translation = str.maketrans(
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZ\t\n\r"(),-.:;?!',
-        "abcdefghijklmnopqrstuvwxyz" + " " * 13,
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ\t\n\r"(),-.:;?!—',
+        "abcdefghijklmnopqrstuvwxyz" + " " * 14,
     )
     return " ".join(value.translate(translation).split())
 

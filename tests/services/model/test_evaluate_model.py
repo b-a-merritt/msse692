@@ -26,35 +26,58 @@ def test_continuous_speech_does_not_manufacture_interruptions(*, add_observation
 
 
 @pytest.mark.parametrize(
-    "transcript,level,end,expected",
-    [
-        ("YOU'RE A, liar!", -17.0, 0.9, True),
-        ("you are a liar", -17.0, 0.9, True),
-        ("oh, FUCKING hell", -17.0, 0.9, True),
-        ("you are wrong", -17.0, 0.9, False),
-        ("what a shitty day", -17.0, 0.9, False),
-        ("you're a liar", -18.0, 0.9, False),
-        ("you're a liar", -17.0, 1.0, False),
-    ],
+    "level,end,expected",
+    [(-17.0, 0.9, True), (-18.0, 0.9, False), (-17.0, 1.0, False)],
 )
-def test_address_requires_loud_fast_speech_and_insult(
-    *,
-    add_observation,
-    matches,
-    transcript,
-    level,
-    end,
-    expected,
-):
-    add_observation(start=0, end=end, transcript=transcript, level=level)
+def test_address_requires_loud_fast_speech(*, add_observation, matches, level, end, expected):
+    add_observation(start=0, end=end, transcript="stop that now", level=level)
     assert matches(model_id="high_intensity_address") is expected
 
 
-def test_address_rules_may_match_different_chunks(*, add_observation, matches):
-    add_observation(start=0, end=0.9, transcript="stop right now", level=-17.0)
-    assert not matches(model_id="high_intensity_address")
-    add_observation(start=2, end=5, transcript="you're a slob")
-    assert matches(model_id="high_intensity_address")
+@pytest.mark.parametrize(
+    "transcript,expected",
+    [
+        ("YOU'RE A, liar!", True),
+        ("You're exactly like your mother.", True),
+        ("It's pathetic.", True),
+        ("oh, FUCKING hell", True),
+        ("you are wrong", False),
+        ("what a shitty day", False),
+    ],
+)
+def test_character_label_matches_quiet_slow_speech(
+    *, add_observation, matches, transcript, expected
+):
+    add_observation(start=0, end=5, transcript=transcript)
+    assert matches(model_id="character_label") is expected
+
+
+@pytest.mark.parametrize(
+    "transcript,expected",
+    [
+        ("Every day I wake up and I hope you're dead.", True),
+        ("Do this and I swear to God—", True),
+        ("I hope you're doing well", False),
+    ],
+)
+def test_harm_phrase_matches_configured_phrases(*, add_observation, matches, transcript, expected):
+    add_observation(start=0, end=5, transcript=transcript)
+    assert matches(model_id="harm_phrase") is expected
+
+
+@pytest.mark.parametrize(
+    "transcript,expected",
+    [
+        ("You always made me aware of what I was doing wrong", True),
+        ("You'll never be happy.", True),
+        ("I never cheated on you.", False),
+    ],
+)
+def test_absolutist_phrase_requires_second_person(
+    *, add_observation, matches, transcript, expected
+):
+    add_observation(start=0, end=5, transcript=transcript)
+    assert matches(model_id="absolutist_phrase") is expected
 
 
 def test_subject_comes_from_experiment_config(*, add_observation, matches):
@@ -88,6 +111,29 @@ def test_repair_rule_uses_supplied_source_and_receipt_bounds(
     activation = add_observation(start=1, end=2)
     add_observation(start=3, end=4, transcript="I AM, SORRY!", received=received)
     assert matches(model_id="apology", after=activation, deadline=10_000_000) is expected
+
+
+@pytest.mark.parametrize(
+    "model_id,transcript,expected",
+    [
+        ("apology", "I'm sorry.", True),
+        ("agreement_phrase", "Okay, you're right.", True),
+        ("agreement_phrase", "No, you're damn right I am.", False),
+        ("intent_disclaimer", "I didn't mean it like that", True),
+        ("intent_disclaimer", "I did not mean to", True),
+    ],
+)
+def test_repair_models_match_configured_phrases(
+    *,
+    add_observation,
+    matches,
+    model_id,
+    transcript,
+    expected,
+):
+    activation = add_observation(start=1, end=2)
+    add_observation(start=3, end=4, transcript=transcript)
+    assert matches(model_id=model_id, after=activation) is expected
 
 
 def test_earlier_spoken_apology_does_not_repair_later_behavior(*, add_observation, matches):

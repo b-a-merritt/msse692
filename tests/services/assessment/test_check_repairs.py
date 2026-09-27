@@ -7,7 +7,7 @@ from normative_conformance.models.assessment import Assessment
 
 
 def test_repair_can_resolve_multiple_pending_models(*, add_observation, assess, check):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     add_observation(start=1, end=32)
     pending = assess()
     assert len(pending) == 2
@@ -22,7 +22,7 @@ def test_repair_can_resolve_multiple_pending_models(*, add_observation, assess, 
 def test_repair_searches_and_resolutions_share_one_subject_lookup(
     *, add_observation, assess, check, subject_config_reads
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     add_observation(start=1, end=32)
     assess()
     add_observation(start=33, end=34, transcript="I apologize", received=105)
@@ -41,13 +41,13 @@ def test_late_repair_resets_future_detection_without_retracting_positive(
     check,
     session,
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     assess()
     final = check()[0]
     before = final.model_dump()
     add_observation(start=1, end=2, transcript="I apologize", received=111)
     check(at=111)
-    add_observation(start=3, end=3.9, transcript="you are a liar", level=-17.0, received=112)
+    add_observation(start=3, end=3.9, transcript="stop that right now", level=-17.0, received=112)
     new = assess(at=112)[0]
     assert new.status == "pending"
     assert new.next_due_at_us == 122_000_000
@@ -79,7 +79,7 @@ def test_repeated_checks_append_only_one_resolution(*, add_observation, assess, 
 def test_repair_requests_assessment_after_commit_unless_stopping(
     *, add_observation, assess, check, engine, scheduler, assessment_queue, monkeypatch, stopping
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     original = assess()[0]
     add_observation(start=1, end=2, transcript="I apologize", received=105)
     put = assessment_queue.put
@@ -109,7 +109,7 @@ def test_repair_requests_assessment_after_commit_unless_stopping(
 def test_check_without_repair_does_not_request_assessment(
     *, add_observation, assess, check, scheduler, at
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     assess()
 
     results = check(at=at)
@@ -121,7 +121,7 @@ def test_check_without_repair_does_not_request_assessment(
 def test_failed_resolution_rolls_back_repair_before_requesting_assessment(
     *, add_observation, assess, check, engine, scheduler
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     original = assess()[0]
     add_observation(start=1, end=2, transcript="I apologize", received=105)
     # The apology is stored first; a failed resolution must roll it back too.

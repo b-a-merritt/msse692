@@ -22,7 +22,7 @@ def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(
     session,
     assessment_queue,
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0, received=0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0, received=0)
     first = assess(at=100)
     assert len(first) == 1
     assert first[0].status == "pending"
@@ -33,7 +33,7 @@ def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(
     assert explanation.rules[0].outcome == "pending"
     assert explanation.rules[0].deadline_at.timestamp() == 110
     assert assessment_queue.queue()[0]["data"]["kind"] == "check_repairs"
-    add_observation(start=1, end=1.9, transcript="you are a fool", level=-17.0, received=109)
+    add_observation(start=1, end=1.9, transcript="stop it right now", level=-17.0, received=109)
     again = assess(at=109)
     assert [row.model_dump() for row in again] == [row.model_dump() for row in first]
     assert len(session.exec(select(Assessment)).all()) == 1
@@ -116,7 +116,7 @@ def test_models_use_their_own_allowance_and_keep_existing_deadlines(
 def test_replay_requests_repair_after_enqueue_failure_without_repeating_assessment(
     *, add_observation, engine, scheduler, assessment_queue, received_at, monkeypatch
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     evaluation_id = uuid4()
     put = assessment_queue.put
 
@@ -153,14 +153,14 @@ def test_replay_requests_repair_after_enqueue_failure_without_repeating_assessme
 def test_shutdown_finishes_assessment_without_enqueuing_repair(
     *, add_observation, assess, scheduler, assessment_queue
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     scheduler.stopped.set()
     assert assess()[0].status == "pending"
     assert assessment_queue.empty()
 
 
 def test_replayed_evaluation_preserves_its_original_results(*, add_observation, assess):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     evaluation_id = uuid4()
     original = assess(evaluation_id=evaluation_id)
     add_observation(start=1, end=32, received=101)
@@ -178,7 +178,7 @@ def test_replayed_evaluation_preserves_its_original_results(*, add_observation, 
 def test_failed_assessment_rolls_back_all_models_before_requesting_repairs(
     *, add_observation, assess, engine, assessment_queue
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     add_observation(start=1, end=32)
     # Extended turn is stored first; fail the second model's write.
     with engine.begin() as connection:
@@ -197,7 +197,7 @@ def test_failed_assessment_rolls_back_all_models_before_requesting_repairs(
 
 
 def test_new_matches_share_the_case_evaluation_time(*, add_observation, engine, scheduler):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     add_observation(start=1, end=32)
     times = iter([100])
 
@@ -216,7 +216,7 @@ def test_new_matches_share_the_case_evaluation_time(*, add_observation, engine, 
 
 
 def test_models_share_one_subject_lookup(*, add_observation, assess, subject_config_reads):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     add_observation(start=1, end=32)
 
     assert len(assess()) == 2
@@ -224,7 +224,7 @@ def test_models_share_one_subject_lookup(*, add_observation, assess, subject_con
 
 
 def test_replay_preserves_pending_result_after_resolution(*, add_observation, assess, check):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     evaluation_id = uuid4()
     original = assess(evaluation_id=evaluation_id)[0]
     final = check()[0]

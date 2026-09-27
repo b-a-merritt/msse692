@@ -157,7 +157,7 @@ def test_worker_checks_deadline_without_more_observations(
     monkeypatch,
     restart,
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     deadline = Event()
     checked_early = Event()
     completed = Event()
@@ -216,7 +216,7 @@ def test_worker_checks_deadline_without_more_observations(
 def test_repaired_match_requests_another_assessment(
     *, engine, scheduler, add_observation, monkeypatch
 ):
-    add_observation(start=0, end=0.9, transcript="you are a liar", level=-17.0)
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
 
     def clock():
         return datetime.fromtimestamp(100, timezone.utc)

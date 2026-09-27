@@ -3,16 +3,14 @@ from normative_conformance.services.model.list_models import list_models
 
 def test_seeded_catalog_is_read_from_database(*, session):
     models = list_models(session=session)
-    assert {model.model_id for model in models if model.type == "undesired"} == {
-        "repeated_interruption",
-        "high_intensity_address",
-        "extended_turn",
-    }
-    assert all(
-        model.repair_allowance_us == 10_000_000 for model in models if model.type == "undesired"
-    )
-    assert [
-        (model.model_id, model.repair_allowance_us) for model in models if model.type == "repairs"
-    ] == [
-        ("apology", None),
+    assert [(model.model_id, model.type, model.repair_allowance_us) for model in models] == [
+        ("absolutist_phrase", "undesired", 20_000_000),
+        ("agreement_phrase", "repairs", None),
+        ("apology", "repairs", None),
+        ("character_label", "undesired", 10_000_000),
+        ("extended_turn", "undesired", 10_000_000),
+        ("harm_phrase", "undesired", None),
+        ("high_intensity_address", "undesired", 10_000_000),
+        ("intent_disclaimer", "repairs", None),
+        ("repeated_interruption", "undesired", 10_000_000),
     ]
