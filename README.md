@@ -16,6 +16,7 @@
 | `uv run ruff format .` | Format everything (black-compatible) |
 | `uv run mypy` | Type-check `src/` in strict mode |
 | `uv run pytest` | Run the test suite |
+| `uv run pytest --cov=normative_conformance --cov-report=term-missing` | Run the test suite with coverage |
 | `uv run alembic history` | List the revisions and their order |
 | `uv run pre-commit install` | Arm the git hooks (one time per clone) |
 | `uv run pre-commit run --all-files` | Run every hook against the whole repo |

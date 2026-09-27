@@ -24,6 +24,7 @@ dev = [
     "mypy>=2.3.1",
     "pre-commit>=4.6.2",
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
     "ruff>=0.16.5",
 ]
 
@@ -35,6 +36,13 @@ prepend_sys_path = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib", "--ignore=tests/migrations/versions"]
+
+[tool.coverage.run]
+source = ["src/normative_conformance"]
+
+[tool.coverage.report]
+skip_empty = true
+fail_under = 90
 
 [tool.ruff]
 line-length = 100
