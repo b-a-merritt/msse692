@@ -10,6 +10,7 @@
 | `uv python pin <version>` | Set the project's interpreter (writes `.python-version`) |
 | `uv run <cmd>` | Run any command inside the project venv |
 | `uv run fastapi dev src/normative_conformance/main.py` | Start the API with hot reload → http://localhost:8000/docs |
+| `uv run python -m sqlite3 data/prototype.sqlite3` | Open the application database in Python's SQLite shell |
 | `uv run ruff check .` | Lint everything |
 | `uv run ruff check . --fix` | Lint and apply safe auto-fixes |
 | `uv run ruff format .` | Format everything (black-compatible) |
@@ -19,6 +20,7 @@
 | `uv run pre-commit install` | Arm the git hooks (one time per clone) |
 | `uv run pre-commit run --all-files` | Run every hook against the whole repo |
 | `uv run pre-commit autoupdate` | Bump hook versions to latest |
+| `uv run python scripts/send_observations.py scripts/cases/case-1.jsonl --delay 1` | Submit case observations one second apart |
 
 ## Observation ingestion
 
@@ -29,9 +31,9 @@ submit an observation through `/docs` or:
 curl -X POST http://localhost:8000/api/v1/observations \
   -H 'Content-Type: application/json' \
   -d '{
-    "case_id": "case-1",
+    "case_id": "case-1234",
     "observation_id": "chunk-1",
-    "speaker_id": "subject",
+    "speaker_id": "speaker-2",
     "start_at": "2026-09-26T09:00:00Z",
     "end_at": "2026-09-26T09:00:01Z",
     "transcript": "Hello",
