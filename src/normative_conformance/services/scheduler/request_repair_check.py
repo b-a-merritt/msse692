@@ -11,14 +11,16 @@ def request_repair_check(*, case_id: str, scheduler: SchedulerState) -> None:
             raise EnqueueFailed(message="The assessment worker is not running")
         if case_id in scheduler.queued_repairs:
             return
+
         try:
-            scheduler.queue.put(
-                item={
-                    "kind": "check_repairs",
-                    "case_id": case_id,
-                    "evaluation_id": str(uuid4()),
-                }
-            )
+            task = {
+                "kind": "check_repairs",
+                "case_id": case_id,
+                "evaluation_id": str(uuid4()),
+            }
+
+            scheduler.queue.put(item=task)
         except (sqlite3.Error, OSError) as error:
             raise EnqueueFailed(message="The repair check could not be queued") from error
+
         scheduler.queued_repairs.add(case_id)

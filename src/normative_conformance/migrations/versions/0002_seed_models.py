@@ -22,11 +22,11 @@ def upgrade() -> None:
             "name": "Repeated interruption",
             "type": "undesired",
             "repairable": True,
-            "parameters": {"overlap_min_us": 300_000, "interruption_count": 3},
+            "parameters": {"overlap_min_us": 150_000, "interruption_count": 2},
             "rules": [
                 {
                     "rule_id": "distinct_interruptions",
-                    "description": "The subject makes at least three distinct interruptions",
+                    "description": "The subject makes at least two distinct interruptions",
                     "sql": """
 SELECT 1
 FROM observation s
@@ -55,11 +55,31 @@ LIMIT 1
             "name": "High intensity address",
             "type": "undesired",
             "repairable": True,
-            "parameters": {"volume_threshold_dbfs": -18, "rate_threshold_wpm": 180},
+            "parameters": {
+                "volume_threshold_dbfs": -18,
+                "rate_threshold_wpm": 180,
+                "address_phrases": ["you're a", "you are a"],
+                "vulgar_terms": [
+                    "fuck",
+                    "fucked",
+                    "fucker",
+                    "fucking",
+                    "shit",
+                    "damn",
+                    "goddamn",
+                    "dick",
+                    "bitch",
+                    "bastard",
+                    "asshole",
+                    "crap",
+                    "piss",
+                    "pissed",
+                ],
+            },
             "rules": [
                 {
-                    "rule_id": "loud_fast_address",
-                    "description": "The same chunk is loud, fast, and contains an address phrase",
+                    "rule_id": "loud_fast_speech",
+                    "description": "A subject chunk is loud and fast",
                     "sql": """
 SELECT 1 FROM observation
 WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
@@ -70,11 +90,28 @@ WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
   AND 60000000.0 * (length(normalize_text(transcript))
       - length(replace(normalize_text(transcript), ' ', '')) + 1)
       / (end_at_us - start_at_us) > :rate_threshold_wpm
-  AND (instr(' ' || normalize_text(transcript) || ' ', ' you are wrong ') > 0
-       OR instr(' ' || normalize_text(transcript) || ' ', ' you are ridiculous ') > 0)
 LIMIT 1
 """,
-                }
+                },
+                {
+                    "rule_id": "insulting_address",
+                    "description": "A subject chunk contains vulgarity or an address phrase",
+                    "sql": """
+SELECT 1 FROM observation
+WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
+  AND sequence <= :through_sequence
+  AND (:after_sequence IS NULL OR (start_at_us, end_at_us, sequence)
+       > (:after_start_at_us, :after_end_at_us, :after_sequence))
+  AND EXISTS (
+      SELECT 1 FROM json_each(:address_phrases)
+      WHERE instr(' ' || normalize_text(transcript) || ' ', ' ' || value || ' ') > 0
+      UNION ALL
+      SELECT 1 FROM json_each(:vulgar_terms)
+      WHERE instr(' ' || normalize_text(transcript) || ' ', ' ' || value || ' ') > 0
+  )
+LIMIT 1
+""",
+                },
             ],
         },
         {

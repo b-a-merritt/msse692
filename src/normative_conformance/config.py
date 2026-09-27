@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     debug: bool = False
     app_db_path: Path = Path("data/prototype.sqlite3")
     assessment_queue_path: Path = Path("data/assessment_queue")
-    subject_speaker_id: str = Field(default="subject-1", min_length=1, pattern=r"^[^/]+$")
+    subject_speaker_id: str = Field(default="speaker-2", min_length=1, pattern=r"^[^/]+$")
 
 
 @lru_cache
