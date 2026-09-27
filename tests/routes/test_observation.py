@@ -211,3 +211,37 @@ def test_stopped_worker_rejects_submission_before_writing(*, client, observation
     assert response.json()["error"]["code"] == "NOT_READY"
     with Session(bind=client.app.state.engine) as session:
         assert session.exec(select(Observation)).all() == []
+
+
+def test_listing_returns_observations_newest_first(*, client, observation_data):
+    client.post("/api/v1/observations", json=observation_data)
+    client.post(
+        "/api/v1/observations",
+        json=observation_data
+        | {
+            "observation_id": "next",
+            "start_at": "2026-09-26T09:01:00Z",
+            "end_at": "2026-09-26T09:01:01Z",
+        },
+    )
+
+    response = client.get("/api/v1/cases/case/observations")
+
+    assert response.status_code == 200
+    assert [item["observation_id"] for item in response.json()["items"]] == ["next", "chunk"]
+
+
+def test_listing_an_unknown_case_returns_empty_items(*, client):
+    response = client.get("/api/v1/cases/missing-case/observations")
+
+    assert response.status_code == 200
+    assert response.json() == {"items": []}
+
+
+def test_openapi_describes_listing_response(*, client):
+    responses = client.get("/openapi.json").json()["paths"]["/api/v1/cases/{case_id}/observations"][
+        "get"
+    ]["responses"]
+    assert responses["200"]["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/ListResponse_ObservationRecord_"
+    )

@@ -37,7 +37,3 @@ class ObservationInput(ContractModel):
 class ObservationRecord(ObservationInput):
     received_at: AwareDatetime
     sequence: int = Field(strict=True, ge=1)
-
-
-class ObservationList(ContractModel):
-    items: list[ObservationRecord]

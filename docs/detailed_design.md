@@ -90,7 +90,7 @@ The following status codes are used.
 | :---- | :---- | :---- |
 | **Method and path** | **Input** | **Status and Response** |
 | `POST /observations` | `ObservationInput` | 202 `ObservationAccepted`&nbsp; |
-| `GET/cases/{case_id}/observations` | Case ID | 200 `ObservationRecordList` |
+| `GET/cases/{case_id}/observations` | Case ID | 200 `ListResponse[ObservationRecord]` |
 | `GET/cases/{case_id}/observations/{observation_id}` | Case and observation IDs | 200 `ObservationRecord` |
 | `GET /models` | None | 200 `ModelList` |
 | `GET /models/{model_version_id}` | Model-version ID | 200 `ModelVersion` |

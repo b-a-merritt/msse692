@@ -4,14 +4,14 @@ from sqlmodel import Session
 from sqlmodel import select
 
 from normative_conformance.models.normative_model import NormativeModelVersion
-from normative_conformance.schemas.model import ModelList
+from normative_conformance.schemas.common import ListResponse
 from normative_conformance.schemas.model import ModelVersion
 
 
 def list_models(
     *,
     session: Session,
-) -> ModelList:
+) -> ListResponse[ModelVersion]:
     """Read the complete fixed catalog ordered by model_id and version."""
     rows = session.exec(
         select(NormativeModelVersion).order_by(
@@ -20,7 +20,7 @@ def list_models(
         )
     ).all()
 
-    return ModelList(
+    return ListResponse[ModelVersion](
         items=[
             ModelVersion.model_validate(
                 {

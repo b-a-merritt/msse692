@@ -1,5 +1,3 @@
-from datetime import datetime
-from datetime import timedelta
 from datetime import timezone
 
 from sqlalchemy import func
@@ -17,14 +15,7 @@ from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.schemas.observation import ObservationRecord
 from normative_conformance.services.scheduler.request_assessment import request_assessment
 from normative_conformance.services.scheduler.state import SchedulerState
-
-
-def _unix_microseconds(
-    *,
-    value: datetime,
-) -> int:
-    """Preserve timestamp precision without converting through floating point."""
-    return (value - datetime(1970, 1, 1, tzinfo=timezone.utc)) // timedelta(microseconds=1)
+from normative_conformance.timestamps import to_microseconds
 
 
 def _check_uniqueness(
@@ -73,7 +64,7 @@ def ingest(
         session.connection()
 
         received_at = now().astimezone(timezone.utc)
-        received_at_us = _unix_microseconds(value=received_at)
+        received_at_us = to_microseconds(value=received_at)
 
         _check_uniqueness(
             case_id=input.case_id,
@@ -99,8 +90,8 @@ def ingest(
                 sequence=record.sequence,
                 received_at_us=received_at_us,
                 speaker_id=record.speaker_id,
-                start_at_us=_unix_microseconds(value=record.start_at),
-                end_at_us=_unix_microseconds(value=record.end_at),
+                start_at_us=to_microseconds(value=record.start_at),
+                end_at_us=to_microseconds(value=record.end_at),
                 transcript=record.transcript,
                 signal_level_min=record.signal_level_min,
                 signal_level_avg=record.signal_level_avg,
