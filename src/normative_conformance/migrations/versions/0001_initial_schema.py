@@ -4,6 +4,7 @@ revision: str = "0001"
 down_revision: str | None = None
 
 TABLES = (
+    "intervention_source",
     "intervention",
     "assessment",
     "normative_model_version",
@@ -14,7 +15,7 @@ TABLES = (
 
 
 def upgrade() -> None:
-    """Create the six application tables and protect retained records."""
+    """Create the seven application tables and protect retained records."""
     op.execute("""
 CREATE TABLE experiment_config (
     experiment_id INTEGER PRIMARY KEY CHECK (experiment_id = 1),
@@ -51,6 +52,9 @@ CREATE TABLE normative_model_version (
     model_id TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'undesired' CHECK (type IN ('undesired', 'repairs')),
+    repair_allowance_us INTEGER
+        CHECK (repair_allowance_us IS NULL OR (type = 'undesired' AND repair_allowance_us > 0)),
     rules_json TEXT NOT NULL CHECK (json_valid(rules_json)),
     parameters_json TEXT NOT NULL CHECK (json_valid(parameters_json)),
     PRIMARY KEY (model_id, version)
@@ -79,10 +83,17 @@ CREATE TABLE assessment (
     op.execute("""
 CREATE TABLE intervention (
     intervention_id INTEGER PRIMARY KEY CHECK (intervention_id > 0),
-    assessment_id INTEGER NOT NULL UNIQUE REFERENCES assessment(assessment_id),
+    case_id TEXT NOT NULL REFERENCES case_log(case_id),
     message TEXT NOT NULL,
     created_at_us INTEGER NOT NULL,
     sent_at_us INTEGER CHECK (sent_at_us IS NULL OR sent_at_us >= created_at_us)
+) STRICT
+""")
+    op.execute("""
+CREATE TABLE intervention_source (
+    intervention_id INTEGER NOT NULL REFERENCES intervention(intervention_id),
+    assessment_id INTEGER NOT NULL UNIQUE REFERENCES assessment(assessment_id),
+    PRIMARY KEY (intervention_id, assessment_id)
 ) STRICT
 """)
     # Stored evidence cannot be updated or deleted. Ingestion must assign
@@ -126,6 +137,35 @@ BEGIN SELECT RAISE(ABORT, 'resolution must reference a matching pending assessme
     op.execute("""
 CREATE TRIGGER intervention_no_delete BEFORE DELETE ON intervention
 BEGIN SELECT RAISE(ABORT, 'intervention is retained'); END
+""")
+    # Delivery is the only change after a decision: it sets the sent time once.
+    op.execute("""
+CREATE TRIGGER intervention_delivery BEFORE UPDATE ON intervention
+WHEN OLD.sent_at_us IS NOT NULL OR NEW.sent_at_us IS NULL
+  OR NEW.intervention_id <> OLD.intervention_id OR NEW.case_id <> OLD.case_id
+  OR NEW.message <> OLD.message OR NEW.created_at_us <> OLD.created_at_us
+BEGIN SELECT RAISE(ABORT, 'intervention can only be marked sent once'); END
+""")
+    op.execute("""
+CREATE TRIGGER intervention_source_eligible BEFORE INSERT ON intervention_source
+WHEN NOT EXISTS (
+    SELECT 1 FROM assessment
+    JOIN normative_model_version model
+      ON model.model_id = assessment.model_id AND model.version = assessment.model_version
+    JOIN intervention ON intervention.intervention_id = NEW.intervention_id
+    WHERE assessment.assessment_id = NEW.assessment_id
+      AND assessment.status = 'conformant' AND model.type = 'undesired'
+      AND assessment.case_id = intervention.case_id
+)
+BEGIN SELECT RAISE(ABORT, 'intervention source must be an eligible assessment in its case'); END
+""")
+    op.execute("""
+CREATE TRIGGER intervention_source_no_update BEFORE UPDATE ON intervention_source
+BEGIN SELECT RAISE(ABORT, 'intervention source is immutable'); END
+""")
+    op.execute("""
+CREATE TRIGGER intervention_source_no_delete BEFORE DELETE ON intervention_source
+BEGIN SELECT RAISE(ABORT, 'intervention source is immutable'); END
 """)
     op.execute("""
 CREATE TRIGGER experiment_no_update BEFORE UPDATE ON experiment_config

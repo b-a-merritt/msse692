@@ -117,12 +117,15 @@ def records(*, session):
     session.add(assessment)
     session.flush()
 
-    intervention = models.Intervention(
-        assessment_id=assessment.assessment_id,
-        message="Feedback",
-        created_at_us=12,
-    )
+    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
     session.add(intervention)
+    session.flush()
+
+    intervention_source = models.InterventionSource(
+        intervention_id=intervention.intervention_id,
+        assessment_id=assessment.assessment_id,
+    )
+    session.add(intervention_source)
     session.commit()
     session.expunge_all()
     return {
@@ -132,4 +135,5 @@ def records(*, session):
         "model": model,
         "assessment": assessment,
         "intervention": intervention,
+        "intervention_source": intervention_source,
     }

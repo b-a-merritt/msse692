@@ -169,14 +169,6 @@ LIMIT 1
 
 
 def upgrade() -> None:
-    op.execute("""
-        ALTER TABLE normative_model_version ADD COLUMN type TEXT NOT NULL
-        DEFAULT 'undesired' CHECK (type IN ('undesired', 'repairs'))
-    """)
-    op.execute("""
-        ALTER TABLE normative_model_version ADD COLUMN repair_allowance_us INTEGER
-        CHECK (repair_allowance_us IS NULL OR (type = 'undesired' AND repair_allowance_us > 0))
-    """)
     models: list[dict[str, object]] = [
         {
             "model_id": "repeated_interruption",
@@ -336,5 +328,3 @@ def downgrade() -> None:
         CREATE TRIGGER model_no_delete BEFORE DELETE ON normative_model_version
         BEGIN SELECT RAISE(ABORT, 'model version is immutable'); END
     """)
-    op.execute("ALTER TABLE normative_model_version DROP COLUMN repair_allowance_us")
-    op.execute("ALTER TABLE normative_model_version DROP COLUMN type")

@@ -78,7 +78,20 @@ The seed migration stores three undesired models and an apology model. On first
 startup, `SUBJECT_SPEAKER_ID` (default `subject`) initializes `experiment_config`.
 Subsequent evaluations read the subject from that immutable database configuration.
 Recognized repairs reset future detection. Finalized positives are retained and
-suppressed until repair permits a new occurrence. Intervention services remain stubs.
+suppressed until repair permits a new occurrence.
+
+Interventions group close confirmations. The first newly confirmed undesired match
+for a case opens a window of `INTERVENTION_WINDOW_US` (default two seconds).
+Reused results and successful repairs do not open windows. Immediate confirmations
+and confirmations after repair deadlines can share the same window. When it closes,
+the worker stores one pending intervention linking every eligible assessment
+confirmed since the window opened. Eligible means `conformant` from an `undesired`
+model and not already linked. The window is a batching delay: if evaluation runs
+past its end, later confirmations can join the same decision. A fixed, ordered message table chooses the text;
+combinations come first, and each undesired model has its own entry. The policy
+always authorizes; abstention is reserved. `GET /api/v1/interventions` lists
+records without changing them, and `POST /api/v1/interventions/deliver` marks
+pending records sent and returns them.
 
 Shutdown finishes the active request before closing the queue and database.
 Waiting requests survive restart and are processed when the worker starts again.

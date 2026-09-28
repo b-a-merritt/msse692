@@ -40,6 +40,7 @@ def check_repairs(
                 evaluated_at_us=to_microseconds(value=now()),
             )
             subject_speaker_id = get_subject_speaker_id(session=session)
+
             models = {
                 (model.model_id, model.version): model for model in list_models(session=session)
             }
@@ -52,6 +53,7 @@ def check_repairs(
                 session=session,
                 after_observation=get_last_repair(case_id=case_id, session=session),
             )
+
             results = []
             if new_repair is not None:
                 repair_model, observation = new_repair
@@ -64,19 +66,20 @@ def check_repairs(
                         observation_ids=[observation.observation_id],
                     )
                 )
-            for pending in list_assessments(
-                case_id=case_id, status="pending", unresolved=True, session=session
-            ):
-                results.append(
-                    resolve_pending(
-                        pending=pending,
-                        model=models[pending.model_id, pending.model_version],
-                        repair_models=repair_models,
-                        snapshot=snapshot,
-                        subject_speaker_id=subject_speaker_id,
-                        session=session,
-                    )
+
+            results.extend(
+                resolve_pending(
+                    pending=pending,
+                    model=models[pending.model_id, pending.model_version],
+                    repair_models=repair_models,
+                    snapshot=snapshot,
+                    subject_speaker_id=subject_speaker_id,
+                    session=session,
                 )
+                for pending in list_assessments(
+                    case_id=case_id, status="pending", unresolved=True, session=session
+                )
+            )
             session.commit()
     except SQLAlchemyError as error:
         raise StorageUnavailable("Repairs could not be checked") from error
@@ -86,4 +89,5 @@ def check_repairs(
     )
     if needs_assessment and not scheduler.stopped.is_set():
         request_assessment(case_id=case_id, scheduler=scheduler)
+
     return results

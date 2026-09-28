@@ -7,7 +7,7 @@ from normative_conformance.main import create_app
 
 @pytest.fixture
 def client(*, tmp_path, received_at, monkeypatch):
-    def idle_worker(*, scheduler, engine, now):
+    def idle_worker(*, scheduler, engine, now, intervention_window_us):
         scheduler.stopped.wait()
 
     monkeypatch.setattr("normative_conformance.lifespan.run_worker", idle_worker)

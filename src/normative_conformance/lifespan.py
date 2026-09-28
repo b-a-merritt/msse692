@@ -25,13 +25,19 @@ def _scheduler_lifespan(
     app: FastAPI,
     engine: Engine,
     queue_path: Path,
+    intervention_window_us: int,
 ) -> Iterator[None]:
     """Open the queue and keep it available until the worker has stopped."""
     with closing(create_assessment_queue(path=queue_path)) as queue:
         scheduler = SchedulerState(queue=queue)
         worker = Thread(
             target=run_worker,
-            kwargs={"scheduler": scheduler, "engine": engine, "now": app.state.clock},
+            kwargs={
+                "scheduler": scheduler,
+                "engine": engine,
+                "now": app.state.clock,
+                "intervention_window_us": intervention_window_us,
+            },
             name="assessment-worker",
         )
 
@@ -61,7 +67,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             now=app.state.clock,
         )
         app.state.engine = engine
-        with _scheduler_lifespan(app=app, engine=engine, queue_path=settings.assessment_queue_path):
+        with _scheduler_lifespan(
+            app=app,
+            engine=engine,
+            queue_path=settings.assessment_queue_path,
+            intervention_window_us=settings.intervention_window_us,
+        ):
             yield
     finally:
         app.state.engine = None
