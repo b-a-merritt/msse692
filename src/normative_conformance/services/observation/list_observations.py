@@ -3,7 +3,6 @@ from sqlmodel import col
 from sqlmodel import select
 
 from normative_conformance.models.observation import Observation
-from normative_conformance.schemas.common import ListResponse
 from normative_conformance.schemas.observation import ObservationRecord
 from normative_conformance.timestamps import from_microseconds
 
@@ -12,7 +11,7 @@ def list_observations(
     *,
     case_id: str,
     session: Session,
-) -> ListResponse[ObservationRecord]:
+) -> list[ObservationRecord]:
     query = (
         select(Observation)
         .where(
@@ -22,8 +21,7 @@ def list_observations(
             col(Observation.sequence).desc(),
         )
     )
-    resolved = session.exec(query).all()
-    records = [
+    return [
         ObservationRecord(
             case_id=observation.case_id,
             observation_id=observation.observation_id,
@@ -37,7 +35,5 @@ def list_observations(
             received_at=from_microseconds(value=observation.received_at_us),
             sequence=observation.sequence,
         )
-        for observation in resolved
+        for observation in session.exec(query)
     ]
-
-    return ListResponse[ObservationRecord](items=records)

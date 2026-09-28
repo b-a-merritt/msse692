@@ -48,7 +48,9 @@ def list_observations(
     case_id: Annotated[str, Path(strict=True, min_length=1, pattern=r"^[^/]+$")],
     session: ReadSession,
 ) -> ListResponse[ObservationRecord]:
-    return observation.list_observations(
-        case_id=case_id,
-        session=session,
+    return ListResponse[ObservationRecord](
+        items=observation.list_observations(
+            case_id=case_id,
+            session=session,
+        )
     )

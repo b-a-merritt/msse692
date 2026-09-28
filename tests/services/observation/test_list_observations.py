@@ -1,5 +1,4 @@
 from normative_conformance import models
-from normative_conformance.schemas.common import ListResponse
 from normative_conformance.schemas.observation import ObservationRecord
 from normative_conformance.services.observation.list_observations import list_observations
 from normative_conformance.timestamps import from_microseconds
@@ -9,14 +8,14 @@ def test_returns_observations_newest_first_with_converted_timestamps(*, add_obse
     first = add_observation(start=0, end=1, received=10)
     second = add_observation(start=2, end=3, received=20)
 
-    response = list_observations(case_id="case", session=session)
+    records = list_observations(case_id="case", session=session)
 
-    assert isinstance(response, ListResponse[ObservationRecord])
-    assert [record.observation_id for record in response.items] == [
+    assert all(isinstance(record, ObservationRecord) for record in records)
+    assert [record.observation_id for record in records] == [
         second.observation_id,
         first.observation_id,
     ]
-    newest = response.items[0]
+    newest = records[0]
     assert newest.case_id == "case"
     assert newest.speaker_id == "configured-subject"
     assert newest.transcript == "hello"
@@ -51,12 +50,10 @@ def test_only_returns_observations_for_the_requested_case(*, add_observation, se
     )
     session.commit()
 
-    response = list_observations(case_id="other", session=session)
+    records = list_observations(case_id="other", session=session)
 
-    assert [record.observation_id for record in response.items] == ["other-chunk"]
+    assert [record.observation_id for record in records] == ["other-chunk"]
 
 
-def test_empty_response_uses_items_envelope(*, session):
-    response = list_observations(case_id="missing-case", session=session)
-
-    assert response.model_dump() == {"items": []}
+def test_unknown_case_returns_an_empty_list(*, session):
+    assert list_observations(case_id="missing-case", session=session) == []
