@@ -15,6 +15,7 @@ def client(*, tmp_path, received_at, monkeypatch):
         settings=Settings(
             app_db_path=tmp_path / "api.sqlite3",
             assessment_queue_path=tmp_path / "queue",
+            log_dir=tmp_path / "logs",
         ),
         now=lambda: received_at,
     )

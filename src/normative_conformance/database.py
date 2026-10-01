@@ -5,6 +5,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
 from alembic.util import CommandError
 from sqlalchemy import URL
 from sqlalchemy import Connection
@@ -94,6 +95,11 @@ def initialize_database(*, engine: Engine) -> None:
             command.upgrade(_migration_config(connection=connection), "head")
     except (CommandError, OperationalError) as error:
         raise StorageUnavailable("The application database could not be migrated") from error
+
+
+def get_schema_revision(*, engine: Engine) -> str | None:
+    with engine.connect() as connection:
+        return MigrationContext.configure(connection).get_current_revision()
 
 
 def initialize_experiment_config(*, engine: Engine, subject_speaker_id: str, now: Clock) -> None:

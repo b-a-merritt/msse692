@@ -1,8 +1,11 @@
+import logging
 import sqlite3
 from uuid import uuid4
 
 from normative_conformance.errors import EnqueueFailed
 from normative_conformance.services.scheduler.state import SchedulerState
+
+logger = logging.getLogger(__name__)
 
 
 def request_repair_check(*, case_id: str, scheduler: SchedulerState) -> None:
@@ -10,6 +13,14 @@ def request_repair_check(*, case_id: str, scheduler: SchedulerState) -> None:
         if scheduler.stopped.is_set():
             raise EnqueueFailed(message="The assessment worker is not running")
         if case_id in scheduler.queued_repairs:
+            logger.info(
+                "Repair check request joined a waiting task",
+                extra={
+                    "event": "scheduling.coalesced",
+                    "task_kind": "check_repairs",
+                    "case_id": case_id,
+                },
+            )
             return
 
         try:
@@ -24,3 +35,12 @@ def request_repair_check(*, case_id: str, scheduler: SchedulerState) -> None:
             raise EnqueueFailed(message="The repair check could not be queued") from error
 
         scheduler.queued_repairs.add(case_id)
+        logger.info(
+            "Repair check queued",
+            extra={
+                "event": "scheduling.queued",
+                "task_kind": "check_repairs",
+                "case_id": case_id,
+                "evaluation_id": task["evaluation_id"],
+            },
+        )

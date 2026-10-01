@@ -19,6 +19,7 @@ def application(*, tmp_path):
         settings=Settings(
             app_db_path=tmp_path / "app.sqlite3",
             assessment_queue_path=tmp_path / "queue",
+            log_dir=tmp_path / "logs",
         )
     )
 

@@ -23,9 +23,14 @@ def run_worker(
     now: Clock,
     intervention_window_us: int,
 ) -> None:
+    intervention_windows: dict[str, int] = {}
     try:
         repair_deadlines = load_repair_deadlines(engine=engine)
-        intervention_windows: dict[str, int] = {}
+        if repair_deadlines:
+            logger.info(
+                "Repair deadlines recovered",
+                extra={"event": "worker.deadlines_recovered", "repair_deadlines": repair_deadlines},
+            )
 
         while not scheduler.stopped.is_set():
             enqueue_due_repair_checks(
@@ -47,6 +52,12 @@ def run_worker(
                 intervention_windows=intervention_windows,
             )
     except Exception:
-        logger.exception("The assessment worker stopped unexpectedly")
+        logger.exception(
+            "The assessment worker stopped unexpectedly",
+            extra={
+                "event": "worker.stopped",
+                "discarded_intervention_windows": intervention_windows,
+            },
+        )
     finally:
         scheduler.stopped.set()

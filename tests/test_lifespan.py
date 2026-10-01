@@ -37,6 +37,7 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(
         settings=Settings(
             app_db_path=tmp_path / "app.sqlite3",
             assessment_queue_path=tmp_path / "queue",
+            log_dir=tmp_path / "logs",
         ),
         now=lambda: received_at,
     )
@@ -81,6 +82,7 @@ def test_shutdown_finishes_active_work_and_leaves_waiting_work(*, tmp_path, monk
         settings=Settings(
             app_db_path=tmp_path / "app.sqlite3",
             assessment_queue_path=tmp_path / "queue",
+            log_dir=tmp_path / "logs",
         )
     )
     with ThreadPoolExecutor(max_workers=1) as executor:
@@ -113,7 +115,11 @@ def test_failed_queue_startup_clears_application_resources(*, tmp_path):
     path = tmp_path / "file"
     path.write_text("not a directory", encoding="utf-8")
     application = create_app(
-        settings=Settings(app_db_path=tmp_path / "app.sqlite3", assessment_queue_path=path)
+        settings=Settings(
+            app_db_path=tmp_path / "app.sqlite3",
+            assessment_queue_path=path,
+            log_dir=tmp_path / "logs",
+        )
     )
 
     with pytest.raises(StorageUnavailable), TestClient(application):

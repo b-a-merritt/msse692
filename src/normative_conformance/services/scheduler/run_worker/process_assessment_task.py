@@ -1,3 +1,4 @@
+import logging
 from _thread import LockType
 from typing import Literal
 from uuid import UUID
@@ -15,6 +16,8 @@ from normative_conformance.services.intervention.should_open_intervention_window
 )
 from normative_conformance.services.scheduler.state import SchedulerState
 from normative_conformance.timestamps import to_microseconds
+
+logger = logging.getLogger(__name__)
 
 
 def process_assessment_task(
@@ -61,13 +64,22 @@ def process_assessment_task(
         repair_deadlines=repair_deadlines,
     )
 
-    if should_open_intervention_window(
+    if case_id not in intervention_windows and should_open_intervention_window(
         assessments=assessments,
         task_kind=task_kind,
         evaluation_id=task["evaluation_id"],
         started_at_us=started_at_us,
     ):
-        intervention_windows.setdefault(case_id, started_at_us)
+        intervention_windows[case_id] = started_at_us
+        logger.info(
+            "Intervention window opened",
+            extra={
+                "event": "intervention.window_opened",
+                "case_id": case_id,
+                "evaluation_id": task["evaluation_id"],
+                "opened_at_us": started_at_us,
+            },
+        )
 
 
 def _allow_follow_up_request(

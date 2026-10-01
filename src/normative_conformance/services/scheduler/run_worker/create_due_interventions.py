@@ -30,4 +30,11 @@ def create_due_interventions(
                     case_id=case_id, since_us=opened_at_us, session=session, now=now
                 )
         except Exception:
-            logger.exception("Intervention creation failed")
+            logger.exception(
+                "Intervention creation failed",
+                extra={
+                    "event": "intervention.failed",
+                    "case_id": case_id,
+                    "opened_at_us": opened_at_us,
+                },
+            )

@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from sqlalchemy import Engine
@@ -17,6 +18,8 @@ from normative_conformance.services.observation.get_case_sequence import get_cas
 from normative_conformance.services.scheduler.request_repair_check import request_repair_check
 from normative_conformance.services.scheduler.state import SchedulerState
 from normative_conformance.timestamps import to_microseconds
+
+logger = logging.getLogger(__name__)
 
 
 def evaluate_case(
@@ -44,7 +47,8 @@ def evaluate_case(
             )
 
             # A retry reuses its saved results and still reaches repair scheduling below.
-            if not results:
+            replayed = bool(results)
+            if not replayed:
                 last_repair = get_last_repair(case_id=case_id, session=session)
                 subject_speaker_id = get_subject_speaker_id(session=session)
 
@@ -62,12 +66,34 @@ def evaluate_case(
                         results.append(result)
 
             session.commit()
-    except SQLAlchemyError as error:
+    except (SQLAlchemyError, StorageUnavailable) as error:
+        logger.exception(
+            "Case evaluation rolled back",
+            extra={
+                "event": "evaluation.rolled_back",
+                "case_id": case_id,
+                "evaluation_id": str(evaluation_id),
+            },
+        )
+        if isinstance(error, StorageUnavailable):
+            raise
         raise StorageUnavailable("The case could not be assessed") from error
 
     # Existing resolutions still need checks for later repairs that reset detection.
     needs_repair_check = any(
         row.status == "pending" or row.resolves_assessment_id is not None for row in results
+    )
+    logger.info(
+        "Saved evaluation replayed" if replayed else "Case evaluation committed",
+        extra={
+            "event": "evaluation.replayed" if replayed else "evaluation.committed",
+            "case_id": case_id,
+            "evaluation_id": snapshot.evaluation_id,
+            "through_sequence": snapshot.through_sequence,
+            "evaluated_at_us": snapshot.evaluated_at_us,
+            "assessment_ids": [row.assessment_id for row in results],
+            "repair_check_needed": needs_repair_check,
+        },
     )
     if needs_repair_check and not scheduler.stopped.is_set():
         request_repair_check(case_id=case_id, scheduler=scheduler)

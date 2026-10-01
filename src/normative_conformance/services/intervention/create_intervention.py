@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 from sqlmodel import col
@@ -9,6 +11,8 @@ from normative_conformance.models.assessment import Assessment
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.services.intervention.constants import INTERVENTION_MESSAGES
 from normative_conformance.timestamps import to_microseconds
+
+logger = logging.getLogger(__name__)
 
 
 def create_intervention(
@@ -25,6 +29,14 @@ def create_intervention(
 
         sources = _get_sources(case_id=case_id, since_us=since_us, session=session)
         if not sources:
+            logger.info(
+                "No eligible assessments for an intervention",
+                extra={
+                    "event": "intervention.no_sources",
+                    "case_id": case_id,
+                    "since_us": since_us,
+                },
+            )
             return
 
         intervention = models.Intervention(
@@ -47,7 +59,23 @@ def create_intervention(
         session.commit()
     except SQLAlchemyError as error:
         session.rollback()
+        logger.exception(
+            "Intervention rolled back",
+            extra={"event": "intervention.rolled_back", "case_id": case_id, "since_us": since_us},
+        )
         raise StorageUnavailable("The intervention could not be created") from error
+
+    logger.info(
+        "Intervention created",
+        extra={
+            "event": "intervention.created",
+            "case_id": case_id,
+            "intervention_id": intervention.intervention_id,
+            "assessment_ids": [source.assessment_id for source in sources],
+            "since_us": since_us,
+            "intervention_message": intervention.message,
+        },
+    )
 
 
 def _get_sources(

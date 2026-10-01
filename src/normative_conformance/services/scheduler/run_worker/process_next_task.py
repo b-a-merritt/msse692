@@ -25,6 +25,13 @@ def process_next_task(
     except Empty:
         return
 
+    task_fields = {
+        "task_kind": task.get("kind"),
+        "case_id": task.get("case_id"),
+        "evaluation_id": task.get("evaluation_id"),
+    }
+    logger.info("Task started", extra={"event": "task.started", **task_fields})
+
     try:
         process_assessment_task(
             task=task,
@@ -35,7 +42,7 @@ def process_next_task(
             intervention_windows=intervention_windows,
         )
     except Exception:
-        logger.exception("Case assessment failed")
+        logger.exception("Case assessment failed", extra={"event": "task.failed", **task_fields})
         scheduler.queue.ack_failed(item=task)
     else:
         scheduler.queue.ack(item=task)

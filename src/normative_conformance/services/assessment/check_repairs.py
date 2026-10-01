@@ -1,3 +1,4 @@
+import logging
 from dataclasses import replace
 from uuid import UUID
 
@@ -20,6 +21,8 @@ from normative_conformance.services.observation.get_case_sequence import get_cas
 from normative_conformance.services.scheduler.request_assessment import request_assessment
 from normative_conformance.services.scheduler.state import SchedulerState
 from normative_conformance.timestamps import to_microseconds
+
+logger = logging.getLogger(__name__)
 
 
 def check_repairs(
@@ -81,11 +84,37 @@ def check_repairs(
                 )
             )
             session.commit()
-    except SQLAlchemyError as error:
+    except (SQLAlchemyError, StorageUnavailable) as error:
+        logger.exception(
+            "Repair check rolled back",
+            extra={
+                "event": "repairs.rolled_back",
+                "case_id": case_id,
+                "evaluation_id": str(evaluation_id),
+            },
+        )
+        if isinstance(error, StorageUnavailable):
+            raise
         raise StorageUnavailable("Repairs could not be checked") from error
 
     needs_assessment = new_repair is not None or any(
         row.status == "non-conformant" for row in results
+    )
+    logger.info(
+        "Repair check committed",
+        extra={
+            "event": "repairs.committed",
+            "case_id": case_id,
+            "evaluation_id": snapshot.evaluation_id,
+            "through_sequence": snapshot.through_sequence,
+            "evaluated_at_us": snapshot.evaluated_at_us,
+            "repair_model_id": new_repair[0].model_id if new_repair else None,
+            "repair_observation_id": new_repair[1].observation_id if new_repair else None,
+            "resolution_ids": [
+                row.assessment_id for row in results if row.resolves_assessment_id is not None
+            ],
+            "reassessment_needed": needs_assessment,
+        },
     )
     if needs_assessment and not scheduler.stopped.is_set():
         request_assessment(case_id=case_id, scheduler=scheduler)

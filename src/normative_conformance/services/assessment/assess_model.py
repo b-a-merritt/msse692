@@ -1,3 +1,5 @@
+import logging
+
 from sqlmodel import Session
 from sqlmodel import col
 from sqlmodel import select
@@ -8,6 +10,8 @@ from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.schemas.model import ModelVersion
 from normative_conformance.services.assessment.create_assessment import create_assessment
 from normative_conformance.services.model.evaluate_model import evaluate_model
+
+logger = logging.getLogger(__name__)
 
 
 def assess_model(
@@ -21,6 +25,13 @@ def assess_model(
     """Reuse an active occurrence or append a newly detected match."""
     previous = _get_previous_assessment(model=model, case_id=snapshot.case_id, session=session)
     if previous is not None and previous.status == "pending":
+        _log_decision(
+            message="Pending match reused",
+            event="model.pending_reused",
+            model=model,
+            snapshot=snapshot,
+            assessment=previous,
+        )
         return previous
 
     if not evaluate_model(
@@ -31,6 +42,13 @@ def assess_model(
         session=session,
         after_observation=last_repair,
     ):
+        _log_decision(
+            message="Model did not match",
+            event="model.no_match",
+            model=model,
+            snapshot=snapshot,
+            assessment=None,
+        )
         return None
 
     if previous is not None and previous.status == "conformant":
@@ -48,6 +66,13 @@ def assess_model(
             session=session,
             after_observation=last_repair,
         ):
+            _log_decision(
+                message="Confirmed match reused",
+                event="model.match_reused",
+                model=model,
+                snapshot=snapshot,
+                assessment=previous,
+            )
             return previous
 
     deadline = (
@@ -56,12 +81,44 @@ def assess_model(
         else None
     )
 
-    return create_assessment(
+    created = create_assessment(
         model=model,
         snapshot=snapshot,
         status="pending" if deadline is not None else "conformant",
         session=session,
         next_due_at_us=deadline,
+    )
+    _log_decision(
+        message="Model matched",
+        event="model.matched",
+        model=model,
+        snapshot=snapshot,
+        assessment=created,
+    )
+    return created
+
+
+def _log_decision(
+    *,
+    message: str,
+    event: str,
+    model: ModelVersion,
+    snapshot: CaseSnapshot,
+    assessment: Assessment | None,
+) -> None:
+    logger.info(
+        message,
+        extra={
+            "event": event,
+            "case_id": snapshot.case_id,
+            "evaluation_id": snapshot.evaluation_id,
+            "model_id": model.model_id,
+            "version": model.version,
+            "through_sequence": snapshot.through_sequence,
+            "assessment_id": assessment.assessment_id if assessment else None,
+            "status": assessment.status if assessment else None,
+            "next_due_at_us": assessment.next_due_at_us if assessment else None,
+        },
     )
 
 
