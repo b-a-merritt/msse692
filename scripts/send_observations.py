@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import time
+from datetime import datetime
 from pathlib import Path
 from urllib.request import Request
 from urllib.request import urlopen
+
+
+def _parse_timestamp(*, value: str) -> datetime:
+    # Python 3.10's fromisoformat rejects the "Z" suffix.
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def main() -> None:
@@ -17,16 +24,34 @@ def main() -> None:
     parser.add_argument(
         "--delay",
         type=float,
-        default=0.0,
-        help="Seconds between submissions (default: 0)",
+        help="Seconds between submissions (default: replay recorded gaps)",
     )
     args = parser.parse_args()
 
     url = args.base_url.rstrip("/") + "/api/v1/observations"
 
     with args.case_file.open(encoding="utf-8") as case_file:
+        prev_end_at = None
+
         for line_number, line in enumerate(case_file, start=1):
-            time.sleep(args.delay)
+            if not line.strip():
+                continue
+
+            observation = json.loads(line)
+            start_at = _parse_timestamp(value=observation["start_at"])
+            end_at = _parse_timestamp(value=observation["end_at"])
+
+            if args.delay is not None:
+                delay_sec = args.delay
+            elif prev_end_at is None:
+                delay_sec = 0.0
+            else:
+                diff = start_at - prev_end_at
+                delay_sec = max(0.0, diff.total_seconds())
+
+            prev_end_at = end_at
+
+            time.sleep(delay_sec)
 
             request = Request(
                 url=url,
@@ -36,7 +61,10 @@ def main() -> None:
             )
 
             with urlopen(request, timeout=10) as response:
-                print(f"Submitted line {line_number}: HTTP {response.status}", flush=True)
+                print(
+                    f"Submitted line {line_number}: HTTP {response.status} | Delay: {delay_sec}",
+                    flush=True,
+                )
 
 
 if __name__ == "__main__":
