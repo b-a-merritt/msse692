@@ -1,3 +1,4 @@
+import re
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -32,6 +33,10 @@ def _normalize_text(value: str) -> str:
     return " ".join(value.translate(translation).split())
 
 
+def _regexp(pattern: str, value: str) -> bool:
+    return re.search(pattern, value) is not None
+
+
 def _configure_connection(connection: object, record: object) -> None:
     if not isinstance(connection, sqlite3.Connection):
         raise TypeError("The application database requires SQLite")
@@ -39,6 +44,7 @@ def _configure_connection(connection: object, record: object) -> None:
     # SQLAlchemy owns transactions, so disable legacy BEGIN behavior
     connection.isolation_level = None
     connection.create_function("normalize_text", 1, _normalize_text, deterministic=True)
+    connection.create_function("regexp", 2, _regexp, deterministic=True)
 
     with connection:
         cursor = connection.cursor()

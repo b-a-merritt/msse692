@@ -103,6 +103,20 @@ If enqueueing fails after the observation commits, the API returns `503` with
 code `ENQUEUE_FAILED` and `error.committed_observation`. The observation remains
 stored. Resubmitting that same observation returns `409` and does not retry scheduling.
 
+## Logs
+
+Each application start writes JSON Lines to stdout and to a new file,
+`$LOG_DIR/<UTC start time>.jsonl` (default `data/logs`).
+
+```json
+{"timestamp": "2026-10-01T12:00:00.123456Z", "level": "INFO", "logger": "normative_conformance.services.observation.ingest", "message": "Observation committed", "run_id": "20261001T120000000000Z", "event": "observation.committed", "case_id": "case-1", "observation_id": "chunk-1", "sequence": 1}
+```
+
+`message` is fixed text. Filter on `event`, and find records with the IDs in
+the other fields. Exceptions are logged as a list of exception type names, with
+no messages, so transcripts never reach the logs. To follow one case across
+every run file:
+
 ## Tests
 
 Run `uv run pytest`. Pytest integration tests create a SQLite file under `tmp_path`

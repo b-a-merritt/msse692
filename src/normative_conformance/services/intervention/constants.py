@@ -15,6 +15,10 @@ INTERVENTION_MESSAGES: tuple[tuple[frozenset[str], str], ...] = (
         "You described the person, not the issue. Try naming what they did.",
     ),
     (
+        frozenset({"vulgar_language"}),
+        "You used strong language. Try saying what you need instead.",
+    ),
+    (
         frozenset({"high_intensity_address"}),
         "You're speaking loudly and quickly. Slow down and lower your voice.",
     ),

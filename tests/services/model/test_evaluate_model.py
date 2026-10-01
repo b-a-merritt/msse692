@@ -39,10 +39,14 @@ def test_address_requires_loud_fast_speech(*, add_observation, matches, level, e
     [
         ("YOU'RE A, liar!", True),
         ("You're exactly like your mother.", True),
+        ("You sound like your father", True),
         ("It's pathetic.", True),
-        ("oh, FUCKING hell", True),
+        ("You're such a selfish bitch", True),
+        ("you are being a dick", True),
+        ("You're a great dad", False),
+        ("You're fucking kidding me", False),
+        ("oh, FUCKING hell", False),
         ("you are wrong", False),
-        ("what a shitty day", False),
     ],
 )
 def test_character_label_matches_quiet_slow_speech(
@@ -50,6 +54,23 @@ def test_character_label_matches_quiet_slow_speech(
 ):
     add_observation(start=0, end=5, transcript=transcript)
     assert matches(model_id="character_label") is expected
+
+
+@pytest.mark.parametrize(
+    "transcript,expected",
+    [
+        ("Fuck.", True),
+        ("oh, FUCKING hell", True),
+        ("what a shitty day", True),
+        ("some sort of goddamn punishment", True),
+        ("You're a great dad", False),
+        ("Dickens wrote that", False),
+        ("He shot the scrapbook", False),
+    ],
+)
+def test_vulgar_language_matches_term_variants(*, add_observation, matches, transcript, expected):
+    add_observation(start=0, end=5, transcript=transcript)
+    assert matches(model_id="vulgar_language") is expected
 
 
 @pytest.mark.parametrize(

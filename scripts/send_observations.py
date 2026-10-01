@@ -38,7 +38,6 @@ def main() -> None:
                 continue
 
             observation = json.loads(line)
-            start_at = _parse_timestamp(value=observation["start_at"])
             end_at = _parse_timestamp(value=observation["end_at"])
 
             if args.delay is not None:
@@ -46,10 +45,11 @@ def main() -> None:
             elif prev_end_at is None:
                 delay_sec = 0.0
             else:
-                diff = start_at - prev_end_at
+                diff = end_at - prev_end_at
                 delay_sec = max(0.0, diff.total_seconds())
 
-            prev_end_at = end_at
+            # Overlapping chunks can end out of order
+            prev_end_at = end_at if prev_end_at is None else max(prev_end_at, end_at)
 
             time.sleep(delay_sec)
 

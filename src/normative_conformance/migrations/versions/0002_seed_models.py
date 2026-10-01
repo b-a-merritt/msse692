@@ -18,41 +18,29 @@ HARM_PHRASE_PARAMETERS = {
         "i swear to god",
     ],
 }
+DESCRIPTOR_TERMS = ["selfish", "selfishness", "pathetic", "insane", "melodramatic", "slob"]
+INSULT_TERMS = ["liar", "idiot", "loser", "coward", "joke"]
+VULGAR_TERMS = [
+    "fuck(ed|er|ers|ing)?",
+    "shit(ty)?",
+    "(god)?damn(ed|it)?",
+    "dick(head)?",
+    "bitch(es|y)?",
+    "bastards?",
+    "assholes?",
+    "crap(py)?",
+    "piss(ed)?",
+]
+LABEL_TERMS = "|".join(DESCRIPTOR_TERMS + INSULT_TERMS + VULGAR_TERMS)
 CHARACTER_LABEL_PARAMETERS = {
-    "address_phrases": [
-        "you're a",
-        "you are a",
-        "you're such a",
-        "you're just like",
-        "you're exactly like",
-        "like your mother",
-        "like your father",
-    ],
-    "descriptor_terms": [
-        "selfish",
-        "selfishness",
-        "pathetic",
-        "insane",
-        "melodramatic",
-        "slob",
-    ],
-    "vulgar_terms": [
-        "fuck",
-        "fucked",
-        "fucker",
-        "fucking",
-        "shit",
-        "damn",
-        "goddamn",
-        "dick",
-        "bitch",
-        "bastard",
-        "asshole",
-        "crap",
-        "piss",
-        "pissed",
+    "descriptor_terms": DESCRIPTOR_TERMS,
+    # An address must reach a label term, so "you're a great dad" does not match
+    "address_patterns": [
+        r"\byou('re| are) (an?|such an?|just an?|being|so)( \w+)? (" + LABEL_TERMS + r")\b",
+        r"\b(you('re| are)|you sound|you act)( just| exactly)? like your (mother|father|mom|dad)\b",
     ],
 }
+VULGAR_LANGUAGE_PARAMETERS = {"patterns": [r"\b(" + term + r")\b" for term in VULGAR_TERMS]}
 ABSOLUTIST_PHRASE_PARAMETERS = {
     "phrases": ["you always", "you never", "you'll never", "you will never", "every time you"],
 }
@@ -141,13 +129,27 @@ WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
   AND sequence <= :through_sequence
   AND (:after_sequence IS NULL OR (start_at_us, end_at_us, sequence)
        > (:after_start_at_us, :after_end_at_us, :after_sequence))
-  AND EXISTS (
-      SELECT 1 FROM (
-          SELECT value FROM json_each(:address_phrases)
-          UNION ALL SELECT value FROM json_each(:descriptor_terms)
-          UNION ALL SELECT value FROM json_each(:vulgar_terms)
+  AND (
+      EXISTS (
+          SELECT 1 FROM json_each(:descriptor_terms)
+          WHERE instr(' ' || normalize_text(transcript) || ' ', ' ' || value || ' ') > 0
       )
-      WHERE instr(' ' || normalize_text(transcript) || ' ', ' ' || value || ' ') > 0
+      OR EXISTS (
+          SELECT 1 FROM json_each(:address_patterns)
+          WHERE normalize_text(transcript) REGEXP value
+      )
+  )
+LIMIT 1
+"""
+
+SUBJECT_PATTERN_SQL = """
+SELECT 1 FROM observation
+WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
+  AND sequence <= :through_sequence
+  AND (:after_sequence IS NULL OR (start_at_us, end_at_us, sequence)
+       > (:after_start_at_us, :after_end_at_us, :after_sequence))
+  AND EXISTS (
+      SELECT 1 FROM json_each(:patterns) WHERE normalize_text(transcript) REGEXP value
   )
 LIMIT 1
 """
@@ -235,9 +237,23 @@ def upgrade() -> None:
             "rules": [
                 {
                     "rule_id": "character_label",
-                    "description": "A subject chunk contains an address phrase, descriptor, "
-                    "or vulgar term",
+                    "description": "A subject chunk contains a descriptor or addresses "
+                    "the listener with a label",
                     "sql": CHARACTER_LABEL_SQL,
+                }
+            ],
+        },
+        {
+            "model_id": "vulgar_language",
+            "name": "Vulgar language",
+            "type": "undesired",
+            "repair_allowance_us": 10_000_000,
+            "parameters": VULGAR_LANGUAGE_PARAMETERS,
+            "rules": [
+                {
+                    "rule_id": "vulgar_term",
+                    "description": "A subject chunk contains a vulgar term",
+                    "sql": SUBJECT_PATTERN_SQL,
                 }
             ],
         },
@@ -320,8 +336,8 @@ def downgrade() -> None:
         DELETE FROM normative_model_version WHERE version = '1'
         AND model_id IN (
             'repeated_interruption', 'high_intensity_address', 'extended_turn', 'harm_phrase',
-            'character_label', 'absolutist_phrase', 'apology', 'agreement_phrase',
-            'intent_disclaimer'
+            'character_label', 'vulgar_language', 'absolutist_phrase', 'apology',
+            'agreement_phrase', 'intent_disclaimer'
         )
     """)
     op.execute("""

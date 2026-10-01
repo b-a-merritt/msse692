@@ -13,4 +13,5 @@ def test_seeded_catalog_is_read_from_database(*, session):
         ("high_intensity_address", "undesired", 10_000_000),
         ("intent_disclaimer", "repairs", None),
         ("repeated_interruption", "undesired", 10_000_000),
+        ("vulgar_language", "undesired", 10_000_000),
     ]

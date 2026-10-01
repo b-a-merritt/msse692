@@ -16,6 +16,7 @@ def test_catalog_exposes_repair_allowances(*, client):
         "high_intensity_address": 10_000_000,
         "intent_disclaimer": None,
         "repeated_interruption": 10_000_000,
+        "vulgar_language": 10_000_000,
     }
     assert all("repairable" not in item for item in items)
 
