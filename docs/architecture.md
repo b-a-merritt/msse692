@@ -68,7 +68,7 @@ The architecture is a modular monolith: one server application with separate ing
 | Model loader | Seed supplied versions without duplication or replacement Validate definitions before readiness |
 | Scheduler | Enqueue case tasks in `persistqueue` after observation commits and at model deadlines; combine waiting requests using in-memory case coordination |
 | Assessment service | Run each supplied normative model's full set of declarative queries Derive activities and store the status, explanation, and exact evaluated observation references |
-| Intervention service | Create interventions from conformant assessments, retaining the message, creation time, and source assessment reference |
+| Intervention service | Create interventions from conformant assessments, retaining the message, creation time, and source assessment references |
 
 Domain records and ready assessment tasks are persisted in SQLite; `persistqueue` owns queue delivery and acknowledgment state. The scheduler keeps future deadlines and queued-case membership in memory. On restart, old messages are drained without evaluation, and cases resume on new observations. Diagnostic logging writes decisions, record references, and rule references to stdout and a file.
 
@@ -90,7 +90,7 @@ The processing sequence is:
 1. The API rejects invalid or unsupported input before persistence or assessment.
 2. Ingestion commits a valid observation, then enqueues assessment work for its case in `persistqueue`. The API acknowledges acceptance after enqueuing without waiting for assessment to complete.
 3. The worker detects new patterns within the event log and checks unresolved repairs using retained evidence. It commits each assessment with its case, captured sequence cutoff, and model/version reference. If it assesses a case to be pending, it enqueues another assessment.
-4. Only a `conformant` assessment reaches the intervention policy. In a separate transaction, the policy commits an intervention with a unique source assessment ID and null sent timestamp. All stored interventions are authorized.
+4. Only a `conformant` assessment reaches the intervention policy. After a short window that groups close confirmations, the policy commits one intervention in a separate transaction. It links each source assessment at most once and has a null sent timestamp. All stored interventions are authorized.
 5. Delivery sets `sent_at_us` on all selected pending interventions before returning the HTTP response. Response status is derived from that timestamp; the decision and source reference remain unchanged.
 
 | Note that intervention pending means delivery is authorized and awaiting completion, while assessment pending means conformance is unresolved. Repair deadlines can also trigger assessment without an HTTP submission. Evaluation errors are operational failures, separate from conformance statuses. A later-stage failure leaves earlier commits intact. |
@@ -142,7 +142,7 @@ The model loader seeds and validates versions before the server reports health r
 | Observation ingestion | Commit observations |
 | Assessment scheduler | Persist assessment work through `persistqueue`; read retained case and pending-check state when a case resumes |
 | Assessment worker | Read evaluated observations, commit assessments with captured case prefixes |
-| Intervention policy | Commit interventions with a unique source assessment reference |
+| Intervention policy | Commit interventions whose source assessments are each linked once |
 | Local delivery adapter | Update delivery status |
 
 # **Quality Attribute Achievement Strategy**
@@ -203,7 +203,7 @@ For each completed result, stdout and the database records must explain every de
 | Tactic | Purpose |
 | :---- | :---- |
 | Assessment provenance | Store model identity, version, evaluation time, rule identifiers, reasons, and the case and sequence cutoff identifying the exact evaluated prefix |
-| Intervention provenance | Store message, creation time, and source assessment ID |
+| Intervention provenance | Store message, creation time, and source assessment IDs |
 | Correlated diagnostics | Log readable outcomes and references to stdout and the event log, including rejected input and operational failures |
 
 These references let an evaluator trace delivery through the policy decision and assessments to the model definitions and observations. Explanations of absent repairs identify the evaluated history and deadline.

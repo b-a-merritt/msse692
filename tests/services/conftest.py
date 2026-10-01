@@ -1,8 +1,38 @@
 import pytest
 
+from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.case import CaseLog
 from normative_conformance.models.case import ExperimentConfig
 from normative_conformance.models.observation import Observation
+
+
+@pytest.fixture
+def assessment_result():
+    """Build an assessment result in memory without creating database records."""
+
+    def assessment_result(
+        *,
+        case_id="case",
+        evaluation_id="evaluation",
+        status="conformant",
+        evaluated_at_us=100_000_000,
+        next_due_at_us=None,
+        resolves_assessment_id=None,
+    ):
+        return Assessment(
+            case_id=case_id,
+            evaluation_id=evaluation_id,
+            model_id="harm_phrase",
+            model_version="1",
+            through_sequence=1,
+            status=status,
+            evaluated_at_us=evaluated_at_us,
+            next_due_at_us=next_due_at_us,
+            resolves_assessment_id=resolves_assessment_id,
+            explanation_json="{}",
+        )
+
+    return assessment_result
 
 
 @pytest.fixture

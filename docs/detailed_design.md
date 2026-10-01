@@ -91,7 +91,6 @@ The following status codes are used.
 | **Method and path** | **Input** | **Status and Response** |
 | `POST /observations` | `ObservationInput` | 202 `ObservationAccepted`&nbsp; |
 | `GET/cases/{case_id}/observations` | Case ID | 200 `ListResponse[ObservationRecord]` |
-| `GET/cases/{case_id}/observations/{observation_id}` | Case and observation IDs | 200 `ObservationRecord` |
 | `GET /models` | None | 200 `ListResponse[ModelVersion]` |
 | `GET /models/{model_id}/versions/{version}` | Model ID and version | 200 `ModelVersion` |
 | `GET /cases/{case_id}/assessments` | Case ID | 200 `ListResponse[Assessment]` |
@@ -163,14 +162,15 @@ The tables use SQLite `STRICT`. Unless marked nullable, every column is `NOT NUL
 | `observation` | `case_id TEXT PK``observation_id TEXT PK``sequence INTEGER``received_at_us INTEGER``speaker_id TEXT``start_at_us INTEGER``end_at_us INTEGER``transcript TEXT``signal_level_min REAL``signal_level_avg REAL``signal_level_max REAL` |
 | `normative_model_version` | `model_id TEXT PK``version TEXT PK``name TEXT``orientation TEXT``rules_json TEXT``parameters_json TEXT` |
 | `assessment` | `assessment_id INTEGER PK``evaluation_id TEXT``case_id TEXT``model_id TEXT``model_version TEXT``evaluated_at_us INTEGER``through_sequence INTEGER``status TEXT``explanation_json TEXT``next_due_at_us INTEGER nullable` |
-| `intervention` | `intervention_id INTEGER PK``assessment_id INTEGER``message TEXT``created_at_us INTEGER``sent_at_us INTEGER nullable` |
+| `intervention` | `intervention_id INTEGER PK``case_id TEXT``message TEXT``created_at_us INTEGER``sent_at_us INTEGER nullable` |
+| `intervention_source` | `intervention_id INTEGER PK``assessment_id INTEGER PK` |
 
 ### Constraints
 
 1. **Observations:** `(case_id, observation_id)` is the primary key and link `case_id` to `case_log`. Require a unique `(case_id, sequence)`, positive sequence, nonempty IDs and transcript, and `end_at_us > start_at_us`.&nbsp;
 2. **Models:** Use `(model_id, version)` as the primary key and require both fields to be nonempty. Set orientation to `undesirable_pattern`. Rules must be a nonempty JSON array and parameters a JSON object.&nbsp;
 3. **Assessments:** foreign keys to the case, `(model_id, model_version)` to the model key, and `(case_id, through_sequence)` to observation sequence. Unique `(evaluation_id, model_id, model_version)`. Status uses the four defined values.&nbsp;
-4. **Interventions:** unique `assessment_id` with a foreign key to assessment. An insert trigger requires a conformant source.&nbsp;
+4. **Interventions:** link `case_id` to `case_log`. An update may only set `sent_at_us` once, from null. Each `intervention_source` row links one intervention to one assessment, and `assessment_id` is unique. An insert trigger requires a `conformant` source from an `undesired` model in the intervention's case. Sources cannot be updated or deleted.&nbsp;
 
 ## **Indexes and queries** {#indexes-and-queries}
 
@@ -185,7 +185,7 @@ Historical extent retrieval uses the same predicate and `ORDER BY sequence`. The
 
 The database will use `foreign_keys=ON`, WAL, `synchronous=FULL`, and `busy_timeout=5000`. It will use the writer lock with `BEGIN IMMEDIATE` before allocating sequence numbers or selecting interventions for delivery.&nbsp;
 
-Intervention creation follows the assessment commit and cannot roll that back. For a repeated positive, it will usea targeted `ON CONFLICT ... WHERE status = 'conformant' DO NOTHING`, then retrieve the existing assessment. Do not hide other constraint failures.
+Intervention creation follows the assessment commit and cannot roll that back. It takes the writer lock, selects eligible assessments that have no source row, and inserts the intervention and its sources in one transaction. The unique source `assessment_id` rejects any second link. Do not hide other constraint failures.
 
 | Technology Stack |  |  |
 | :---- | :---- | :---- |
@@ -260,6 +260,8 @@ The worker will continue other models after one fails and keep any committed IDs
 
 Startup will open the queue with recovery of unacknowledged messages enabled, then drain and acknowledge all old work before starting producers. The scheduler will start with empty state. Only a new committed observation resumes a case. SQL derives any remaining or expired deadlines from its retained history. Startup and repeated positives do not fill gaps left by failed downstream writes.
 
+The worker groups close confirmations into one intervention. When a task produces a new `conformant` assessment of undesired behavior and its case has no open window, the worker opens one at the task's start time. The worker checks the result's evaluation ID and timestamp to exclude reused results and replays. Case evaluation returns undesired matches; in repair checks, only conformant resolutions of pending assessments open windows. Successful repairs do not open windows. When the window of `INTERVENTION_WINDOW_US` (default 2 seconds) closes, the worker creates one intervention from the case's eligible, unlinked assessments evaluated since it opened. Immediate confirmations and repair-deadline confirmations can share a window. Evaluation can run past the window's end, and those later confirmations can join the same decision. An ordered table of fixed messages chooses the text: the first entry whose models were all detected wins, and every undesired model has its own entry. Open windows exist only in memory. A failed decision is logged and dropped without retry.
+
 # **Quality Attribute Design** {#quality-attribute-design}
 
 ## **Performance** {#performance}
@@ -282,13 +284,15 @@ Every committed record will remain unchanged after restart. Recovery tests will 
 
 ## **Auditability and logging** {#auditability-and-logging}
 
-An intervention leads to its assessment, model version, explanation, and exact case history. Historical results do not change when new observations arrive. Logs will record receipt/rejection, queue acceptance/failure, assessment outcome, rule reasons, intervention creation, delivery, and startup/shutdown failures. Entries will include relevant case, observation, evaluation, assessment, and intervention IDs. HTTP failures will also include the request ID. Diagnostic logs will not contain whole transcripts.
+An intervention leads to its assessments and, through each one, its model version, explanation, and exact case history. Historical results do not change when new observations arrive. Logs will record receipt/rejection, queue acceptance/failure, assessment outcome, rule reasons, intervention creation, delivery, and startup/shutdown failures. Entries will include relevant case, observation, evaluation, assessment, and intervention IDs. HTTP failures will also include the request ID. Diagnostic logs will not contain whole transcripts.
 
-The system will write the same diagnostics to stdout and a log file in the configured directory:
+The system will write the same diagnostics as JSON Lines to stdout and a log file in the configured directory, with one JSON object per line:
 
-data/logs/20260920T120000123456Z.log
+data/logs/20260920T120000123456Z.jsonl
 
-The filename starts with the application's UTC start time and ends in `.log`. `LOG_DIR` sets the directory. The database keeps the observations, assessments, and interventions separately from these diagnostic logs.
+The filename starts with the application's UTC start time and ends in `.jsonl`. `LOG_DIR` sets the directory. The database keeps the observations, assessments, and interventions separately from these diagnostic logs.
+
+Log messages use fixed text. String interpolation is allowed only for predefined message text selected from a static map or lookup. IDs and other runtime values belong in structured JSON fields, never in the message. Raised exceptions and HTTP error messages retain the fixed-literal rule in `AGENTS.md`.
 
 # **Implementation Guidance** {#implementation-guidance}
 

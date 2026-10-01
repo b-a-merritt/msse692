@@ -13,42 +13,100 @@ import pytest
 from sqlmodel import select
 
 from normative_conformance import models
-from normative_conformance.database import write_session
 from normative_conformance.errors import EnqueueFailed
 from normative_conformance.services import assessment
 from normative_conformance.services import intervention
 from normative_conformance.services.scheduler.request_assessment import request_assessment
 from normative_conformance.services.scheduler.request_repair_check import request_repair_check
 from normative_conformance.services.scheduler.run_worker import run_worker
+from normative_conformance.timestamps import from_microseconds
 
 WINDOW_US = 2_000_000
 
 
-def test_success_is_acknowledged_after_evaluation(
-    *, scheduler, assessment_queue, engine, received_at, monkeypatch
+def test_initial_deadline_load_failure_stops_worker(
+    *, scheduler, assessment_queue, empty_engine, received_at, caplog
 ):
     request_assessment(case_id="case", scheduler=scheduler)
-    queued = assessment_queue.queue()[0]["data"]
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
-        assert case_id == "case"
-        assert str(evaluation_id) == queued["evaluation_id"]
-        assert now() == received_at
-        assert assessment_queue.acked_count() == 0
-        assert assessment_queue.unack_count() == 1
-        scheduler.stopped.set()
-        return []
-
-    monkeypatch.setattr(assessment, "evaluate_case", evaluate_case)
     run_worker(
         scheduler=scheduler,
-        engine=engine,
+        engine=empty_engine,
         now=lambda: received_at,
         intervention_window_us=WINDOW_US,
     )
-    assert assessment_queue.acked_count() == 1
+
+    assert scheduler.stopped.is_set()
+    assert assessment_queue.qsize() == 1
     assert assessment_queue.unack_count() == 0
-    assert scheduler.queued_cases == set()
+    assert "The assessment worker stopped unexpectedly" in caplog.text
+
+
+def test_due_repair_enqueue_failure_stops_worker(
+    *, engine, scheduler, assessment_queue, add_observation, monkeypatch, caplog
+):
+    add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
+    scheduler.stopped.set()
+    assessments = assessment.evaluate_case(
+        case_id="case",
+        evaluation_id=uuid4(),
+        engine=engine,
+        scheduler=scheduler,
+        now=lambda: from_microseconds(value=100_000_000),
+    )
+    due_at_us = min(row.next_due_at_us for row in assessments if row.next_due_at_us is not None)
+    scheduler.stopped.clear()
+    monkeypatch.setattr(
+        assessment_queue, "put", Mock(side_effect=sqlite3.OperationalError("Queue failed"))
+    )
+
+    run_worker(
+        scheduler=scheduler,
+        engine=engine,
+        now=lambda: from_microseconds(value=due_at_us),
+        intervention_window_us=WINDOW_US,
+    )
+
+    assert scheduler.stopped.is_set()
+    assert assessment_queue.qsize() == 0
+    assert "The assessment worker stopped unexpectedly" in caplog.text
+
+
+def test_shutdown_discards_open_windows_without_recovering_them_on_restart(
+    *, engine, session, scheduler, assessment_queue, confirm, monkeypatch
+):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+        result = confirm(model_id="harm_phrase", at=100, evaluation_id=evaluation_id)
+        scheduler.stopped.set()
+        return [result]
+
+    monkeypatch.setattr(assessment, "evaluate_case", evaluate_case)
+    request_assessment(case_id="case", scheduler=scheduler)
+    run_worker(
+        scheduler=scheduler,
+        engine=engine,
+        now=lambda: from_microseconds(value=100_000_000),
+        intervention_window_us=WINDOW_US,
+    )
+    assert assessment_queue.acked_count() == 1
+
+    original_get = assessment_queue.get
+
+    def stop_when_empty(*, timeout):
+        scheduler.stopped.set()
+        return original_get(timeout=timeout)
+
+    monkeypatch.setattr(assessment_queue, "get", stop_when_empty)
+    scheduler.stopped.clear()
+    run_worker(
+        scheduler=scheduler,
+        engine=engine,
+        now=lambda: from_microseconds(value=200_000_000),
+        intervention_window_us=WINDOW_US,
+    )
+
+    assert scheduler.stopped.is_set()
+    assert intervention.list_intervention_records(session=session) == []
 
 
 def test_arrivals_during_evaluation_share_one_follow_up(
@@ -127,27 +185,6 @@ def test_failed_evaluation_does_not_retry_or_stop_other_cases(
     assert assessment_queue.acked_count() == 1
     assert assessment_queue.empty()
     assert "Case assessment failed" in caplog.text
-
-
-def test_missing_case_is_marked_failed(
-    *, scheduler, assessment_queue, engine, received_at, monkeypatch
-):
-    request_assessment(case_id="case", scheduler=scheduler)
-    original_ack_failed = assessment_queue.ack_failed
-
-    def ack_failed(*, item):
-        scheduler.stopped.set()
-        return original_ack_failed(item=item)
-
-    monkeypatch.setattr(assessment_queue, "ack_failed", ack_failed)
-    run_worker(
-        scheduler=scheduler,
-        engine=engine,
-        now=lambda: received_at,
-        intervention_window_us=WINDOW_US,
-    )
-    assert assessment_queue.acked_count() == 0
-    assert assessment_queue.ack_failed_count() == 1
 
 
 def test_unknown_task_is_failed_without_stopping_other_cases(
@@ -310,75 +347,6 @@ def test_queue_failure_stops_worker_and_rejects_new_requests(
     assert "The assessment worker stopped unexpectedly" in caplog.text
     with pytest.raises(EnqueueFailed, match="The assessment worker is not running"):
         request_assessment(case_id="new", scheduler=scheduler)
-
-
-@pytest.fixture
-def confirm(*, engine, add_observation):
-    observation = add_observation(start=0, end=1)
-
-    def confirm(*, model_id, at, evaluation_id):
-        with write_session(engine=engine) as session:
-            row = models.Assessment(
-                evaluation_id=str(evaluation_id),
-                case_id="case",
-                model_id=model_id,
-                model_version="1",
-                evaluated_at_us=round(at * 1_000_000),
-                through_sequence=observation.sequence,
-                status="conformant",
-                explanation_json="{}",
-            )
-            session.add(row)
-            session.commit()
-            return row
-
-    return confirm
-
-
-@pytest.fixture
-def run_until(*, scheduler, engine):
-    """Run the worker on a settable clock until the test signals completion."""
-
-    def run_until(*, clock, done):
-        worker = Thread(
-            target=run_worker,
-            kwargs={
-                "scheduler": scheduler,
-                "engine": engine,
-                "now": lambda: datetime.fromtimestamp(clock["at"], timezone.utc),
-                "intervention_window_us": WINDOW_US,
-            },
-        )
-        worker.start()
-        try:
-            assert done.wait(timeout=5)
-        finally:
-            scheduler.stopped.set()
-            worker.join(timeout=5)
-        assert not worker.is_alive()
-
-    return run_until
-
-
-@pytest.fixture
-def record_decisions(*, monkeypatch):
-    """Record intervention decisions; the event fires once the expected number is made."""
-
-    def record_decisions(*, count):
-        decisions = []
-        done = Event()
-        original = intervention.create_intervention
-
-        def create_intervention(**kwargs):
-            original(**kwargs)
-            decisions.append(kwargs["since_us"])
-            if len(decisions) == count:
-                done.set()
-
-        monkeypatch.setattr(intervention, "create_intervention", create_intervention)
-        return decisions, done
-
-    return record_decisions
 
 
 @pytest.mark.parametrize(
