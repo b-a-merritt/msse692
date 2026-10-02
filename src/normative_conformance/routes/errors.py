@@ -66,19 +66,6 @@ def _envelope(
     return JSONResponse(status_code=status, content=body.model_dump(mode="json", exclude_none=True))
 
 
-async def unimplemented_operation(
-    request: Request,
-    exc: Exception,
-) -> JSONResponse:
-    """Keep placeholder operations explicitly unavailable until implemented."""
-    return _envelope(
-        request=request,
-        status=503,
-        code="NOT_READY",
-        message="This operation is not implemented yet",
-    )
-
-
 async def service_error(
     request: Request,
     exc: Exception,
@@ -134,7 +121,6 @@ def register_error_handlers(
     application: FastAPI,
 ) -> None:
     """Attach the placeholder and domain failure handlers to the application."""
-    application.add_exception_handler(NotImplementedError, unimplemented_operation)
     application.add_exception_handler(RequestValidationError, validation_error)
     for error in _TRANSLATIONS:
         application.add_exception_handler(error, service_error)
