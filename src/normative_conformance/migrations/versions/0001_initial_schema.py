@@ -96,6 +96,13 @@ CREATE TABLE intervention_source (
     PRIMARY KEY (intervention_id, assessment_id)
 ) STRICT
 """)
+    op.execute("""
+CREATE INDEX assessment_case_model ON assessment (case_id, model_id, model_version)
+""")
+    op.execute("CREATE INDEX intervention_case ON intervention (case_id)")
+    op.execute("""
+CREATE INDEX intervention_pending ON intervention (intervention_id) WHERE sent_at_us IS NULL
+""")
     # Stored evidence cannot be updated or deleted. Ingestion must assign
     # increasing per-case sequence numbers to keep assessed prefixes stable.
     op.execute("""
