@@ -49,24 +49,28 @@ AGREEMENT_PHRASE_PARAMETERS = {"phrases": ["you're right", "you are right"]}
 INTENT_DISCLAIMER_PARAMETERS = {"phrases": ["i didn't mean", "i did not mean"]}
 
 DISTINCT_INTERRUPTIONS_SQL = """
-SELECT 1
-FROM observation s
-JOIN observation o ON o.case_id = s.case_id AND o.speaker_id != s.speaker_id
-WHERE s.case_id = :case_id AND s.speaker_id = :subject_speaker_id
-  AND s.sequence <= :through_sequence AND o.sequence <= :through_sequence
-  AND (:after_sequence IS NULL OR (s.start_at_us, s.end_at_us, s.sequence)
-       > (:after_start_at_us, :after_end_at_us, :after_sequence))
-  AND o.start_at_us < s.start_at_us AND s.start_at_us < o.end_at_us
-  AND min(s.end_at_us, o.end_at_us) - s.start_at_us >= :overlap_min_us
-  AND NOT EXISTS (
-      SELECT 1 FROM observation p
-      WHERE p.case_id = s.case_id AND p.speaker_id = s.speaker_id
-        AND p.sequence <= :through_sequence
-        AND (p.start_at_us, p.end_at_us, p.sequence) < (s.start_at_us, s.end_at_us, s.sequence)
-        AND p.end_at_us >= s.start_at_us
-  )
-GROUP BY s.case_id HAVING count(DISTINCT s.sequence) >= :interruption_count
-LIMIT 1
+WITH prefix AS (
+    SELECT speaker_id, sequence, start_at_us, end_at_us,
+        max(end_at_us) FILTER (WHERE speaker_id != :subject_speaker_id) OVER (
+            ORDER BY start_at_us RANGE BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+        ) AS other_end,
+        max(end_at_us) FILTER (WHERE speaker_id = :subject_speaker_id) OVER (
+            ORDER BY start_at_us, end_at_us, sequence
+            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+        ) AS own_end
+    FROM observation
+    WHERE case_id = :case_id AND sequence <= :through_sequence
+)
+SELECT 1 FROM (
+    SELECT count(DISTINCT sequence) AS interruptions FROM prefix
+    WHERE speaker_id = :subject_speaker_id
+      AND (:after_sequence IS NULL OR (start_at_us, end_at_us, sequence)
+           > (:after_start_at_us, :after_end_at_us, :after_sequence))
+      AND other_end > start_at_us
+      AND min(end_at_us, other_end) - start_at_us >= :overlap_min_us
+      AND (own_end IS NULL OR own_end < start_at_us)
+)
+WHERE interruptions >= :interruption_count
 """
 
 LOUD_FAST_SPEECH_SQL = """
