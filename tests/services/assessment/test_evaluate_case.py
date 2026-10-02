@@ -114,7 +114,7 @@ def test_models_use_their_own_allowance_and_keep_existing_deadlines(
 
 
 def test_replay_requests_repair_after_enqueue_failure_without_repeating_assessment(
-    *, add_observation, engine, scheduler, assessment_queue, received_at, monkeypatch
+    *, add_observation, engine, scheduler, assessment_queue, received_at, monkeypatch, model_catalog
 ):
     add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     evaluation_id = uuid4()
@@ -133,6 +133,7 @@ def test_replay_requests_repair_after_enqueue_failure_without_repeating_assessme
             engine=engine,
             now=lambda: received_at,
             scheduler=scheduler,
+            models=model_catalog,
         )
 
     monkeypatch.setattr(assessment_queue, "put", put)
@@ -142,6 +143,7 @@ def test_replay_requests_repair_after_enqueue_failure_without_repeating_assessme
         engine=engine,
         now=lambda: received_at,
         scheduler=scheduler,
+        models=model_catalog,
     )
     with read_session(engine=engine) as session:
         assert len(session.exec(select(Assessment)).all()) == 1
@@ -196,7 +198,9 @@ def test_failed_assessment_rolls_back_all_models_before_requesting_repairs(
     assert assessment_queue.empty()
 
 
-def test_new_matches_share_the_case_evaluation_time(*, add_observation, engine, scheduler):
+def test_new_matches_share_the_case_evaluation_time(
+    *, add_observation, engine, scheduler, model_catalog
+):
     add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     add_observation(start=1, end=32)
     times = iter([100])
@@ -207,6 +211,7 @@ def test_new_matches_share_the_case_evaluation_time(*, add_observation, engine, 
         engine=engine,
         scheduler=scheduler,
         now=lambda: datetime.fromtimestamp(next(times), timezone.utc),
+        models=model_catalog,
     )
 
     assert [(row.model_id, row.evaluated_at_us, row.next_due_at_us) for row in results] == [
@@ -233,3 +238,32 @@ def test_replay_preserves_pending_result_after_resolution(*, add_observation, as
     replayed = assess(at=111, evaluation_id=evaluation_id)
 
     assert [row.model_dump() for row in replayed] == [original.model_dump()]
+
+
+def test_model_added_after_the_catalog_was_loaded_is_not_assessed(
+    *, add_observation, engine, scheduler, session, model_catalog, received_at
+):
+    add_observation(start=0, end=1)
+    session.add(
+        NormativeModelVersion(
+            model_id="late",
+            version="1",
+            name="Late",
+            type="undesired",
+            repair_allowance_us=None,
+            rules_json='[{"rule_id":"always","description":"Always matches","sql":"SELECT 1"}]',
+            parameters_json="{}",
+        )
+    )
+    session.commit()
+
+    results = evaluate_case(
+        case_id="case",
+        evaluation_id=uuid4(),
+        engine=engine,
+        now=lambda: received_at,
+        scheduler=scheduler,
+        models=model_catalog,
+    )
+
+    assert results == []

@@ -20,8 +20,9 @@ from normative_conformance.database import read_session
 from normative_conformance.logging import start_logging
 from normative_conformance.logging import stop_logging
 from normative_conformance.queue import create_assessment_queue
+from normative_conformance.schemas.model import ModelVersion
 from normative_conformance.services.model.get_subject_speaker_id import get_subject_speaker_id
-from normative_conformance.services.model.list_models import list_models
+from normative_conformance.services.model.validate_models import validate_models
 from normative_conformance.services.scheduler.run_worker import run_worker
 from normative_conformance.services.scheduler.state import SchedulerState
 
@@ -35,6 +36,7 @@ def _scheduler_lifespan(
     engine: Engine,
     queue_path: Path,
     intervention_window_us: int,
+    models: list[ModelVersion],
 ) -> Iterator[None]:
     """Open the queue and keep it available until the worker has stopped."""
     with closing(create_assessment_queue(path=queue_path)) as queue:
@@ -46,6 +48,7 @@ def _scheduler_lifespan(
                 "engine": engine,
                 "now": app.state.clock,
                 "intervention_window_us": intervention_window_us,
+                "models": models,
             },
             name="assessment-worker",
         )
@@ -62,14 +65,16 @@ def _scheduler_lifespan(
             worker.join()
 
 
-def _log_started(*, engine: Engine, settings: Settings, log_path: Path) -> None:
+def _log_started(
+    *,
+    engine: Engine,
+    settings: Settings,
+    log_path: Path,
+    models: list[ModelVersion],
+) -> None:
     """Record the configuration that later decisions reference by model ID and version."""
     with read_session(engine=engine) as session:
         subject_speaker_id = get_subject_speaker_id(session=session)
-        models = [
-            {"model_id": model.model_id, "version": model.version, "type": model.type}
-            for model in list_models(session=session)
-        ]
     logger.info(
         "Application started",
         extra={
@@ -78,7 +83,10 @@ def _log_started(*, engine: Engine, settings: Settings, log_path: Path) -> None:
             "schema_revision": get_schema_revision(engine=engine),
             "subject_speaker_id": subject_speaker_id,
             "intervention_window_us": settings.intervention_window_us,
-            "models": models,
+            "models": [
+                {"model_id": model.model_id, "version": model.version, "type": model.type}
+                for model in models
+            ],
         },
     )
 
@@ -99,15 +107,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 subject_speaker_id=settings.subject_speaker_id,
                 now=app.state.clock,
             )
+
+            stage = "models"
+            with read_session(engine=engine) as session:
+                models = validate_models(session=session)
             app.state.engine = engine
+
             stage = "queue"
             with _scheduler_lifespan(
                 app=app,
                 engine=engine,
                 queue_path=settings.assessment_queue_path,
                 intervention_window_us=settings.intervention_window_us,
+                models=models,
             ):
-                _log_started(engine=engine, settings=settings, log_path=log_path)
+                _log_started(
+                    engine=engine,
+                    settings=settings,
+                    log_path=log_path,
+                    models=models,
+                )
                 stage = "running"
                 yield
         finally:
@@ -119,7 +138,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception:
         if stage != "running":
             logger.exception(
-                "Application startup failed", extra={"event": "app.start_failed", "stage": stage}
+                "Application startup failed",
+                extra={"event": "app.start_failed", "stage": stage},
             )
         raise
     finally:

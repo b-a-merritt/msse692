@@ -11,8 +11,12 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from normative_conformance.config import Settings
+from normative_conformance.database import create_database_engine
+from normative_conformance.database import initialize_database
+from normative_conformance.errors import InvalidModel
 from normative_conformance.errors import StorageUnavailable
 from normative_conformance.main import create_app
+from normative_conformance.models.normative_model import NormativeModelVersion
 from normative_conformance.models.observation import Observation
 from normative_conformance.queue import create_assessment_queue
 from normative_conformance.services import assessment
@@ -25,7 +29,7 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(
     handled = Event()
     calls = []
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
         with Session(bind=engine) as session:
             assert session.get(Observation, (case_id, "chunk")) is not None
         calls.append((case_id, evaluation_id, now()))
@@ -69,7 +73,7 @@ def test_shutdown_finishes_active_work_and_leaves_waiting_work(*, tmp_path, monk
     release = Event()
     evaluated = []
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
         evaluated.append(case_id)
         entered.set()
         assert release.wait(timeout=5)
@@ -109,6 +113,39 @@ def test_shutdown_finishes_active_work_and_leaves_waiting_work(*, tmp_path, monk
         assert reopened.acked_count() == 1
         assert reopened.qsize() == 1
         assert reopened.get(block=False)["case_id"] == "waiting"
+
+
+def test_invalid_model_stops_startup_before_the_worker_starts(*, tmp_path):
+    engine = create_database_engine(path=tmp_path / "app.sqlite3")
+    try:
+        initialize_database(engine=engine)
+        with Session(bind=engine) as session:
+            session.add(
+                NormativeModelVersion(
+                    model_id="harm_phrase",
+                    name="Broken",
+                    version="2",
+                    rules_json='[{"rule_id": "rule", "description": "", "sql": "SELEC 1"}]',
+                    parameters_json="{}",
+                )
+            )
+            session.commit()
+    finally:
+        engine.dispose()
+    application = create_app(
+        settings=Settings(
+            app_db_path=tmp_path / "app.sqlite3",
+            assessment_queue_path=tmp_path / "queue",
+            log_dir=tmp_path / "logs",
+        )
+    )
+
+    with pytest.raises(InvalidModel), TestClient(application):
+        pytest.fail("Startup should fail when a stored model is invalid")
+
+    assert not (tmp_path / "queue").exists()
+    assert application.state.engine is None
+    assert application.state.assessment_worker is None
 
 
 def test_failed_queue_startup_clears_application_resources(*, tmp_path):

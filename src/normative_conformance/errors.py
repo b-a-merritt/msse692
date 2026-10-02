@@ -5,6 +5,10 @@ class StorageUnavailable(RuntimeError):
     """A database operation failed; its active transaction must roll back."""
 
 
+class InvalidModel(RuntimeError):
+    """A stored model cannot be assessed, so the application must not start."""
+
+
 class NotFound(LookupError):
     """An explicitly requested case or record does not exist."""
 

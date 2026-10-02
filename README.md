@@ -74,8 +74,13 @@ even if the check runs late. Speech order determines the repair boundary. Repair
 currently applies to whole observation chunks; phrase order within a chunk is not
 represented by the boolean rule results.
 
-The seed migration stores three undesired models and an apology model. On first
-startup, `SUBJECT_SPEAKER_ID` (default `subject`) initializes `experiment_config`.
+The seed migration stores seven undesired models and three repair models. Before the
+queue and worker start, startup validates the stored catalog: each model must match
+the model schema, each rule's SQL must run against an empty case, and each undesired
+model must have an intervention message. A failure stops startup with `InvalidModel`.
+The worker assesses only that validated catalog; a model version inserted while the
+server runs is ignored until the next startup validates it.
+On first startup, `SUBJECT_SPEAKER_ID` (default `speaker-2`) initializes `experiment_config`.
 Subsequent evaluations read the subject from that immutable database configuration.
 Recognized repairs reset future detection. Finalized positives are retained and
 suppressed until repair permits a new occurrence.

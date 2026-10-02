@@ -5,6 +5,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import event
 
+from normative_conformance.database import read_session
 from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.services.assessment.assess_model import assess_model
 from normative_conformance.services.assessment.check_repairs import check_repairs
@@ -15,6 +16,11 @@ from normative_conformance.services.model.get_model import get_model
 from normative_conformance.services.model.get_subject_speaker_id import get_subject_speaker_id
 from normative_conformance.services.model.list_models import list_models
 from normative_conformance.services.observation.get_case_sequence import get_case_sequence
+
+
+def _load_models(*, engine):
+    with read_session(engine=engine) as session:
+        return list_models(session=session)
 
 
 @pytest.fixture
@@ -87,6 +93,7 @@ def assess(*, engine, scheduler):
             engine=engine,
             now=lambda: datetime.fromtimestamp(at, timezone.utc),
             scheduler=scheduler,
+            models=_load_models(engine=engine),
         )
 
     return assess
@@ -101,6 +108,7 @@ def check(*, engine, scheduler):
             engine=engine,
             now=lambda: datetime.fromtimestamp(at, timezone.utc),
             scheduler=scheduler,
+            models=_load_models(engine=engine),
         )
 
     return check

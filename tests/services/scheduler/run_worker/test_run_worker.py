@@ -34,6 +34,7 @@ def test_initial_deadline_load_failure_stops_worker(
         engine=empty_engine,
         now=lambda: received_at,
         intervention_window_us=WINDOW_US,
+        models=[],
     )
 
     assert scheduler.stopped.is_set()
@@ -43,7 +44,7 @@ def test_initial_deadline_load_failure_stops_worker(
 
 
 def test_due_repair_enqueue_failure_stops_worker(
-    *, engine, scheduler, assessment_queue, add_observation, monkeypatch, caplog
+    *, engine, scheduler, assessment_queue, add_observation, monkeypatch, caplog, model_catalog
 ):
     add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     scheduler.stopped.set()
@@ -53,6 +54,7 @@ def test_due_repair_enqueue_failure_stops_worker(
         engine=engine,
         scheduler=scheduler,
         now=lambda: from_microseconds(value=100_000_000),
+        models=model_catalog,
     )
     due_at_us = min(row.next_due_at_us for row in assessments if row.next_due_at_us is not None)
     scheduler.stopped.clear()
@@ -65,6 +67,7 @@ def test_due_repair_enqueue_failure_stops_worker(
         engine=engine,
         now=lambda: from_microseconds(value=due_at_us),
         intervention_window_us=WINDOW_US,
+        models=model_catalog,
     )
 
     assert scheduler.stopped.is_set()
@@ -73,9 +76,9 @@ def test_due_repair_enqueue_failure_stops_worker(
 
 
 def test_shutdown_discards_open_windows_without_recovering_them_on_restart(
-    *, engine, session, scheduler, assessment_queue, confirm, monkeypatch
+    *, engine, session, scheduler, assessment_queue, confirm, monkeypatch, model_catalog
 ):
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
         result = confirm(model_id="harm_phrase", at=100, evaluation_id=evaluation_id)
         scheduler.stopped.set()
         return [result]
@@ -87,6 +90,7 @@ def test_shutdown_discards_open_windows_without_recovering_them_on_restart(
         engine=engine,
         now=lambda: from_microseconds(value=100_000_000),
         intervention_window_us=WINDOW_US,
+        models=model_catalog,
     )
     assert assessment_queue.acked_count() == 1
 
@@ -103,6 +107,7 @@ def test_shutdown_discards_open_windows_without_recovering_them_on_restart(
         engine=engine,
         now=lambda: from_microseconds(value=200_000_000),
         intervention_window_us=WINDOW_US,
+        models=model_catalog,
     )
 
     assert scheduler.stopped.is_set()
@@ -110,13 +115,13 @@ def test_shutdown_discards_open_windows_without_recovering_them_on_restart(
 
 
 def test_arrivals_during_evaluation_share_one_follow_up(
-    *, scheduler, assessment_queue, engine, received_at, monkeypatch
+    *, scheduler, assessment_queue, engine, received_at, monkeypatch, model_catalog
 ):
     entered = Event()
     release = Event()
     evaluations = []
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
         evaluations.append(evaluation_id)
         if len(evaluations) == 1:
             entered.set()
@@ -134,6 +139,7 @@ def test_arrivals_during_evaluation_share_one_follow_up(
             "engine": engine,
             "now": lambda: received_at,
             "intervention_window_us": WINDOW_US,
+            "models": model_catalog,
         },
     )
     worker.start()
@@ -160,13 +166,13 @@ def test_arrivals_during_evaluation_share_one_follow_up(
 
 
 def test_failed_evaluation_does_not_retry_or_stop_other_cases(
-    *, scheduler, assessment_queue, engine, received_at, monkeypatch, caplog
+    *, scheduler, assessment_queue, engine, received_at, monkeypatch, caplog, model_catalog
 ):
     request_assessment(case_id="failing", scheduler=scheduler)
     request_assessment(case_id="next", scheduler=scheduler)
     evaluated = []
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
         evaluated.append(case_id)
         if case_id == "failing":
             raise RuntimeError("Evaluation failed")
@@ -179,6 +185,7 @@ def test_failed_evaluation_does_not_retry_or_stop_other_cases(
         engine=engine,
         now=lambda: received_at,
         intervention_window_us=WINDOW_US,
+        models=model_catalog,
     )
     assert evaluated == ["failing", "next"]
     assert assessment_queue.ack_failed_count() == 1
@@ -188,7 +195,7 @@ def test_failed_evaluation_does_not_retry_or_stop_other_cases(
 
 
 def test_unknown_task_is_failed_without_stopping_other_cases(
-    *, scheduler, assessment_queue, engine, received_at, monkeypatch, caplog
+    *, scheduler, assessment_queue, engine, received_at, monkeypatch, caplog, model_catalog
 ):
     assessment_queue.put(
         item={"kind": "unknown", "case_id": "invalid", "evaluation_id": str(uuid4())}
@@ -196,7 +203,7 @@ def test_unknown_task_is_failed_without_stopping_other_cases(
     request_assessment(case_id="next", scheduler=scheduler)
     evaluated = []
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
         evaluated.append(case_id)
         scheduler.stopped.set()
         return []
@@ -207,6 +214,7 @@ def test_unknown_task_is_failed_without_stopping_other_cases(
         engine=engine,
         now=lambda: received_at,
         intervention_window_us=WINDOW_US,
+        models=model_catalog,
     )
 
     assert evaluated == ["next"]
@@ -224,6 +232,7 @@ def test_worker_checks_deadline_without_more_observations(
     add_observation,
     monkeypatch,
     restart,
+    model_catalog,
 ):
     add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     deadline = Event()
@@ -239,7 +248,12 @@ def test_worker_checks_deadline_without_more_observations(
         # Simulate an assessment finishing during shutdown, leaving only its stored deadline.
         scheduler.stopped.set()
         assessment.evaluate_case(
-            case_id="case", evaluation_id=uuid4(), engine=engine, now=clock, scheduler=scheduler
+            case_id="case",
+            evaluation_id=uuid4(),
+            engine=engine,
+            now=clock,
+            scheduler=scheduler,
+            models=model_catalog,
         )
         scheduler.stopped.clear()
         assert assessment_queue.empty()
@@ -247,13 +261,14 @@ def test_worker_checks_deadline_without_more_observations(
     else:
         request_assessment(case_id="case", scheduler=scheduler)
 
-    def check_repairs(*, case_id, evaluation_id, engine, now, scheduler):
+    def check_repairs(*, case_id, evaluation_id, engine, now, scheduler, models):
         results = original_check(
             case_id=case_id,
             evaluation_id=evaluation_id,
             engine=engine,
             now=now,
             scheduler=scheduler,
+            models=models,
         )
         checked_early.set()
         resolutions.extend(row for row in results if row.resolves_assessment_id is not None)
@@ -270,6 +285,7 @@ def test_worker_checks_deadline_without_more_observations(
             "engine": engine,
             "now": clock,
             "intervention_window_us": WINDOW_US,
+            "models": model_catalog,
         },
     )
     worker.start()
@@ -288,7 +304,7 @@ def test_worker_checks_deadline_without_more_observations(
 
 
 def test_repaired_match_requests_another_assessment(
-    *, engine, scheduler, add_observation, monkeypatch
+    *, engine, scheduler, add_observation, monkeypatch, model_catalog
 ):
     add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
 
@@ -296,13 +312,18 @@ def test_repaired_match_requests_another_assessment(
         return datetime.fromtimestamp(100, timezone.utc)
 
     assessment.evaluate_case(
-        case_id="case", evaluation_id=uuid4(), engine=engine, now=clock, scheduler=scheduler
+        case_id="case",
+        evaluation_id=uuid4(),
+        engine=engine,
+        now=clock,
+        scheduler=scheduler,
+        models=model_catalog,
     )
     add_observation(start=1, end=2, transcript="I apologize", received=105)
     request_repair_check(case_id="case", scheduler=scheduler)
     assessed = []
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
         assessed.append(case_id)
         scheduler.stopped.set()
         return []
@@ -313,13 +334,22 @@ def test_repaired_match_requests_another_assessment(
         engine=engine,
         now=lambda: datetime.fromtimestamp(105, timezone.utc),
         intervention_window_us=WINDOW_US,
+        models=model_catalog,
     )
     assert assessed == ["case"]
 
 
 @pytest.mark.parametrize("operation", ["get", "ack", "ack_failed"])
 def test_queue_failure_stops_worker_and_rejects_new_requests(
-    *, scheduler, assessment_queue, engine, received_at, monkeypatch, caplog, operation
+    *,
+    scheduler,
+    assessment_queue,
+    engine,
+    received_at,
+    monkeypatch,
+    caplog,
+    operation,
+    model_catalog,
 ):
     request_assessment(case_id="case", scheduler=scheduler)
     request_assessment(case_id="waiting", scheduler=scheduler)
@@ -338,6 +368,7 @@ def test_queue_failure_stops_worker_and_rejects_new_requests(
         engine=engine,
         now=lambda: received_at,
         intervention_window_us=WINDOW_US,
+        models=model_catalog,
     )
     assert scheduler.stopped.is_set()
     assert assessment_queue.acked_count() == 0
@@ -363,7 +394,7 @@ def test_confirmations_within_the_window_share_one_intervention(
     clock = {"at": 100.0}
     remaining = ["repeated_interruption", "high_intensity_address"]
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
         row = confirm(model_id=remaining.pop(0), at=clock["at"], evaluation_id=evaluation_id)
         if remaining:
             clock["at"] += gap
@@ -396,7 +427,7 @@ def test_ineligible_results_do_not_split_later_confirmations(
     clock = {"at": 100.0}
     remaining = ["high_intensity_address", "repeated_interruption"]
 
-    def handle(*, case_id, evaluation_id, engine, now, scheduler):
+    def handle(*, case_id, evaluation_id, engine, now, scheduler, models):
         if clock["at"] == 100:
             row = confirm(
                 model_id="apology" if early_result == "repair" else "harm_phrase",
@@ -427,7 +458,16 @@ def test_ineligible_results_do_not_split_later_confirmations(
 
 @pytest.mark.parametrize("first", ["immediate", "repair-deadline"])
 def test_immediate_and_repair_deadline_confirmations_share_one_intervention(
-    *, engine, scheduler, session, add_observation, run_until, record_decisions, monkeypatch, first
+    *,
+    engine,
+    scheduler,
+    session,
+    add_observation,
+    run_until,
+    record_decisions,
+    monkeypatch,
+    first,
+    model_catalog,
 ):
     add_observation(start=0, end=0.9, transcript="stop that right now", level=-17.0)
     assessment.evaluate_case(
@@ -436,6 +476,7 @@ def test_immediate_and_repair_deadline_confirmations_share_one_intervention(
         engine=engine,
         scheduler=scheduler,
         now=lambda: datetime.fromtimestamp(100, timezone.utc),
+        models=model_catalog,
     )
     add_observation(start=1, end=2, transcript="I hope you die")
     request_assessment(case_id="case", scheduler=scheduler)
@@ -474,7 +515,7 @@ def test_slow_evaluation_keeps_later_confirmations_in_the_open_window(
     clock = {"at": 100.0}
     remaining = ["high_intensity_address", "repeated_interruption"]
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
         if len(remaining) == 1:
             clock["at"] = 103.5
         row = confirm(model_id=remaining.pop(0), at=clock["at"], evaluation_id=evaluation_id)
@@ -523,7 +564,7 @@ def test_intervention_failure_is_logged_and_work_continues(
     evaluated = []
     done = Event()
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
         evaluated.append(case_id)
         if len(evaluated) > 1:
             done.set()

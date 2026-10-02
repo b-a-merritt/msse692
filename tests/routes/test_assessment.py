@@ -7,7 +7,7 @@ from normative_conformance.services.assessment.check_repairs import check_repair
 from normative_conformance.services.assessment.evaluate_case import evaluate_case
 
 
-def _create_pending(*, client, observation_data, case_id="case"):
+def _create_pending(*, client, observation_data, model_catalog, case_id="case"):
     response = client.post(
         "/api/v1/observations",
         json=observation_data
@@ -25,16 +25,24 @@ def _create_pending(*, client, observation_data, case_id="case"):
         engine=client.app.state.engine,
         scheduler=client.app.state.scheduler,
         now=client.app.state.clock,
+        models=model_catalog,
     )
     assert len(rows) == 1
     return rows[0]
 
 
 def test_returns_api_records_with_original_extents_and_resolution_links(
-    *, client, observation_data, received_at
+    *, client, observation_data, received_at, model_catalog
 ):
-    pending = _create_pending(client=client, observation_data=observation_data)
-    _create_pending(client=client, observation_data=observation_data, case_id="other")
+    pending = _create_pending(
+        client=client, model_catalog=model_catalog, observation_data=observation_data
+    )
+    _create_pending(
+        client=client,
+        model_catalog=model_catalog,
+        observation_data=observation_data,
+        case_id="other",
+    )
     # A later arrival must not change the pending assessment's captured extent.
     assert (
         client.post(
@@ -85,6 +93,7 @@ def test_returns_api_records_with_original_extents_and_resolution_links(
         engine=client.app.state.engine,
         scheduler=client.app.state.scheduler,
         now=lambda: received_at + timedelta(seconds=10),
+        models=model_catalog,
     )[0]
     response = client.get("/api/v1/cases/case/assessments")
 
@@ -123,8 +132,12 @@ def test_returns_api_records_with_original_extents_and_resolution_links(
     }
 
 
-def test_preserves_repair_evidence_in_the_explanation(*, client, observation_data, received_at):
-    pending = _create_pending(client=client, observation_data=observation_data)
+def test_preserves_repair_evidence_in_the_explanation(
+    *, client, observation_data, received_at, model_catalog
+):
+    pending = _create_pending(
+        client=client, model_catalog=model_catalog, observation_data=observation_data
+    )
     assert (
         client.post(
             "/api/v1/observations",
@@ -145,6 +158,7 @@ def test_preserves_repair_evidence_in_the_explanation(*, client, observation_dat
         engine=client.app.state.engine,
         scheduler=client.app.state.scheduler,
         now=lambda: received_at + timedelta(seconds=5),
+        models=model_catalog,
     )
 
     response = client.get("/api/v1/cases/case/assessments")

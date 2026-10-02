@@ -9,8 +9,10 @@ from sqlmodel import Session
 from normative_conformance import models
 from normative_conformance.database import create_database_engine
 from normative_conformance.database import initialize_database
+from normative_conformance.database import read_session
 from normative_conformance.queue import create_assessment_queue
 from normative_conformance.schemas.observation import ObservationInput
+from normative_conformance.services.model.list_models import list_models
 from normative_conformance.services.scheduler.state import SchedulerState
 
 
@@ -66,6 +68,13 @@ def empty_engine(*, tmp_path):
 def engine(*, empty_engine):
     initialize_database(engine=empty_engine)
     return empty_engine
+
+
+@pytest.fixture
+def model_catalog(*, engine):
+    """The seeded catalog, as startup validation hands it to the worker."""
+    with read_session(engine=engine) as session:
+        return list_models(session=session)
 
 
 @pytest.fixture

@@ -1,7 +1,7 @@
 [project]
 name = "normative-conformance"
 version = "0.1.0"
-description = "Add your description here"
+description = "A small service to raise intervetions for undesired behavior"
 readme = "README.md"
 authors = [
     { name = "Ben", email = "ben.a.merritt@gmail.com" }

@@ -10,14 +10,21 @@ from normative_conformance.timestamps import to_microseconds
 
 
 def test_success_is_acknowledged_after_evaluation_and_timer_updates(
-    *, scheduler, assessment_queue, engine, received_at, assessment_result, monkeypatch
+    *,
+    scheduler,
+    assessment_queue,
+    engine,
+    received_at,
+    assessment_result,
+    monkeypatch,
+    model_catalog,
 ):
     request_assessment(case_id="case", scheduler=scheduler)
     queued = assessment_queue.queue()[0]["data"]
     repair_deadlines = {"case": 10}
     intervention_windows = {}
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler):
+    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
         assert case_id == "case"
         assert str(evaluation_id) == queued["evaluation_id"]
         assert now() == received_at
@@ -45,6 +52,7 @@ def test_success_is_acknowledged_after_evaluation_and_timer_updates(
         now=lambda: received_at,
         repair_deadlines=repair_deadlines,
         intervention_windows=intervention_windows,
+        models=model_catalog,
     )
 
     assert assessment_queue.acked_count() == 1
@@ -52,7 +60,9 @@ def test_success_is_acknowledged_after_evaluation_and_timer_updates(
     assert scheduler.queued_cases == set()
 
 
-def test_missing_case_is_marked_failed(*, scheduler, assessment_queue, engine, received_at):
+def test_missing_case_is_marked_failed(
+    *, scheduler, assessment_queue, engine, received_at, model_catalog
+):
     request_assessment(case_id="case", scheduler=scheduler)
 
     process_next_task(
@@ -61,6 +71,7 @@ def test_missing_case_is_marked_failed(*, scheduler, assessment_queue, engine, r
         now=lambda: received_at,
         repair_deadlines={},
         intervention_windows={},
+        models=model_catalog,
     )
 
     assert assessment_queue.acked_count() == 0
@@ -68,7 +79,7 @@ def test_missing_case_is_marked_failed(*, scheduler, assessment_queue, engine, r
     assert not scheduler.stopped.is_set()
 
 
-def test_empty_poll_preserves_timers_and_returns(*, scheduler, engine):
+def test_empty_poll_preserves_timers_and_returns(*, scheduler, engine, model_catalog):
     repair_deadlines = {"case": 10}
     intervention_windows = {"case": 5}
     now = Mock()
@@ -79,6 +90,7 @@ def test_empty_poll_preserves_timers_and_returns(*, scheduler, engine):
         now=now,
         repair_deadlines=repair_deadlines,
         intervention_windows=intervention_windows,
+        models=model_catalog,
     )
 
     assert repair_deadlines == {"case": 10}
@@ -89,7 +101,7 @@ def test_empty_poll_preserves_timers_and_returns(*, scheduler, engine):
 
 @pytest.mark.parametrize("operation", ["get", "ack", "ack_failed"])
 def test_queue_failure_escapes_to_the_worker(
-    *, scheduler, assessment_queue, engine, received_at, monkeypatch, operation
+    *, scheduler, assessment_queue, engine, received_at, monkeypatch, operation, model_catalog
 ):
     request_assessment(case_id="case", scheduler=scheduler)
     monkeypatch.setattr(
@@ -109,6 +121,7 @@ def test_queue_failure_escapes_to_the_worker(
             now=lambda: received_at,
             repair_deadlines={},
             intervention_windows={},
+            models=model_catalog,
         )
 
     assert caught.value is failure

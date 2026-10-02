@@ -7,6 +7,7 @@ from sqlalchemy import Engine
 
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.schemas.internal import Clock
+from normative_conformance.schemas.model import ModelVersion
 from normative_conformance.services import assessment
 from normative_conformance.services.assessment.find_earliest_repair_deadlines import (
     find_earliest_repair_deadlines,
@@ -28,6 +29,7 @@ def process_assessment_task(
     now: Clock,
     repair_deadlines: dict[str, int],
     intervention_windows: dict[str, int],
+    models: list[ModelVersion],
 ) -> None:
     if task["kind"] == "assess_case":
         task_kind: Literal["assess_case", "check_repairs"] = "assess_case"
@@ -56,6 +58,7 @@ def process_assessment_task(
         scheduler=scheduler,
         engine=engine,
         now=now,
+        models=models,
     )
 
     _replace_case_repair_deadline(

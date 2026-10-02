@@ -35,7 +35,7 @@ def confirm(*, engine, add_observation):
 
 
 @pytest.fixture
-def run_until(*, scheduler, engine):
+def run_until(*, scheduler, engine, model_catalog):
     """Run the worker on a settable clock until the test signals completion."""
 
     def run_until(*, clock, done):
@@ -46,6 +46,7 @@ def run_until(*, scheduler, engine):
                 "engine": engine,
                 "now": lambda: datetime.fromtimestamp(clock["at"], timezone.utc),
                 "intervention_window_us": 2_000_000,
+                "models": model_catalog,
             },
         )
         worker.start()

@@ -13,7 +13,7 @@ from normative_conformance.timestamps import to_microseconds
 THREAT = "You said something that could be heard as a threat. Take a moment before you continue."
 
 
-def _create_intervention(*, client, observation_data, received_at):
+def _create_intervention(*, client, observation_data, received_at, model_catalog):
     response = client.post(
         "/api/v1/observations",
         json=observation_data
@@ -29,6 +29,7 @@ def _create_intervention(*, client, observation_data, received_at):
         engine=client.app.state.engine,
         scheduler=client.app.state.scheduler,
         now=client.app.state.clock,
+        models=model_catalog,
     )
     with write_session(engine=client.app.state.engine) as session:
         create_intervention(
@@ -53,9 +54,14 @@ def test_listing_without_interventions_returns_empty_items(*, client):
     assert response.json() == {"items": []}
 
 
-def test_delivery_marks_listed_interventions_sent_once(*, client, observation_data, received_at):
+def test_delivery_marks_listed_interventions_sent_once(
+    *, client, observation_data, received_at, model_catalog
+):
     record = _create_intervention(
-        client=client, observation_data=observation_data, received_at=received_at
+        client=client,
+        model_catalog=model_catalog,
+        observation_data=observation_data,
+        received_at=received_at,
     )
     pending = {
         "intervention_id": record.intervention_id,
@@ -99,9 +105,14 @@ def test_invalid_query_is_rejected(*, client, params):
 
 
 def test_delivery_storage_error_returns_safe_message_and_stays_pending(
-    *, client, observation_data, received_at
+    *, client, observation_data, received_at, model_catalog
 ):
-    _create_intervention(client=client, observation_data=observation_data, received_at=received_at)
+    _create_intervention(
+        client=client,
+        model_catalog=model_catalog,
+        observation_data=observation_data,
+        received_at=received_at,
+    )
     with client.app.state.engine.begin() as connection:
         connection.exec_driver_sql("""
             CREATE TRIGGER fail_delivery BEFORE UPDATE ON intervention

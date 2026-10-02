@@ -9,11 +9,11 @@ from normative_conformance.errors import StorageUnavailable
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.schemas.internal import Clock
+from normative_conformance.schemas.model import ModelVersion
 from normative_conformance.services.assessment.assess_model import assess_model
 from normative_conformance.services.assessment.get_last_repair import get_last_repair
 from normative_conformance.services.assessment.list_assessments import list_assessments
 from normative_conformance.services.model.get_subject_speaker_id import get_subject_speaker_id
-from normative_conformance.services.model.list_models import list_models
 from normative_conformance.services.observation.get_case_sequence import get_case_sequence
 from normative_conformance.services.scheduler.request_repair_check import request_repair_check
 from normative_conformance.services.scheduler.state import SchedulerState
@@ -29,6 +29,7 @@ def evaluate_case(
     engine: Engine,
     now: Clock,
     scheduler: SchedulerState,
+    models: list[ModelVersion],
 ) -> list[Assessment]:
     """Detect undesired matches, preserving an existing occurrence and its deadline."""
     try:
@@ -52,7 +53,7 @@ def evaluate_case(
                 last_repair = get_last_repair(case_id=case_id, session=session)
                 subject_speaker_id = get_subject_speaker_id(session=session)
 
-                for model in list_models(session=session):
+                for model in models:
                     if model.type != "undesired":
                         continue
                     result = assess_model(

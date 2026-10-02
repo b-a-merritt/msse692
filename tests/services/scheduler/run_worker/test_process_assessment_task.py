@@ -14,7 +14,15 @@ from normative_conformance.timestamps import from_microseconds
 @pytest.mark.parametrize("task_kind", ["assess_case", "check_repairs"])
 @pytest.mark.parametrize("opened_at_us", [None, 90_000_000])
 def test_releases_waiting_case_before_evaluation_and_preserves_follow_up(
-    *, scheduler, assessment_queue, engine, assessment_result, monkeypatch, task_kind, opened_at_us
+    *,
+    scheduler,
+    assessment_queue,
+    engine,
+    assessment_result,
+    monkeypatch,
+    task_kind,
+    opened_at_us,
+    model_catalog,
 ):
     if task_kind == "assess_case":
         request = request_assessment
@@ -38,7 +46,7 @@ def test_releases_waiting_case_before_evaluation_and_preserves_follow_up(
         assert "case" not in waiting_case_ids
         return from_microseconds(value=100_000_000)
 
-    def evaluate(*, case_id, evaluation_id, engine, now, scheduler):
+    def evaluate(*, case_id, evaluation_id, engine, now, scheduler, models):
         assert case_id == "case"
         assert evaluation_id == UUID(task["evaluation_id"])
         assert scheduler.lock.acquire(blocking=False)
@@ -60,6 +68,7 @@ def test_releases_waiting_case_before_evaluation_and_preserves_follow_up(
         now=clock,
         repair_deadlines=repair_deadlines,
         intervention_windows=intervention_windows,
+        models=model_catalog,
     )
 
     assert scheduler.queued_cases == {"case"}
@@ -74,7 +83,7 @@ def test_releases_waiting_case_before_evaluation_and_preserves_follow_up(
 
 
 def test_no_results_clear_only_the_cases_repair_deadline(
-    *, scheduler, assessment_queue, engine, received_at, monkeypatch
+    *, scheduler, assessment_queue, engine, received_at, monkeypatch, model_catalog
 ):
     request_assessment(case_id="case", scheduler=scheduler)
     task = assessment_queue.get(block=False)
@@ -89,6 +98,7 @@ def test_no_results_clear_only_the_cases_repair_deadline(
         now=lambda: received_at,
         repair_deadlines=repair_deadlines,
         intervention_windows=intervention_windows,
+        models=model_catalog,
     )
 
     assert repair_deadlines == {"other": 200}

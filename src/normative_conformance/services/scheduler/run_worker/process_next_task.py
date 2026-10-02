@@ -4,6 +4,7 @@ from persistqueue.exceptions import Empty
 from sqlalchemy import Engine
 
 from normative_conformance.schemas.internal import Clock
+from normative_conformance.schemas.model import ModelVersion
 from normative_conformance.services.scheduler.run_worker.process_assessment_task import (
     process_assessment_task,
 )
@@ -19,6 +20,7 @@ def process_next_task(
     now: Clock,
     repair_deadlines: dict[str, int],
     intervention_windows: dict[str, int],
+    models: list[ModelVersion],
 ) -> None:
     try:
         task = scheduler.queue.get(timeout=0.1)
@@ -40,6 +42,7 @@ def process_next_task(
             now=now,
             repair_deadlines=repair_deadlines,
             intervention_windows=intervention_windows,
+            models=models,
         )
     except Exception:
         logger.exception("Case assessment failed", extra={"event": "task.failed", **task_fields})

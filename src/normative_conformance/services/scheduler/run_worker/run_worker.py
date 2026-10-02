@@ -3,6 +3,7 @@ import logging
 from sqlalchemy import Engine
 
 from normative_conformance.schemas.internal import Clock
+from normative_conformance.schemas.model import ModelVersion
 from normative_conformance.services.assessment.load_repair_deadlines import load_repair_deadlines
 from normative_conformance.services.scheduler.run_worker.create_due_interventions import (
     create_due_interventions,
@@ -22,6 +23,7 @@ def run_worker(
     engine: Engine,
     now: Clock,
     intervention_window_us: int,
+    models: list[ModelVersion],
 ) -> None:
     intervention_windows: dict[str, int] = {}
     try:
@@ -50,6 +52,7 @@ def run_worker(
                 now=now,
                 repair_deadlines=repair_deadlines,
                 intervention_windows=intervention_windows,
+                models=models,
             )
     except Exception:
         logger.exception(
