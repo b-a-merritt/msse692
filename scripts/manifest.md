@@ -29,3 +29,42 @@ The assessed speaker is `speaker-2`.
 - **case-10:** I expect Gary to get interventions for interrupting and calling Brooke "Crazy." Her "You're a prick" would be recognized if she was the subject. (There should be no intervention or assessment of her).
 - **case-11:** Sean likely gets an intervention for swearing, but should not be getting one for saying "You're a tough kid."
 - **case-12:** This is a normal conversation. There should be no interventions for either.
+
+## Stress case
+
+`cases/stress.jsonl` is synthetic. It interleaves 330 scripted sessions (`stress-p<phase>-<nnn>`,
+`speaker-1` and subject `speaker-2`) so that replaying recorded gaps steps the load up. A 30 s
+quiet gap after each phase lets the backlog drain, so each step can be measured on its own. _It was AI-generated._
+
+
+| Phase | Sessions | Rows | Offered rate |
+|---|---|---|---|
+| p1 | 10 | 302 | 3.7 obs/s |
+| p2 | 20 | 604 | 7.2 obs/s |
+| p3 | 30 | 906 | 10.6 obs/s |
+| p4 | 60 | 1812 | 20.9 obs/s |
+| p5 | 90 | 2718 | 31.6 obs/s |
+| p6 | 120 | 3624 | 40.9 obs/s |
+
+The whole run takes ~11.5 minutes. `send_observations.py` sleeps for the full gap and then
+waits for the response, so the achieved rate falls short of the offered rate at high load. Measure
+the achieved rate from `observation.committed` timestamps.
+
+Sessions cycle through ten scenarios by session number, so every phase includes each one. Phase 1
+was checked against the server and matched every row below. If a higher phase differs, the
+deviation comes from load.
+
+| Session `nnn` ends in | Scenario | Expected outcome |
+|---|---|---|
+| 1 | Calm conversation | No assessments |
+| 2 | Character label, apology about 6 s later | Repaired, no intervention |
+| 3 | Vulgar term, no repair | Expires, one intervention |
+| 4 | Absolutist phrase, agreement about 12 s later | Repaired, no intervention |
+| 5 | Harm phrase | One intervention, immediately |
+| 6 | Loud, fast chunk | Expires, one intervention |
+| 7 | Two interruptions | Expires, one intervention |
+| 8 | Monologue longer than 30 s | Expires, one intervention |
+| 9 | `speaker-1` uses absolutist, label, vulgar, and harm phrases | No assessments |
+| 0 | Absolutist phrase repaired by an intent disclaimer, then a label with an apology about 24 s later | First repaired, second expires, one intervention |
+
+Each phase should create 6 interventions per 10 sessions, or 198 in total.
