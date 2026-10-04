@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from normative_conformance.logging import APP_LOGGER
+from normative_conformance.logging import UVICORN_ACCESS_LOGGER
 from normative_conformance.logging import start_logging
 from normative_conformance.logging import stop_logging
 
@@ -87,6 +88,7 @@ def test_existing_file_gets_a_suffix_and_restarts_do_not_duplicate_handlers(
     second = start_logging(log_dir=tmp_path)
     try:
         assert len(logging.getLogger(APP_LOGGER).handlers) == 2
+        assert logging.getLogger(UVICORN_ACCESS_LOGGER).disabled
         logger.info("Once", extra={"event": "test.once"})
     finally:
         stop_logging()
@@ -97,3 +99,4 @@ def test_existing_file_gets_a_suffix_and_restarts_do_not_duplicate_handlers(
     assert len(read_lines(path=second)) == 1
     assert logging.getLogger(APP_LOGGER).handlers == []
     assert logging.getLogger(APP_LOGGER).propagate
+    assert not logging.getLogger(UVICORN_ACCESS_LOGGER).disabled

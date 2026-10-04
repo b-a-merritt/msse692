@@ -8,3 +8,4 @@ data/
 .env
 .coverage
 scripts/cases/stress.jsonl
+data_archive

@@ -8,6 +8,7 @@ from datetime import timezone
 from pathlib import Path
 
 APP_LOGGER = "normative_conformance"
+UVICORN_ACCESS_LOGGER = "uvicorn.access"
 _STANDARD_FIELDS = frozenset(logging.makeLogRecord({}).__dict__) | {"message"}
 _handlers: list[logging.Handler] = []
 
@@ -64,6 +65,8 @@ def start_logging(*, log_dir: Path) -> Path:
     logger.setLevel(logging.INFO)
     # Server logging configuration must not print each record a second time.
     logger.propagate = False
+    # The request middleware logs each request as JSON, so uvicorn's text line is redundant.
+    logging.getLogger(UVICORN_ACCESS_LOGGER).disabled = True
     return path
 
 
@@ -76,3 +79,4 @@ def stop_logging() -> None:
         handler.close()
     logger.setLevel(logging.NOTSET)
     logger.propagate = True
+    logging.getLogger(UVICORN_ACCESS_LOGGER).disabled = False
