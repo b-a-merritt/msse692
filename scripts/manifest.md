@@ -30,6 +30,44 @@ The assessed speaker is `speaker-2`.
 - **case-11:** Sean likely gets an intervention for swearing, but should not be getting one for saying "You're a tough kid."
 - **case-12:** This is a normal conversation. There should be no interventions for either.
 
+## Predicted vs. actual
+
+Four of the ten evaluation cases matched the prediction. Two more caught everything predicted and added one
+intervention. Four did not match. Most of the misses come from the loud-and-fast rule firing on short, calm
+lines.
+
+Cases 1 and 2 were used for initial tuning, so they are not scored. Case 1 produced 2 interventions: a threat
+("Do this and I swear to God—") combined with loud speech, then vulgar language. Case 2 produced 7, one for each
+undesired model.
+
+| Case | Predicted | Actual interventions (trigger) | Result |
+|---|---|---|---|
+| 3 | None | None. Loud "Wait." was repaired by "I apologize, okay?" | Match |
+| 4 | 1–2, intensity and language | 3: vulgar ("piss me off"), loud ("shit for"), extended turn | One extra |
+| 5 | Loud only, if any | 2: loud ("Silence!"), repeated interruption | Mismatch, interruption not predicted |
+| 6 | 2, absolutist and shouting | 3: extended turn ("I planted myself inside you…"), loud, absolutist ("You always talking") | One extra |
+| 7 | None | 1: loud ("Such as?") | Mismatch, false positive |
+| 8 | None, likely false negative | None | Match |
+| 9 | At least 2, language and interruption | 3: vulgar ("fucking asparagus"), interruption, loud | Match |
+| 10 | Interruption and "crazy" label, none for Brooke | 3: loud ("I'll get them a little bit later…"), vulgar ("damn dishes"), interruption. None for Brooke | Mismatch, label missed, loud false positive |
+| 11 | Vulgar only, not "tough kid" | 1: vulgar ("ripped my fucking life apart") | Match |
+| 12 | None | 1: loud ("I got your letter.") | Mismatch, false positive |
+
+The evaluation cases produced 17 interventions in total.
+
+**Findings**
+
+- **Loud-and-fast false positives (cases 7, 10, 12).** The rate is computed per chunk, so short chunks inflate
+  it: "Such as?" is 2 words in 0.32 s (375 wpm). Each flagged line averaged between −15.8 and −17.8 dBFS, just
+  over the −18 dBFS threshold. About 13% of all chunks are over that threshold, so the volume check alone does
+  not filter them out.
+- **Label missed (case 10).** "You're acting crazy" matches neither list: "crazy" is not a descriptor term, and
+  "acting" is not in the address patterns.
+- **Rule hits not predicted (cases 4, 5, 6, 10).** These are extended turns, an interruption, and "damn." They
+  follow the rules as written, so they show gaps in the prediction rather than detector errors.
+- **Subject scoping held.** Only `speaker-2` was assessed. Brooke's "You're a prick" (case 10) and Forrest's
+  lines (case 12) produced nothing.
+
 ## Stress case
 
 `cases/stress.jsonl` is synthetic. It interleaves 330 scripted sessions (`stress-p<phase>-<nnn>`,
