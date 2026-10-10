@@ -34,15 +34,16 @@ script_location = "normative_conformance:migrations"
 prepend_sys_path = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = ["--import-mode=importlib", "--ignore=tests/migrations/versions"]
+testpaths = ["tests/unit", "tests/integration"]
+addopts = ["--import-mode=importlib"]
 
 [tool.coverage.run]
 source = ["src/normative_conformance"]
+branch = true
 
 [tool.coverage.report]
 skip_empty = true
-fail_under = 90
+fail_under = 95
 
 [tool.ruff]
 line-length = 100
