@@ -20,11 +20,15 @@ def test_returns_updated_records_only_after_commit(*, monkeypatch, ids):
     listing = Mock(return_value=records)
     monkeypatch.setattr(module, "list_intervention_records", listing)
     result = module.deliver_pending(
-        session=session, now=lambda: datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=timezone.utc)
+        case_id="requested",
+        session=session,
+        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=timezone.utc),
     )
     assert result == records
     query = session.exec.call_args.args[0].compile()
     assert query.params["sent_at_us"] == 100
+    assert query.params["case_id_1"] == "requested"
+    assert "intervention.case_id = :case_id_1" in str(query)
     assert "sent_at_us IS NULL" in str(query)
     assert "RETURNING intervention.intervention_id" in str(query)
     if ids:
@@ -46,7 +50,9 @@ def test_delivery_failure_rolls_back_and_returns_no_success(*, monkeypatch, stag
         StorageUnavailable, match=r"^The interventions could not be delivered$"
     ) as caught:
         module.deliver_pending(
-            session=session, now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc)
+            case_id="requested",
+            session=session,
+            now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
         )
     session.rollback.assert_called_once()
     assert caught.value.__cause__ is error

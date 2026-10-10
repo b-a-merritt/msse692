@@ -19,10 +19,11 @@ logger = logging.getLogger(__name__)
 
 def deliver_pending(
     *,
+    case_id: str,
     session: Session,
     now: Clock,
 ) -> list[Intervention]:
-    """Mark pending interventions as sent and return them."""
+    """Mark the case's pending interventions as sent and return them."""
     try:
         # Acquire the writer lock so each pending intervention is delivered once.
         session.connection()
@@ -31,7 +32,10 @@ def deliver_pending(
         intervention_ids = list(
             session.exec(
                 update(models.Intervention)
-                .where(col(models.Intervention.sent_at_us).is_(None))
+                .where(
+                    col(models.Intervention.case_id) == case_id,
+                    col(models.Intervention.sent_at_us).is_(None),
+                )
                 .values(sent_at_us=sent_at_us)
                 .returning(col(models.Intervention.intervention_id))
             ).scalars()
@@ -45,6 +49,7 @@ def deliver_pending(
             "Interventions delivered",
             extra={
                 "event": "intervention.delivered",
+                "case_id": case_id,
                 "intervention_ids": intervention_ids,
                 "sent_at_us": sent_at_us,
             },

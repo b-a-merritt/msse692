@@ -76,7 +76,7 @@ Execute **GET /api/v1/interventions** with `case_id=docs-demo` and `status=pendi
 
 ![Swagger UI showing the pending intervention for docs-demo](images/intervention-pending.png)
 
-Execute **POST /api/v1/interventions/deliver** with no body. The returned item has `status: "sent"` and a `sent_at` timestamp. A second delivery returns `{"items":[]}` when nothing else is pending. **Delivery takes all pending interventions across all cases.** Use it only on your isolated instance. To inspect without consuming, continue using GET. The API does not send audio, email, or another external notification.
+Execute **POST /api/v1/cases/{case_id}/interventions/deliver** with `case_id` set to `docs-demo` and no body. The returned item has `status: "sent"` and a `sent_at` timestamp. A second delivery returns `{"items":[]}` when nothing else is pending for the case. Other cases' interventions stay pending. To inspect without consuming, continue using GET. The API does not send audio, email, or another external notification.
 
 ### Troubleshooting
 

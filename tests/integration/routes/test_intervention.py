@@ -88,11 +88,11 @@ def test_delivery_marks_listed_interventions_sent_once(*, open_client):
         # Listing is read-only; only delivery changes the status.
         assert client.get("/api/v1/interventions").json() == {"items": [pending]}
 
-        response = client.post("/api/v1/interventions/deliver")
+        response = client.post("/api/v1/cases/case/interventions/deliver")
 
         assert response.status_code == 200
         assert response.json() == {"items": [sent]}
-        assert client.post("/api/v1/interventions/deliver").json() == {"items": []}
+        assert client.post("/api/v1/cases/case/interventions/deliver").json() == {"items": []}
         assert client.get(
             "/api/v1/interventions", params={"case_id": "case", "status": "sent"}
         ).json() == {"items": [sent]}
@@ -114,6 +114,14 @@ def test_invalid_query_is_rejected(*, open_client, params):
         response = client.get("/api/v1/interventions", params=params)
 
         assert response.status_code == 422
+
+
+def test_unscoped_delivery_does_not_exist(*, open_client):
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+        response = client.post("/api/v1/interventions/deliver")
+
+        assert response.status_code == 404
 
 
 def test_delivery_storage_error_returns_safe_message_and_stays_pending(*, open_client):
@@ -161,7 +169,7 @@ def test_delivery_storage_error_returns_safe_message_and_stays_pending(*, open_c
                 BEGIN SELECT RAISE(ABORT, 'private database details'); END
             """)
 
-        response = client.post("/api/v1/interventions/deliver")
+        response = client.post("/api/v1/cases/case/interventions/deliver")
 
         assert response.status_code == 503
         assert response.json() == {

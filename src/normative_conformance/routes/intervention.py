@@ -2,6 +2,7 @@ from typing import Annotated
 from typing import Literal
 
 from fastapi import APIRouter
+from fastapi import Path
 from fastapi import Query
 
 from normative_conformance.routes.dependencies import ReadSession
@@ -36,17 +37,19 @@ def list_interventions(
 
 
 @router.post(
-    "/api/v1/interventions/deliver",
+    "/api/v1/cases/{case_id}/interventions/deliver",
     operation_id="deliverInterventions",
 )
 def deliver_interventions(
     *,
+    case_id: Annotated[str, Path(strict=True, min_length=1, pattern=r"^[^/]+$")],
     session: WriteSession,
     now: ServerClock,
 ) -> ListResponse[Intervention]:
-    """Mark pending interventions as sent and return them."""
+    """Mark the case's pending interventions as sent and return them."""
     return ListResponse[Intervention](
         items=intervention.deliver_pending(
+            case_id=case_id,
             session=session,
             now=now,
         ),

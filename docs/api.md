@@ -20,7 +20,7 @@ curl --fail http://127.0.0.1:8000/openapi.json -o openapi.json
 | `GET /api/v1/models` | None | 200: `items` of `ModelVersion` |
 | `GET /api/v1/models/{model_id}/versions/{version}` | Model ID and version | 200: one `ModelVersion`. 404 if absent |
 | `GET /api/v1/interventions` | Optional `case_id`, `status=pending` or `sent` | 200: `items` of `Intervention`, increasing intervention ID |
-| `POST /api/v1/interventions/deliver` | No body or filters | 200: `items` of interventions marked sent by this call |
+| `POST /api/v1/cases/{case_id}/interventions/deliver` | Case ID | 200: `items` of the case's interventions marked sent by this call |
 
 List responses have the form `{"items":[]}` when empty. Unknown case IDs return empty observation/assessment lists. Lists are unpaginated.
 
@@ -56,7 +56,7 @@ curl --fail http://127.0.0.1:8000/api/v1/cases/docs-demo/observations
 curl --fail http://127.0.0.1:8000/api/v1/cases/docs-demo/assessments
 curl --fail http://127.0.0.1:8000/api/v1/models/harm_phrase/versions/1
 curl --fail 'http://127.0.0.1:8000/api/v1/interventions?case_id=docs-demo&status=pending'
-curl --fail -X POST http://127.0.0.1:8000/api/v1/interventions/deliver
+curl --fail -X POST http://127.0.0.1:8000/api/v1/cases/docs-demo/interventions/deliver
 ```
 
 ## Errors
