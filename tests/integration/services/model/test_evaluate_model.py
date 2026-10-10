@@ -191,10 +191,15 @@ def test_continuous_speech_does_not_manufacture_interruptions(*, session):
 
 
 @pytest.mark.parametrize(
-    "level,end,expected",
-    [(-17.0, 0.9, True), (-18.0, 0.9, False), (-17.0, 1.0, False)],
+    "transcript,duration_us,level,expected",
+    [
+        ("stop that right now please", 1_500_000, -16.9, True),
+        ("stop that right now please", 1_500_000, -17.0, False),
+        ("stop that right now please", 1_499_999, -16.9, False),
+        ("stop that right now please listen", 2_000_000, -16.9, False),
+    ],
 )
-def test_address_requires_loud_fast_speech(*, session, level, end, expected):
+def test_address_requires_loud_fast_speech(*, session, transcript, duration_us, level, expected):
     session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
     session.add(models.CaseLog(case_id="case", created_at_us=0))
     session.commit()
@@ -208,9 +213,99 @@ def test_address_requires_loud_fast_speech(*, session, level, end, expected):
             sequence=observation_sequence,
             speaker_id="configured-subject",
             start_at_us=0,
-            end_at_us=round((end) * 1_000_000),
+            end_at_us=duration_us,
             received_at_us=0,
-            transcript="stop that now",
+            transcript=transcript,
+            signal_level_min=-60.0,
+            signal_level_avg=level,
+            signal_level_max=0.0,
+        ),
+    )
+    assert (
+        evaluate_model(
+            model=get_model(model_id="high_intensity_address", version="1", session=session),
+            case_id="case",
+            subject_speaker_id=get_subject_speaker_id(session=session),
+            through_sequence=get_case_sequence(case_id="case", session=session),
+            session=session,
+            after_observation=None,
+            deadline_at_us=None,
+        )
+        is expected
+    )
+
+
+# Every subject line in film cases 7, 10, and 12 that matched before the 1.5-second floor
+@pytest.mark.parametrize(
+    "transcript,duration_us,level,expected",
+    [
+        pytest.param("Such as?", 320_625, -17.33, False, id="case-7-such-as"),
+        pytest.param("You can't have him.", 708_750, -17.32, False, id="case-7-cant-have-him"),
+        pytest.param(
+            "gives you the right to come back here?",
+            1_923_750,
+            -17.06,
+            False,
+            id="case-7-gives-you-the-right",
+        ),
+        pytest.param("eight years.", 357_188, -15.96, False, id="case-7-eight-years"),
+        pytest.param(
+            "Don't tell me what I can or cannot do.",
+            1_607_343,
+            -15.96,
+            True,
+            id="case-7-dont-tell-me",
+        ),
+        pytest.param(
+            "I'll get them a little bit later. "
+            "I'm just going to hit the streets here for a little bit.",
+            3_003_750,
+            -17.82,
+            False,
+            id="case-10-get-them-later",
+        ),
+        pytest.param("just try to enjoy the", 978_750, -16.9, False, id="case-10-enjoy-the"),
+        pytest.param("Who cares?", 556_875, -16.85, False, id="case-10-who-cares"),
+        pytest.param("I just did.", 202_500, -13.28, False, id="case-10-i-just-did"),
+        pytest.param("You know I", 337_500, -17.09, False, id="case-10-you-know-i"),
+        pytest.param("Not when you're at the ballet.", 624_375, -17.32, False, id="case-10-ballet"),
+        pytest.param("I got your letter.", 928_125, -15.81, False, id="case-12-letter"),
+        pytest.param(
+            "Yeah, it's messy right now. I just got off work.",
+            2_581_875,
+            -17.91,
+            False,
+            id="case-12-messy",
+        ),
+        pytest.param(
+            "Listen, Forrest, I don't know how to say this.",
+            2_244_375,
+            -17.94,
+            False,
+            id="case-12-listen-forrest",
+        ),
+        pytest.param(
+            "You're his daddy, Forrest.", 1_096_875, -16.16, False, id="case-12-his-daddy"
+        ),
+    ],
+)
+def test_address_film_case_lines(*, session, transcript, duration_us, level, expected):
+    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
+    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.commit()
+    observation_sequences = count(1)
+
+    persist(
+        session=session,
+        record=models.Observation(
+            case_id="case",
+            observation_id=str(observation_sequence := next(observation_sequences)),
+            sequence=observation_sequence,
+            speaker_id="configured-subject",
+            start_at_us=0,
+            end_at_us=duration_us,
+            received_at_us=0,
+            transcript=transcript,
             signal_level_min=-60.0,
             signal_level_avg=level,
             signal_level_max=0.0,

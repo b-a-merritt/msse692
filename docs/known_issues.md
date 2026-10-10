@@ -6,7 +6,6 @@ The [QA report](quality_assurance_report.md) holds the evidence, severity, and t
 
 | Severity | Effect | Workaround |
 |---|---|---|
-| P1 | Loud-and-fast detection flags short, calm chunks because speech rate is computed per chunk. It caused false interventions in film cases 7, 10, and 12 | Treat loud-and-fast interventions on chunks under one second as suspect. No system fix |
 | P2 | `POST /api/v1/interventions/deliver` marks pending interventions as sent across all cases | Run one case at a time, or read with `GET /api/v1/interventions?case_id=...&status=pending`, which does not mark records as sent |
 | P2 | "You're acting crazy" is not recognized by the label model | None |
 
@@ -24,6 +23,6 @@ The [QA report](quality_assurance_report.md) holds the evidence, severity, and t
 
 ## Planned improvements
 
-Before the final presentation, I plan to fix the three open defects: the loud-and-fast false positives, delivery scoped to one case, and broader recognition of insulting labels. A change to detection needs a new film-case replay and updated acceptance results.
+Before the final presentation, I plan to fix the two open defects: delivery scoped to one case, and broader recognition of insulting labels. A change to detection needs a new film-case replay and updated acceptance results.
 
 A production deployment would also need authentication and authorization, a request size limit, TLS, a scaling decision, and an ethics review before the system processes the speech of real people.

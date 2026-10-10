@@ -7,7 +7,11 @@ revision: str = "0002"
 down_revision: str | None = "0001"
 
 REPEATED_INTERRUPTION_PARAMETERS = {"overlap_min_us": 150_000, "interruption_count": 2}
-HIGH_INTENSITY_ADDRESS_PARAMETERS = {"volume_threshold_dbfs": -18, "rate_threshold_wpm": 180}
+HIGH_INTENSITY_ADDRESS_PARAMETERS = {
+    "volume_threshold_dbfs": -17,
+    "rate_threshold_wpm": 180,
+    "duration_min_us": 1_500_000,
+}
 EXTENDED_TURN_PARAMETERS = {"duration_threshold_us": 30_000_000, "turn_gap_us": 1_000_000}
 HARM_PHRASE_PARAMETERS = {
     "phrases": [
@@ -80,6 +84,7 @@ WHERE case_id = :case_id AND speaker_id = :subject_speaker_id
   AND (:after_sequence IS NULL OR (start_at_us, end_at_us, sequence)
        > (:after_start_at_us, :after_end_at_us, :after_sequence))
   AND signal_level_avg > :volume_threshold_dbfs
+  AND end_at_us - start_at_us >= :duration_min_us
   AND 60000000.0 * (length(normalize_text(transcript))
       - length(replace(normalize_text(transcript), ' ', '')) + 1)
       / (end_at_us - start_at_us) > :rate_threshold_wpm
@@ -199,7 +204,7 @@ def upgrade() -> None:
             "rules": [
                 {
                     "rule_id": "loud_fast_speech",
-                    "description": "A subject chunk is loud and fast",
+                    "description": "A subject chunk of at least duration_min_us is loud and fast",
                     "sql": LOUD_FAST_SPEECH_SQL,
                 },
             ],
