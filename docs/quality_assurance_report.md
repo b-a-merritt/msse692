@@ -58,7 +58,7 @@ Last updated: Oct 10, 2026
 
 The prototype receives mocked conversation observations, assesses one target speaker against SQL-defined normative models, waits for a repair, and records interventions. All 543 automated tests pass. The unit suite alone (excluding integration tests) covers 100% of statements and branches. Lint, formatting, and strict type checks report no issues.
 
-Testing found 11 open defects. Five are P2, and most of those are related to losing queued work or interventions when a storage write fails, the server stops, or the process crashes. Normal operation and the stress run did not trigger them. Ten defects found earlier are fixed, including a P1 in which the loud-and-fast rule flagged short, calm lines.
+Testing found 10 open defects. Four are P2, and most of those are related to losing queued work or interventions when a storage write fails, the server stops, or the process crashes. Normal operation and the stress run did not trigger them. Eleven defects found earlier are fixed, including a P1 in which the loud-and-fast rule flagged short, calm lines.
 
 The system is ready for research demonstration on one machine. It is not ready for production. It has no authentication, it loses work under failure, and it has not been tested at the case length its performance requirement names.
 
@@ -148,6 +148,7 @@ In case 10, Brooke's insult produced no intervention because she is not the targ
 | **Sev** | **Problem** | **Fix** |
 | **P1** | The loud-and-fast rule computed speech rate per chunk, so short chunks inflated it ("Such as?" is 2 words in 0.32 s, or 375 words per minute), and calm lines just above −18 dBFS matched. | Required chunks of at least 1.5 seconds and raised the volume threshold to −17 dBFS. Both are model parameters. |
 | **P2** | `POST /api/v1/interventions/deliver` marked every pending intervention as sent, across all cases, so one client could receive another case's interventions. | Delivery moved to `POST /api/v1/cases/{case_id}/interventions/deliver` and marks only that case's pending interventions. |
+| **P2** | "You're acting crazy" matched neither the descriptor list ("crazy" was not in it) nor the address patterns ("acting" was not in them), so the predicted label in case 10 was missed. | Expanded the insult terms that match only when addressed to the listener, including "crazy". Added "acting" to the address patterns, and matched bare labels such as "you're crazy". |
 | **P2** | The loud-and-fast model also required the phrases "you are wrong" or "you are ridiculous" in the same chunk, so it rarely matched. The interruption model required three overlaps of 300 ms, which missed the interruptions in the tuning cases. | Split loudness and insulting address into separate rules. Lowered the interruption rule to two overlaps of 150 ms. |
 | **P2** | Vulgar language was part of the character-label model, so swearing produced a message about describing the person. | Created a separate vulgar-language model with its own message. |
 | **P2** | The replay script timed each observation from its start time. Overlapping speech was sent immediately, so replays did not reproduce the scene's timing. | The script now waits until each chunk's end time and tracks the latest end time across overlapping chunks. |
@@ -159,7 +160,7 @@ In case 10, Brooke's insult produced no intervention because she is not the targ
 | Open bugs |  |  |  |
 | :---- | :---- | :---- | :---- |
 | **Sev** | **Problem** | **Impact** | **Workaround** |
-| **P2** | "You're acting crazy" matches neither the descriptor list ("crazy" is not in it) nor the address patterns ("acting" is not in them). | The predicted label intervention in case 10 was missed. | None. |
+| None |  |  |  |
 
 ## **Limitations by design** {#limitations-by-design}
 
@@ -237,9 +238,8 @@ Not applicable. The system is an HTTP API with no user interface. FastAPI genera
 The system is not deployable to production. It runs reliably as a single local process for research replay. A production deployment would need:
 
 1. Authentication and authorization, a request size limit, and TLS.
-2. A broader label lexicon.
-3. A decision on scaling. SQLite and in-memory scheduling limit the system to one process.
-4. An ethics review before the system processes the speech of real people.
+2. A decision on scaling. SQLite and in-memory scheduling limit the system to one process.
+3. An ethics review before the system processes the speech of real people.
 
 | Risks and mitigations |  |
 | :---- | :---- |

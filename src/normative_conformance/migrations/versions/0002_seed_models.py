@@ -23,7 +23,47 @@ HARM_PHRASE_PARAMETERS = {
     ],
 }
 DESCRIPTOR_TERMS = ["selfish", "selfishness", "pathetic", "insane", "melodramatic", "slob"]
-INSULT_TERMS = ["liar", "idiot", "loser", "coward", "joke"]
+# Insult terms match only when addressed to the listener, so "that's a stupid idea" does not match
+INSULT_TERMS = [
+    "liar",
+    "idiot",
+    "loser",
+    "coward",
+    "joke",
+    "jerk",
+    "moron",
+    "fool",
+    "imbecile",
+    "prick",
+    "psycho",
+    "freak",
+    "hypocrite",
+    "narcissist",
+    "bully",
+    "brat",
+    "pig",
+    "failure",
+    "disappointment",
+    "embarrassment",
+    "crazy",
+    "nuts",
+    "stupid",
+    "dumb",
+    "lazy",
+    "useless",
+    "worthless",
+    "childish",
+    "immature",
+    "ridiculous",
+    "ignorant",
+    "incompetent",
+    "disgusting",
+    "paranoid",
+    "delusional",
+    "spineless",
+    "heartless",
+    "unbearable",
+]
 VULGAR_TERMS = [
     "fuck(ed|er|ers|ing)?",
     "shit(ty)?",
@@ -36,11 +76,21 @@ VULGAR_TERMS = [
     "piss(ed)?",
 ]
 LABEL_TERMS = "|".join(DESCRIPTOR_TERMS + INSULT_TERMS + VULGAR_TERMS)
+# Only listed intensifiers may separate a bare label, so "you're not crazy" does not match
+BARE_LABEL_INTENSIFIERS = (
+    "being|acting|so|such|really|just|totally|completely|absolutely|fucking|too"
+)
 CHARACTER_LABEL_PARAMETERS = {
     "descriptor_terms": DESCRIPTOR_TERMS,
     # An address must reach a label term, so "you're a great dad" does not match
     "address_patterns": [
-        r"\byou('re| are) (an?|such an?|just an?|being|so)( \w+)? (" + LABEL_TERMS + r")\b",
+        r"\byou('re| are) (an?|such an?|just an?|being|acting|so)( \w+)? (" + LABEL_TERMS + r")\b",
+        # Vulgar terms are excluded here, so "you're damn right" does not match
+        r"\byou('re| are)( ("
+        + BARE_LABEL_INTENSIFIERS
+        + r"))* ("
+        + "|".join(DESCRIPTOR_TERMS + INSULT_TERMS)
+        + r")\b",
         r"\b(you('re| are)|you sound|you act)( just| exactly)? like your (mother|father|mom|dad)\b",
     ],
 }

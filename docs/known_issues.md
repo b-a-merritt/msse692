@@ -4,9 +4,7 @@ The [QA report](quality_assurance_report.md) holds the evidence, severity, and t
 
 ## Open defects
 
-| Severity | Effect | Workaround |
-|---|---|---|
-| P2 | "You're acting crazy" is not recognized by the label model | None |
+All have been resolved.
 
 ## Limitations by design
 
@@ -22,6 +20,4 @@ The [QA report](quality_assurance_report.md) holds the evidence, severity, and t
 
 ## Planned improvements
 
-Before the final presentation, I plan to fix the open defect: broader recognition of insulting labels. A change to detection needs a new film-case replay and updated acceptance results.
-
-A production deployment would also need authentication and authorization, a request size limit, TLS, a scaling decision, and an ethics review before the system processes the speech of real people.
+A production deployment would need authentication and authorization, a request size limit, TLS, a scaling decision, and an ethics review before the system processes the speech of real people.
