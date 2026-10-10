@@ -68,6 +68,34 @@ The evaluation cases produced 17 interventions in total.
 - **Subject scoping held.** Only `speaker-2` was assessed. Brooke's "You're a prick" (case 10) and Forrest's
   lines (case 12) produced nothing.
 
+## Update: rerun after defect fixes
+
+Aafter the loud-and-fast, delivery, and label fixes, all twelve cases were replayed against the same predictions. Each case ran on its own server with fresh storage. Five of the ten evaluation cases matched, one caught everything predicted and added one intervention, and four did not match.
+
+| Case | Predicted | Actual interventions (trigger) | Result |
+|---|---|---|---|
+| 3 | None | None | Match |
+| 4 | 1–2, intensity and language | 3: vulgar ("piss me off"), label ("you're fucking nuts"), extended turn | Mismatch, intensity missed, two extra |
+| 5 | Loud only, if any | 2: loud ("We've only had one game…"), repeated interruption | Mismatch, interruption not predicted |
+| 6 | 2, absolutist and shouting | 2: extended turn ("I took all my feelings…"), absolutist ("You always talking") | Mismatch, shouting missed, one extra |
+| 7 | None | 1: loud ("Don't tell me what I can or cannot do.") | Mismatch |
+| 8 | None, likely false negative | None | Match |
+| 9 | At least 2, language and interruption | 2: vulgar ("fucking asparagus"), interruption | Match |
+| 10 | Interruption and "crazy" label, none for Brooke | 3: vulgar ("damn dishes"), label ("you're acting crazy again"), interruption. None for Brooke | One extra |
+| 11 | Vulgar only, not "tough kid" | 1: vulgar ("ripped my fucking life apart") | Match |
+| 12 | None | None | Match |
+
+The evaluation cases produced 14 interventions in total, down from 17.
+
+**Findings**
+
+- **Loud-and-fast false positives fixed in cases 10 and 12.**
+- **Short shouts no longer match (cases 4 and 6).** The 1.5 s minimum excludes "shit for" and "Troy,", so the
+  shouting predicted for case 6 is missed.
+- **Labels.** The case 10 label is now detected. Case 4 gained a label for "you're fucking nuts".
+- **Subject scoping held.** Brooke's "You're a prick" now matches the label rule, but she is not the subject, so
+  it produced nothing.
+
 ## Stress case
 
 `cases/stress.jsonl` is synthetic. It interleaves 330 scripted sessions (`stress-p<phase>-<nnn>`,

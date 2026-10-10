@@ -112,7 +112,7 @@ Coverage is measured with coverage.py through pytest-cov, with branch measuremen
 
 I did not test with people. The system measures undesired behavior in a person's speech, and running it on participants would have required ethics review that this practicum does not include.
 
-Instead, I ran a scenario-based acceptance test. I converted twelve scenes from films and television into mocked observation files, with generic speaker identifiers and no source audio or video. For each scene, I wrote down which interventions the target speaker (`speaker-2`) should receive, then replayed the scene through the HTTP API at its original pacing and compared the result. Cases 1 and 2 were used to tune the models and are not scored. The scored run used the same detection code that is in the repository now.
+Instead, I ran a scenario-based acceptance test. I converted twelve scenes from films and television into mocked observation files, with generic speaker identifiers and no source audio or video. For each scene, I wrote down which interventions the target speaker (`speaker-2`) should receive, then replayed the scene through the HTTP API at its original pacing and compared the result. Cases 1 and 2 were used to tune the models and are not scored. The first scored run used the detection code from before the fixes in the bug report. The update after the results reruns every case with the current code.
 
 | Case | Predicted | Actual interventions | Result |
 | :---- | :---- | :---- | :---- |
@@ -132,6 +132,25 @@ Four cases matched, two matched with one extra intervention, and four did not ma
 In case 10, Brooke's insult produced no intervention because she is not the target speaker, as expected.
 
 ![][image3]
+
+## **Update: rerun after defect fixes** {#update-rerun-after-defect-fixes}
+
+After fixing the loud-and-fast, delivery, and label defects, I replayed all twelve cases again against the same predictions. Each case ran on its own server with fresh storage.
+
+| Case | Predicted | Actual interventions | Result |
+| :---- | :---- | :---- | :---- |
+| 3 | None | None | Match |
+| 4 | One or two, for intensity and language | Three: vulgar language ("piss me off"), character label ("you're fucking nuts"), extended turn | Intensity missed, two extra |
+| 5 | Loud only, if any | Two: loud and fast ("We've only had one game…"), repeated interruption | Interruption not predicted |
+| 6 | Two: absolutist phrase and shouting | Two: extended turn, absolutist phrase ("You always talking") | Shouting missed, one extra |
+| 7 | None | One: loud and fast ("Don't tell me what I can or cannot do.") | Mismatch |
+| 8 | None | None | Match |
+| 9 | At least two: language and interruption | Two: vulgar language ("fucking asparagus"), repeated interruption | Match |
+| 10 | Interruption and the "crazy" label | Three: vulgar language ("damn dishes"), character label ("you're acting crazy again"), repeated interruption | One extra |
+| 11 | Vulgar language only, not "tough kid" | One: vulgar language | Match |
+| 12 | None | None | Match |
+
+Five cases matched, one matched with one extra intervention, and four did not match. The ten cases produced 14 interventions, down from 17. The loud-and-fast false positives in cases 10 and 12 are gone, and the label in case 10 is now detected. Case 7 still has one loud-and-fast intervention, now on "Don't tell me what I can or cannot do." instead of "Such as?". Loud and fast no longer matches the short shouts in cases 4 and 6, so the shouting predicted for case 6 was missed. Case 4 gained a label intervention for "you're fucking nuts".
 
 # **Bug Report & Resolution** {#bug-report-&-resolution}
 
