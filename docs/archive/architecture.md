@@ -1,5 +1,7 @@
 # Architecture Document
 
+> Historical design, written before the current implementation. Restart behavior, model rules, and interfaces have evolved. Use the [developer guide](developer_guide.md) for current architecture and [known issues](known_issues.md) for current limitations.
+
 **Project:** A Human Cyber-Physical System Architecture for Supporting Moral Self-Regulation
 
 **Team:** Individual Track
@@ -66,11 +68,11 @@ The architecture is a modular monolith: one server application with separate ing
 | HTTP API | Validate incoming observations Expose stored records, namely interventions |
 | Ingestion service | Append validated observations to the event log, preserving fields and insertion order without assigning social meaning |
 | Model loader | Seed supplied versions without duplication or replacement Validate definitions before readiness |
-| Scheduler | Enqueue case tasks in `persistqueue` after observation commits and at model deadlines; combine waiting requests using in-memory case coordination |
+| Scheduler | Enqueue case tasks in `persistqueue` after observation commits and at model deadlines. Combine waiting requests using in-memory case coordination |
 | Assessment service | Run each supplied normative model's full set of declarative queries Derive activities and store the status, explanation, and exact evaluated observation references |
 | Intervention service | Create interventions from conformant assessments, retaining the message, creation time, and source assessment references |
 
-Domain records and ready assessment tasks are persisted in SQLite; `persistqueue` owns queue delivery and acknowledgment state. The scheduler keeps future deadlines and queued-case membership in memory. On restart, old messages are drained without evaluation, and cases resume on new observations. Diagnostic logging writes decisions, record references, and rule references to stdout and a file.
+Domain records and ready assessment tasks are persisted in SQLite. `persistqueue` owns queue delivery and acknowledgment state. The scheduler keeps future deadlines and queued-case membership in memory. On restart, old messages are drained without evaluation, and cases resume on new observations. Diagnostic logging writes decisions, record references, and rule references to stdout and a file.
 
 ## **Integration and Communication**
 
@@ -83,7 +85,7 @@ Each assessment describes the selected case history, with exactly one status
 | `conformant` | The history matches the pattern. |
 | `non-conformant` | The history definitely does not match the pattern. |
 | `pending` | The result depends on a future observation or an unexpired deadline. |
-| `conflicted` | Reserved; the prototype does not produce this status. |
+| `conflicted` | Reserved. The prototype does not produce this status. |
 
 The processing sequence is:
 
@@ -91,7 +93,7 @@ The processing sequence is:
 2. Ingestion commits a valid observation, then enqueues assessment work for its case in `persistqueue`. The API acknowledges acceptance after enqueuing without waiting for assessment to complete.
 3. The worker detects new patterns within the event log and checks unresolved repairs using retained evidence. It commits each assessment with its case, captured sequence cutoff, and model/version reference. If it assesses a case to be pending, it enqueues another assessment.
 4. Only a `conformant` assessment reaches the intervention policy. After a short window that groups close confirmations, the policy commits one intervention in a separate transaction. It links each source assessment at most once and has a null sent timestamp. All stored interventions are authorized.
-5. Delivery sets `sent_at_us` on all selected pending interventions before returning the HTTP response. Response status is derived from that timestamp; the decision and source reference remain unchanged.
+5. Delivery sets `sent_at_us` on all selected pending interventions before returning the HTTP response. Response status is derived from that timestamp. The decision and source reference remain unchanged.
 
 | Note that intervention pending means delivery is authorized and awaiting completion, while assessment pending means conformance is unresolved. Repair deadlines can also trigger assessment without an HTTP submission. Evaluation errors are operational failures, separate from conformance statuses. A later-stage failure leaves earlier commits intact. |
 | :---- |
@@ -140,7 +142,7 @@ The model loader seeds and validates versions before the server reports health r
 | :---- | :---- |
 | HTTP API | Retrieve records and model identity |
 | Observation ingestion | Commit observations |
-| Assessment scheduler | Persist assessment work through `persistqueue`; read retained case and pending-check state when a case resumes |
+| Assessment scheduler | Persist assessment work through `persistqueue`. Read retained case and pending-check state when a case resumes |
 | Assessment worker | Read evaluated observations, commit assessments with captured case prefixes |
 | Intervention policy | Commit interventions whose source assessments are each linked once |
 | Local delivery adapter | Update delivery status |
@@ -165,8 +167,7 @@ Index effectiveness depends on predicates and data distribution ([SQLite query p
 
 ## **Reliability and Recovery**
 
-**Target**
-After stopping and restarting the server, recover 100% of committed records with zero duplicates. Reload the supplied models without creating missing downstream records during startup.
+**Target** After stopping and restarting the server, recover 100% of committed records with zero duplicates. Reload the supplied models without creating missing downstream records during startup.
 
 **Tactics**
 
@@ -179,24 +180,22 @@ After stopping and restarting the server, recover 100% of committed records with
 
 Transactions preserve earlier commits when later stages fail. Use [SQLite transactions](https://www.sqlite.org/atomiccommit.html), and enable and check [foreign-key enforcement](https://www.sqlite.org/foreignkeys.html) on every connection.
 
-**Verification**
-Run controlled failures and restarts at these boundaries
+**Verification** Run controlled failures and restarts at these boundaries
 
 | Stop point | Required result |
 | :---- | :---- |
 | Observation committed, but queue insertion not committed | Observation remains, and startup creates no assessment |
-| Assessment work queued, but assessment not started | Observation and queued work remain; startup creates no assessment, and queued work waits for the case to resume |
+| Assessment work queued, but assessment not started | Observation and queued work remain. Startup creates no assessment, and queued work waits for the case to resume |
 | Assessment or intervention interrupted before commit | No partial record remains. Earlier commits are unchanged |
 | Assessment committed, but policy not evaluated | Assessment and its captured prefix remain. Startup creates no intervention |
 | Intervention committed as `pending` with delivery not attempted | Decision and source assessment reference remain, and startup does not deliver it |
-| Local delivery fails | A pre-commit failure leaves the intervention pending; response loss after commit leaves it sent |
+| Local delivery fails | A pre-commit failure leaves the intervention pending. Response loss after commit leaves it sent |
 
 This covers controlled local restart or power-loss scenarios. Database loss and disk corruption recovery are outside the scope.
 
 ## **Auditability and Structural Explainability**
 
-**Target**
-For each completed result, stdout and the database records must explain every decision and identify its references, including traces that stop before the final stage.
+**Target** For each completed result, stdout and the database records must explain every decision and identify its references, including traces that stop before the final stage.
 
 **Tactics**
 
@@ -208,13 +207,11 @@ For each completed result, stdout and the database records must explain every de
 
 These references let an evaluator trace delivery through the policy decision and assessments to the model definitions and observations. Explanations of absent repairs identify the evaluated history and deadline.
 
-**Verification**
-Independently write expectations covering conformant, non-conformant, and pending assessments; intervention creation; pending and sent delivery; and failures before and after delivery commits. Include invalid input, retained observations matching no activity, and SQL failure. Inspect both logging outputs for reasons and references at each executed stage.
+**Verification** Independently write expectations covering conformant, non-conformant, and pending assessments. Intervention creation. Pending and sent delivery. And failures before and after delivery commits. Include invalid input, retained observations matching no activity, and SQL failure. Inspect both logging outputs for reasons and references at each executed stage.
 
 ## **Reproducibility**
 
-**Target**
-From a clean checkout, locked dependencies, and a fresh database, an evaluator must reproduce every expected assessment status and required explanation using consistent commands and mocks.
+**Target** From a clean checkout, locked dependencies, and a fresh database, an evaluator must reproduce every expected assessment status and required explanation using consistent commands and mocks.
 
 **Tactics**
 
@@ -225,8 +222,7 @@ From a clean checkout, locked dependencies, and a fresh database, an evaluator m
 | Locked environment | Lock dependencies and document Python, SQLite, and operating-system versions |
 | Independent expectations | Author expected statuses and evidence sets from model conditions, independently of the SQL under test |
 
-**Verification**
-Supply commands for initialization and the expected results. Run them in two fresh databases in the reference environment. Compare statuses, models, evaluated extents, rule reasons, and observation membership.
+**Verification** Supply commands for initialization and the expected results. Run them in two fresh databases in the reference environment. Compare statuses, models, evaluated extents, rule reasons, and observation membership.
 
 # **Technology Selection Rationale**
 
@@ -283,10 +279,10 @@ The requirements exclude application security. Authentication, authorization, TL
 | :---- | :---- |
 | **Risk** | **Mitigation Strategy** |
 | SQL evaluation or write contention delays assessment | Inspect query plans and transaction duration. Optimize queries and indexes against unchanged expectations before adding processes or services. |
-| Timestamp ambiguity changes repair outcomes | Use the detailed design's time rules; test equal timestamps and before/at/after boundaries with controlled time. |
+| Timestamp ambiguity changes repair outcomes | Use the detailed design's time rules. Test equal timestamps and before/at/after boundaries with controlled time. |
 | Multiple triggers duplicate work or interventions | Define work identity and policy handling for repeated matches. Test simultaneous observation and repair-deadline triggers. |
 | Restart leaves checks or delivery inactive | Test stage-boundary recovery and document the next-observation resume rule. Cases without later observations stay inactive. |
-| A crash leaves commits without diagnostic entries | Preserve relational provenance; test interrupted stages. SQLite and log writes are not atomic together. |
-| Observations and historical results grow without bound | Bound evaluation runs and archive completed databases. Retain the full case history; long-term retention remains future work. |
-| Passing traces is mistaken for ethical accuracy | Use independent expectations; report technical outcomes separately from claims of normative legitimacy or human benefit. |
+| A crash leaves commits without diagnostic entries | Preserve relational provenance. Test interrupted stages. SQLite and log writes are not atomic together. |
+| Observations and historical results grow without bound | Bound evaluation runs and archive completed databases. Retain the full case history. Long-term retention remains future work. |
+| Passing traces is mistaken for ethical accuracy | Use independent expectations. Report technical outcomes separately from claims of normative legitimacy or human benefit. |
 | Documents or tests use superseded assumptions | Trace tests to current ADRs and Section 2.5, especially observation persistence and intervention records. |

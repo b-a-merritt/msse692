@@ -1,5 +1,7 @@
 # Design Document
 
+> Historical design, written before the current implementation. Model identities, repair timing, and restart behavior have evolved. Use the [developer guide](developer_guide.md) and [API reference](api.md) for current behavior.
+
 Last updated: Sep 20, 2026
 
 # **Team: *Individual Track***
@@ -66,7 +68,8 @@ One process runs at `http://127.0.0.1:8000`. Product endpoints use `/api/v1`. He
 
 A UUID request ID is generated for each response to be used for logging and tracing requests. API timestamps require a timezone and are returned in UTC, for example `2026-09-20T12:00:00.000000Z`. Database timestamps use integer Unix microseconds, identified by `_us`. Unknown request fields and query parameters are rejected. Responses generated UUID in `X-Request-ID`. Every application error uses `ErrorEnvelope`:
 
-| {   "error": {    "code": "VALIDATION\_ERROR",    "message": "The observation fields are invalid",    "request\_id": "ea65e629-082b-4c8b-a6c2-bd387878e7af",    "details": \[      {         "location": "/end\_at",          "message": "Must exceed start\_at"       }     \],    "committed\_observation": null  }} |
+| {   "error": {
+"code": "VALIDATION\_ERROR", "message": "The observation fields are invalid", "request\_id": "ea65e629-082b-4c8b-a6c2-bd387878e7af", "details": \[ {         "location": "/end\_at",          "message": "Must exceed start\_at"       }     \], "committed\_observation": null } } |
 | :---- |
 
 The following status codes are used.
@@ -86,19 +89,30 @@ The following status codes are used.
 
 &nbsp;
 
-| Endpoint Inventory Paths below are relative to /api/v1 except the two health paths. |  |  |
+| Endpoint Inventory
+Paths below are relative to /api/v1 except the two health paths. |  |  |
 | :---- | :---- | :---- |
 | **Method and path** | **Input** | **Status and Response** |
-| `POST /observations` | `ObservationInput` | 202 `ObservationAccepted`&nbsp; |
-| `GET/cases/{case_id}/observations` | Case ID | 200 `ListResponse[ObservationRecord]` |
-| `GET /models` | None | 200 `ListResponse[ModelVersion]` |
-| `GET /models/{model_id}/versions/{version}` | Model ID and version | 200 `ModelVersion` |
-| `GET /cases/{case_id}/assessments` | Case ID | 200 `ListResponse[Assessment]` |
-| `GET /assessments/{assessment_id}` | Assessment ID | 200 `Assessment` |
-| `GET /interventions` | `case_id`, `status` | 200`ListResponse[Intervention]` |
-| `POST /interventions/deliver` | None | 200 `ListResponse[Intervention]` |
-| `GET /health/live` | None | 200 `Liveness` (HTTP process is responsive) |
-| `GET /health/ready` | None | 200 `Readiness` (models validated, database/queue usable, scheduler/worker running) |
+| `POST
+/observations` | `ObservationInput` | 202 `ObservationAccepted`&nbsp; |
+| `GET
+/cases/{case_id}/observations` | Case ID | 200 `ListResponse[ObservationRecord]` |
+| `GET
+/models` | None | 200 `ListResponse[ModelVersion]` |
+| `GET
+/models/{model_id}/versions/{version}` | Model ID and version | 200 `ModelVersion` |
+| `GET
+/cases/{case_id}/assessments` | Case ID | 200 `ListResponse[Assessment]` |
+| `GET
+/assessments/{assessment_id}` | Assessment ID | 200 `Assessment` |
+| `GET
+/interventions` | `case_id`, `status` | 200 `ListResponse[Intervention]` |
+| `POST
+/interventions/deliver` | None | 200 `ListResponse[Intervention]` |
+| `GET /health/live` | None | 200
+`Liveness` (HTTP process is responsive) |
+| `GET /health/ready` | None | 200
+`Readiness` (models validated, database/queue usable, scheduler/worker running) |
 
 Every list has the shape `{"items": [...]}` and returns all matching records.
 
@@ -108,10 +122,13 @@ Every list has the shape `{"items": [...]}` and returns all matching records.
 
 | Field | Required content | Notes |
 | :---- | :---- | :---- |
-| `case_id`, `observation_id`, `speaker_id` | Case, observation, and speaker identifiers | `SUBJECT_SPEAKER_ID` identifies the assessed speaker |
-| `start_at`, `end_at` | Provider UTC speech boundaries; nonempty half-open interval `[start_at, end_at)` |  |
+| `case_id`,
+`observation_id`, `speaker_id` | Case, observation, and speaker identifiers | `SUBJECT_SPEAKER_ID` identifies the assessed speaker |
+| `start_at`,
+`end_at` | Provider UTC speech boundaries. Nonempty half-open interval `[start_at, end_at)` |  |
 | `transcript` | Transcript with 1–4,000 characters |  |
-| `signal_level_min`, `signal_level_avg`, `signal_level_max` | Finite dBFS summaries in \[−120, 0\], with min ≤ avg ≤ max | The same per-speaker frame-level measurements where `avg` is the arithmetic mean of the dBFS levels&nbsp; |
+| `signal_level_min`,
+`signal_level_avg`, `signal_level_max` | Finite dBFS summaries in \[−120, 0\], with min ≤ avg ≤ max | The same per-speaker frame-level measurements where `avg` is the arithmetic mean of the dBFS levels&nbsp; |
 
 Assessment runs asynchronously and may combine requests. The 202 status response does not promise one assessment per observation or completion. Only the stored representation includes receipt time and sequence. A duplicate `(case_id, observation_id)` returns **409**, regardless of content. It creates no observation or work request and leaves the original receipt time unchanged.
 
@@ -121,19 +138,22 @@ Source intervals measure duration and overlap. They may arrive out of order. The
 
 `ObservationRecord` contains all input fields plus:
 
-| sequence: positive integerreceived\_at: timestamp |
+| sequence: positive integer
+received\_at: timestamp |
 | :---- |
 
 `ObservationAccepted` is:
 
-| observation: ObservationRecordassessment\_requested: true |
+| observation: ObservationRecord
+assessment\_requested: true |
 | :---- |
 
 ## **Queue message** {#queue-message}
 
 The queue contains ready-to-run case references:
 
-| {  "kind": "assess\_case",  "evaluation\_id": "d4e9cfa0-bf7b-4fdf-a84d-d95641577bd7",  "case\_id": "case-1"} |
+| {
+"kind": "assess\_case", "evaluation\_id": "d4e9cfa0-bf7b-4fdf-a84d-d95641577bd7", "case\_id": "case-1" } |
 | :---- |
 
 All three fields are required. Extras are rejected. The evaluation UUID is generated when enqueuing. The worker captures observations and evaluation time when processing begins. Queue receipt and acknowledgment state belong to persist-queue, not the message or an application work table.
@@ -157,13 +177,20 @@ The tables use SQLite `STRICT`. Unless marked nullable, every column is `NOT NUL
 
 | Table | Columns |
 | :---- | :---- |
-| `experiment_config` | `experiment_id INTEGER PK``subject_speaker_id TEXT``created_at_us INTEGER` |
-| `case_log` | `case_id TEXT PK``created_at_us INTEGER` |
-| `observation` | `case_id TEXT PK``observation_id TEXT PK``sequence INTEGER``received_at_us INTEGER``speaker_id TEXT``start_at_us INTEGER``end_at_us INTEGER``transcript TEXT``signal_level_min REAL``signal_level_avg REAL``signal_level_max REAL` |
-| `normative_model_version` | `model_id TEXT PK``version TEXT PK``name TEXT``orientation TEXT``rules_json TEXT``parameters_json TEXT` |
-| `assessment` | `assessment_id INTEGER PK``evaluation_id TEXT``case_id TEXT``model_id TEXT``model_version TEXT``evaluated_at_us INTEGER``through_sequence INTEGER``status TEXT``explanation_json TEXT``next_due_at_us INTEGER nullable` |
-| `intervention` | `intervention_id INTEGER PK``case_id TEXT``message TEXT``created_at_us INTEGER``sent_at_us INTEGER nullable` |
-| `intervention_source` | `intervention_id INTEGER PK``assessment_id INTEGER PK` |
+| `experiment_config` | `experiment_id INTEGER PK`
+`subject_speaker_id TEXT` `created_at_us INTEGER` |
+| `case_log` | `case_id TEXT PK`
+`created_at_us INTEGER` |
+| `observation` | `case_id TEXT PK`
+`observation_id TEXT PK` `sequence INTEGER` `received_at_us INTEGER` `speaker_id TEXT` `start_at_us INTEGER` `end_at_us INTEGER` `transcript TEXT` `signal_level_min REAL` `signal_level_avg REAL` `signal_level_max REAL` |
+| `normative_model_version` | `model_id TEXT PK`
+`version TEXT PK` `name TEXT` `orientation TEXT` `rules_json TEXT` `parameters_json TEXT` |
+| `assessment` | `assessment_id INTEGER PK`
+`evaluation_id TEXT` `case_id TEXT` `model_id TEXT` `model_version TEXT` `evaluated_at_us INTEGER` `through_sequence INTEGER` `status TEXT` `explanation_json TEXT` `next_due_at_us INTEGER nullable` |
+| `intervention` | `intervention_id INTEGER PK`
+`case_id TEXT` `message TEXT` `created_at_us INTEGER` `sent_at_us INTEGER nullable` |
+| `intervention_source` | `intervention_id INTEGER PK`
+`assessment_id INTEGER PK` |
 
 ### Constraints
 
@@ -176,7 +203,8 @@ The tables use SQLite `STRICT`. Unless marked nullable, every column is `NOT NUL
 
 Every model query begins with the same case history:
 
-| WITH history AS (    SELECT \* FROM observation    WHERE case\_id \= :case\_id      AND sequence \<= :through\_sequence)\-- Derive this model's conditions from history. |
+| WITH history AS (
+SELECT \* FROM observation WHERE case\_id \= :case\_id AND sequence \<= :through\_sequence ) \-- Derive this model's conditions from history. |
 | :---- |
 
 Historical extent retrieval uses the same predicate and `ORDER BY sequence`. The model's time rules are additional SQL conditions, never a server-imposed history window. Use bound parameters for values supplied to queries.
@@ -211,7 +239,7 @@ The system will use module-level functions for observation, model, assessment, s
 
 The assessment component captures one case history and evaluation time, runs each fixed model, and stores its result. Queries determine conformance. Python binds values and formats the returned evidence.
 
-Each model version has a nullable `repair_allowance_us` field. A positive integer specifies the repair period in microseconds; `null` confirms a match immediately. This field replaces `repairable`. The seeded undesired models use `10000000`, and repair models use `null`. Pending assessments retain their stored deadlines.
+Each model version has a nullable `repair_allowance_us` field. A positive integer specifies the repair period in microseconds. `null` confirms a match immediately. This field replaces `repairable`. The seeded undesired models use `10000000`, and repair models use `null`. Pending assessments retain their stored deadlines.
 
 ![][image3]
 
@@ -260,7 +288,7 @@ The worker will continue other models after one fails and keep any committed IDs
 
 Startup will open the queue with recovery of unacknowledged messages enabled, then drain and acknowledge all old work before starting producers. The scheduler will start with empty state. Only a new committed observation resumes a case. SQL derives any remaining or expired deadlines from its retained history. Startup and repeated positives do not fill gaps left by failed downstream writes.
 
-The worker groups close confirmations into one intervention. When a task produces a new `conformant` assessment of undesired behavior and its case has no open window, the worker opens one at the task's start time. The worker checks the result's evaluation ID and timestamp to exclude reused results and replays. Case evaluation returns undesired matches; in repair checks, only conformant resolutions of pending assessments open windows. Successful repairs do not open windows. When the window of `INTERVENTION_WINDOW_US` (default 2 seconds) closes, the worker creates one intervention from the case's eligible, unlinked assessments evaluated since it opened. Immediate confirmations and repair-deadline confirmations can share a window. Evaluation can run past the window's end, and those later confirmations can join the same decision. An ordered table of fixed messages chooses the text: the first entry whose models were all detected wins, and every undesired model has its own entry. Open windows exist only in memory. A failed decision is logged and dropped without retry.
+The worker groups close confirmations into one intervention. When a task produces a new `conformant` assessment of undesired behavior and its case has no open window, the worker opens one at the task's start time. The worker checks the result's evaluation ID and timestamp to exclude reused results and replays. Case evaluation returns undesired matches. In repair checks, only conformant resolutions of pending assessments open windows. Successful repairs do not open windows. When the window of `INTERVENTION_WINDOW_US` (default 2 seconds) closes, the worker creates one intervention from the case's eligible, unlinked assessments evaluated since it opened. Immediate confirmations and repair-deadline confirmations can share a window. Evaluation can run past the window's end, and those later confirmations can join the same decision. An ordered table of fixed messages chooses the text: the first entry whose models were all detected wins, and every undesired model has its own entry. Open windows exist only in memory. A failed decision is logged and dropped without retry.
 
 # **Quality Attribute Design** {#quality-attribute-design}
 
