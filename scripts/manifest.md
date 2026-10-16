@@ -134,3 +134,13 @@ deviation comes from load.
 | 0 | Absolutist phrase repaired by an intent disclaimer, then a label with an apology about 24 s later | First repaired, second expires, one intervention |
 
 Each phase should create 6 interventions per 10 sessions, or 198 in total.
+
+## Demo cases
+
+| Case file | Contents | Expected outcome |
+|---|---|---|
+| `cases/demo-unrepaired.jsonl` | Two interruptions by `speaker-2`, no repair | A pending repeated-interruption assessment, confirmed at the deadline; one intervention |
+| `cases/demo-repaired.jsonl` | The same interruptions, then `speaker-2` says "I apologize." before the deadline | The match resolves as non-conformant; no intervention |
+| `cases/demo-speaker-control.jsonl` | `speaker-1` says "You are crazy." | Stored, but no assessment and no intervention |
+| `cases/demo-target-label.jsonl` | `speaker-2` says "You are crazy." | A confirmed `character_label` assessment; one intervention |
+| `cases/demo-grouped.jsonl` | The two interruptions, with the second one loud | Repeated interruption and loud speech grouped into one intervention with the combined message |
