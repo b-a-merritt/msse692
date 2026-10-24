@@ -22,8 +22,9 @@ def test_no_interventions_returns_an_empty_list(*, session):
 
 
 def test_interventions_are_listed_in_id_order_with_sorted_sources(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -46,6 +47,7 @@ def test_interventions_are_listed_in_id_order_with_sorted_sources(*, session, en
     first = persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="harm_phrase",
@@ -67,6 +69,7 @@ def test_interventions_are_listed_in_id_order_with_sorted_sources(*, session, en
         persist(
             session=session,
             record=models.Assessment(
+                subject_speaker_id="configured-subject",
                 evaluation_id=f"evaluation-{next(assessment_ids)}",
                 case_id="case",
                 model_id="high_intensity_address",
@@ -80,6 +83,7 @@ def test_interventions_are_listed_in_id_order_with_sorted_sources(*, session, en
         persist(
             session=session,
             record=models.Assessment(
+                subject_speaker_id="configured-subject",
                 evaluation_id=f"evaluation-{next(assessment_ids)}",
                 case_id="case",
                 model_id="repeated_interruption",
@@ -111,8 +115,9 @@ def test_interventions_are_listed_in_id_order_with_sorted_sources(*, session, en
 
 
 def test_status_is_derived_from_the_sent_time(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -135,6 +140,7 @@ def test_status_is_derived_from_the_sent_time(*, session, engine):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="harm_phrase",
@@ -156,6 +162,7 @@ def test_status_is_derived_from_the_sent_time(*, session, engine):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="extended_turn",
@@ -195,8 +202,9 @@ def test_status_is_derived_from_the_sent_time(*, session, engine):
 
 
 def test_filters_by_case_and_ids(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -219,6 +227,7 @@ def test_filters_by_case_and_ids(*, session, engine):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="harm_phrase",
@@ -250,8 +259,9 @@ def test_filters_by_case_and_ids(*, session, engine):
 
 
 def test_listing_does_not_mark_interventions_sent(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -274,6 +284,7 @@ def test_listing_does_not_mark_interventions_sent(*, session, engine):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="harm_phrase",

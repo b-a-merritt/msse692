@@ -6,7 +6,7 @@ import pytest
 
 def test_catalog_exposes_repair_allowances(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         response = client.get("/api/v1/models")
 
         assert response.status_code == 200
@@ -29,7 +29,7 @@ def test_catalog_exposes_repair_allowances(*, open_client):
 @pytest.mark.parametrize("model_id,allowance", [("extended_turn", 10_000_000), ("apology", None)])
 def test_model_version_exposes_its_repair_allowance(*, open_client, model_id, allowance):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         response = client.get(f"/api/v1/models/{model_id}/versions/1")
 
         assert response.status_code == 200

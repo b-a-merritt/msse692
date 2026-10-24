@@ -23,7 +23,7 @@ def _timestamp(value):
 
 def test_listing_without_interventions_returns_empty_items(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         response = client.get("/api/v1/interventions")
 
         assert response.status_code == 200
@@ -32,7 +32,13 @@ def test_listing_without_interventions_returns_empty_items(*, open_client):
 
 def test_delivery_marks_listed_interventions_sent_once(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
+        assert (
+            client.put(
+                "/api/v1/cases/case/target", json={"target_speaker_id": "speaker-2"}
+            ).status_code
+            == 200
+        )
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -72,7 +78,7 @@ def test_delivery_marks_listed_interventions_sent_once(*, open_client):
         pending = {
             "intervention_id": record.intervention_id,
             "case_id": "case",
-            "subject_speaker_id": client.app.state.settings.subject_speaker_id,
+            "subject_speaker_id": "speaker-2",
             "assessment_ids": record.assessment_ids,
             "message": THREAT,
             "created_at": _timestamp(received_at),
@@ -110,7 +116,7 @@ def test_delivery_marks_listed_interventions_sent_once(*, open_client):
 )
 def test_invalid_query_is_rejected(*, open_client, params):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         response = client.get("/api/v1/interventions", params=params)
 
         assert response.status_code == 422
@@ -118,7 +124,7 @@ def test_invalid_query_is_rejected(*, open_client, params):
 
 def test_unscoped_delivery_does_not_exist(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         response = client.post("/api/v1/interventions/deliver")
 
         assert response.status_code == 404
@@ -126,7 +132,13 @@ def test_unscoped_delivery_does_not_exist(*, open_client):
 
 def test_delivery_storage_error_returns_safe_message_and_stays_pending(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
+        assert (
+            client.put(
+                "/api/v1/cases/case/target", json={"target_speaker_id": "speaker-2"}
+            ).status_code
+            == 200
+        )
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",

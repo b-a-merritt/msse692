@@ -35,8 +35,9 @@ def test_nothing_pending_returns_an_empty_list(*, engine):
 
 
 def test_pending_interventions_are_returned_sent_once(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -59,6 +60,7 @@ def test_pending_interventions_are_returned_sent_once(*, session, engine):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="harm_phrase",
@@ -103,8 +105,9 @@ def test_pending_interventions_are_returned_sent_once(*, session, engine):
 
 
 def test_sent_interventions_are_excluded(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -127,6 +130,7 @@ def test_sent_interventions_are_excluded(*, session, engine):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="harm_phrase",
@@ -153,6 +157,7 @@ def test_sent_interventions_are_excluded(*, session, engine):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="extended_turn",
@@ -189,9 +194,16 @@ def test_sent_interventions_are_excluded(*, session, engine):
 
 
 def test_delivery_leaves_other_cases_pending(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="delivered-case", created_at_us=0))
-    session.add(models.CaseLog(case_id="other-case", created_at_us=0))
+    session.add(
+        models.CaseLog(
+            target_speaker_id="configured-subject", case_id="delivered-case", created_at_us=0
+        )
+    )
+    session.add(
+        models.CaseLog(
+            target_speaker_id="configured-subject", case_id="other-case", created_at_us=0
+        )
+    )
     session.commit()
     for case_id in ["delivered-case", "other-case"]:
         persist(
@@ -213,6 +225,7 @@ def test_delivery_leaves_other_cases_pending(*, session, engine):
         persist(
             session=session,
             record=models.Assessment(
+                subject_speaker_id="configured-subject",
                 evaluation_id=f"evaluation-{case_id}",
                 case_id=case_id,
                 model_id="harm_phrase",
@@ -246,8 +259,9 @@ def test_delivery_leaves_other_cases_pending(*, session, engine):
 
 
 def test_failure_before_commit_leaves_interventions_pending(*, session, engine, monkeypatch):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -270,6 +284,7 @@ def test_failure_before_commit_leaves_interventions_pending(*, session, engine, 
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="harm_phrase",
@@ -305,8 +320,9 @@ def test_failure_before_commit_leaves_interventions_pending(*, session, engine, 
 
 
 def test_concurrent_delivery_returns_each_intervention_once(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -329,6 +345,7 @@ def test_concurrent_delivery_returns_each_intervention_once(*, session, engine):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="harm_phrase",
@@ -349,6 +366,7 @@ def test_concurrent_delivery_returns_each_intervention_once(*, session, engine):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="extended_turn",

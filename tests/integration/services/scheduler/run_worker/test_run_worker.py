@@ -54,9 +54,8 @@ def test_initial_deadline_load_failure_stops_worker(*, assessment_queue, empty_e
 def test_due_repair_enqueue_failure_stops_worker(*, engine, assessment_queue, session, monkeypatch):
     scheduler = SchedulerState(queue=assessment_queue)
     session.add(
-        db_models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0)
+        db_models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
-    session.add(db_models.CaseLog(case_id="case", created_at_us=0))
     session.commit()
     observation_sequences = count(1)
     with read_session(engine=engine) as catalog_session:
@@ -110,9 +109,8 @@ def test_shutdown_discards_open_windows_without_recovering_them_on_restart(
 ):
     scheduler = SchedulerState(queue=assessment_queue)
     session.add(
-        db_models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0)
+        db_models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
-    session.add(db_models.CaseLog(case_id="case", created_at_us=0))
     session.commit()
     persist(
         session=session,
@@ -137,6 +135,7 @@ def test_shutdown_discards_open_windows_without_recovering_them_on_restart(
         result = persist_in_database(
             engine=engine,
             record=db_models.Assessment(
+                subject_speaker_id="configured-subject",
                 evaluation_id=str(evaluation_id),
                 case_id="case",
                 model_id="harm_phrase",
@@ -307,9 +306,8 @@ def test_worker_checks_deadline_without_more_observations(
 ):
     scheduler = SchedulerState(queue=assessment_queue)
     session.add(
-        db_models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0)
+        db_models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
-    session.add(db_models.CaseLog(case_id="case", created_at_us=0))
     session.commit()
     observation_sequences = count(1)
     with read_session(engine=engine) as catalog_session:
@@ -404,9 +402,8 @@ def test_repaired_match_requests_another_assessment(
 ):
     scheduler = SchedulerState(queue=assessment_queue)
     session.add(
-        db_models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0)
+        db_models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
-    session.add(db_models.CaseLog(case_id="case", created_at_us=0))
     session.commit()
     observation_sequences = count(1)
     with read_session(engine=engine) as catalog_session:
@@ -524,9 +521,8 @@ def test_confirmations_within_the_window_share_one_intervention(
 ):
     scheduler = SchedulerState(queue=assessment_queue)
     session.add(
-        db_models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0)
+        db_models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
-    session.add(db_models.CaseLog(case_id="case", created_at_us=0))
     session.commit()
     persist(
         session=session,
@@ -555,6 +551,7 @@ def test_confirmations_within_the_window_share_one_intervention(
         row = persist_in_database(
             engine=engine,
             record=db_models.Assessment(
+                subject_speaker_id="configured-subject",
                 evaluation_id=str(evaluation_id),
                 case_id="case",
                 model_id=remaining.pop(0),
@@ -596,9 +593,8 @@ def test_ineligible_results_do_not_split_later_confirmations(
 ):
     scheduler = SchedulerState(queue=assessment_queue)
     session.add(
-        db_models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0)
+        db_models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
-    session.add(db_models.CaseLog(case_id="case", created_at_us=0))
     session.commit()
     persist(
         session=session,
@@ -628,6 +624,7 @@ def test_ineligible_results_do_not_split_later_confirmations(
             row = persist_in_database(
                 engine=engine,
                 record=db_models.Assessment(
+                    subject_speaker_id="configured-subject",
                     evaluation_id=str(uuid4() if early_result == "reused" else evaluation_id),
                     case_id="case",
                     model_id="apology" if early_result == "repair" else "harm_phrase",
@@ -643,6 +640,7 @@ def test_ineligible_results_do_not_split_later_confirmations(
             row = persist_in_database(
                 engine=engine,
                 record=db_models.Assessment(
+                    subject_speaker_id="configured-subject",
                     evaluation_id=str(evaluation_id),
                     case_id="case",
                     model_id=remaining.pop(0),
@@ -680,9 +678,8 @@ def test_immediate_and_repair_deadline_confirmations_share_one_intervention(
 ):
     scheduler = SchedulerState(queue=assessment_queue)
     session.add(
-        db_models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0)
+        db_models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
-    session.add(db_models.CaseLog(case_id="case", created_at_us=0))
     session.commit()
     observation_sequences = count(1)
     with read_session(engine=engine) as catalog_session:
@@ -764,9 +761,8 @@ def test_slow_evaluation_keeps_later_confirmations_in_the_open_window(
 ):
     scheduler = SchedulerState(queue=assessment_queue)
     session.add(
-        db_models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0)
+        db_models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
-    session.add(db_models.CaseLog(case_id="case", created_at_us=0))
     session.commit()
     persist(
         session=session,
@@ -797,6 +793,7 @@ def test_slow_evaluation_keeps_later_confirmations_in_the_open_window(
         row = persist_in_database(
             engine=engine,
             record=db_models.Assessment(
+                subject_speaker_id="configured-subject",
                 evaluation_id=str(evaluation_id),
                 case_id="case",
                 model_id=remaining.pop(0),
@@ -829,9 +826,8 @@ def test_confirmed_match_becomes_one_intervention(
 ):
     scheduler = SchedulerState(queue=assessment_queue)
     session.add(
-        db_models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0)
+        db_models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
-    session.add(db_models.CaseLog(case_id="case", created_at_us=0))
     session.commit()
     observation_sequences = count(1)
     with read_session(engine=engine) as catalog_session:
@@ -877,9 +873,8 @@ def test_confirmed_match_becomes_one_intervention(
 def test_intervention_failure_does_not_stop_work(*, assessment_queue, session, engine, monkeypatch):
     scheduler = SchedulerState(queue=assessment_queue)
     session.add(
-        db_models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0)
+        db_models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
-    session.add(db_models.CaseLog(case_id="case", created_at_us=0))
     session.commit()
     persist(
         session=session,
@@ -912,6 +907,7 @@ def test_intervention_failure_does_not_stop_work(*, assessment_queue, session, e
         row = persist_in_database(
             engine=engine,
             record=db_models.Assessment(
+                subject_speaker_id="configured-subject",
                 evaluation_id=str(evaluation_id),
                 case_id="case",
                 model_id="harm_phrase",

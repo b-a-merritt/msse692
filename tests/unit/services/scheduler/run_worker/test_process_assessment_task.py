@@ -30,6 +30,7 @@ def test_releases_waiting_membership_before_evaluation_and_preserves_existing_wi
     windows = {} if opened is None else {"case": opened}
     rows = [
         Assessment(
+            subject_speaker_id="subject",
             case_id="case",
             evaluation_id=task["evaluation_id"],
             status="conformant",

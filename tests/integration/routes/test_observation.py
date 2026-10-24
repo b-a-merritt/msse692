@@ -18,7 +18,7 @@ from normative_conformance.models.observation import Observation
 
 def test_ingestion_returns_committed_observation_and_requests_assessment(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -57,7 +57,7 @@ def test_ingestion_returns_committed_observation_and_requests_assessment(*, open
 
 def test_duplicate_submission_returns_conflict(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -104,7 +104,7 @@ def test_duplicate_submission_returns_conflict(*, open_client):
 )
 def test_invalid_request_creates_no_records(*, open_client, changes):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -128,7 +128,7 @@ def test_invalid_request_creates_no_records(*, open_client, changes):
 
 def test_storage_error_returns_safe_message_and_rolls_back(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -164,7 +164,7 @@ def test_storage_error_returns_safe_message_and_rolls_back(*, open_client):
 
 def test_connection_failure_returns_service_unavailable(*, open_client, monkeypatch):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -198,7 +198,7 @@ def test_connection_failure_returns_service_unavailable(*, open_client, monkeypa
 
 def test_enqueue_failure_returns_committed_observation(*, open_client, monkeypatch):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -249,7 +249,7 @@ def test_enqueue_failure_returns_committed_observation(*, open_client, monkeypat
 
 def test_uninitialized_scheduler_rejects_submission_before_writing(*, open_client, monkeypatch):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -274,7 +274,7 @@ def test_uninitialized_scheduler_rejects_submission_before_writing(*, open_clien
 
 def test_openapi_describes_ingestion_responses(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         responses = client.get("/openapi.json").json()["paths"]["/api/v1/observations"]["post"][
             "responses"
         ]
@@ -286,7 +286,7 @@ def test_openapi_describes_ingestion_responses(*, open_client):
 
 def test_stopped_worker_rejects_submission_before_writing(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -310,7 +310,7 @@ def test_stopped_worker_rejects_submission_before_writing(*, open_client):
 
 def test_listing_returns_observations_newest_first(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -342,7 +342,7 @@ def test_listing_returns_observations_newest_first(*, open_client):
 
 def test_listing_an_unknown_case_returns_empty_items(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         response = client.get("/api/v1/cases/missing-case/observations")
 
         assert response.status_code == 200
@@ -351,7 +351,7 @@ def test_listing_an_unknown_case_returns_empty_items(*, open_client):
 
 def test_openapi_describes_listing_response(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         responses = client.get("/openapi.json").json()["paths"][
             "/api/v1/cases/{case_id}/observations"
         ]["get"]["responses"]

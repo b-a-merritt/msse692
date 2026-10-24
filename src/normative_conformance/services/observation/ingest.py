@@ -14,6 +14,8 @@ from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.schemas.observation import ObservationRecord
+from normative_conformance.services.case.selection import speaker_labels
+from normative_conformance.services.case.target import refresh_target
 from normative_conformance.services.scheduler.request_assessment import request_assessment
 from normative_conformance.services.scheduler.state import SchedulerState
 from normative_conformance.timestamps import to_microseconds
@@ -36,10 +38,13 @@ def _create_case_if_missing(
     case_id: str,
     received_at_us: int,
     session: Session,
-) -> None:
-    if session.get(CaseLog, case_id) is None:
-        session.add(CaseLog(case_id=case_id, created_at_us=received_at_us))
+) -> CaseLog:
+    case = session.get(CaseLog, case_id)
+    if case is None:
+        case = CaseLog(case_id=case_id, created_at_us=received_at_us)
+        session.add(case)
         session.flush()
+    return case
 
 
 def _next_sequence_num(
@@ -74,7 +79,7 @@ def ingest(
             observation_id=input.observation_id,
             session=session,
         )
-        _create_case_if_missing(
+        case = _create_case_if_missing(
             case_id=input.case_id,
             received_at_us=received_at_us,
             session=session,
@@ -102,6 +107,8 @@ def ingest(
             )
         )
 
+        if case.target_speaker_order is not None and not case.target_speaker_manual:
+            refresh_target(case=case, labels=speaker_labels(case_id=input.case_id, session=session))
         session.commit()
     except SQLAlchemyError as error:
         session.rollback()

@@ -9,8 +9,9 @@ from ...storage import persist
 
 
 def test_returns_observations_newest_first_with_converted_timestamps(*, session):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -70,8 +71,9 @@ def test_returns_observations_newest_first_with_converted_timestamps(*, session)
 
 
 def test_only_returns_observations_for_the_requested_case(*, session):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -91,7 +93,9 @@ def test_only_returns_observations_for_the_requested_case(*, session):
             signal_level_max=0.0,
         ),
     )
-    session.add(models.CaseLog(case_id="other", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="other", created_at_us=0)
+    )
     session.add(
         models.Observation(
             case_id="other",

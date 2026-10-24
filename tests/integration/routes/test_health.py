@@ -3,6 +3,7 @@
 import sqlite3
 from threading import Thread
 from unittest.mock import Mock
+from unittest.mock import patch
 from uuid import UUID
 
 import pytest
@@ -10,13 +11,19 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
 from normative_conformance.config import Settings
-from normative_conformance.main import create_app
+from normative_conformance.config import get_settings
+
+# Default ASGI construction must not load a developer's local dotenv file.
+with patch.dict(Settings.model_config, {"env_file": None}):
+    from normative_conformance.main import create_app
+get_settings.cache_clear()
 
 
 @pytest.fixture
 def application(*, tmp_path):
     return create_app(
         settings=Settings(
+            _env_file=None,
             app_db_path=tmp_path / "app.sqlite3",
             assessment_queue_path=tmp_path / "queue",
             log_dir=tmp_path / "logs",

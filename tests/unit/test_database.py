@@ -1,7 +1,5 @@
 import sqlite3
 from contextlib import nullcontext
-from datetime import datetime
-from datetime import timezone
 from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import Mock
@@ -15,7 +13,6 @@ from sqlmodel import Session
 
 from normative_conformance import database
 from normative_conformance.errors import StorageUnavailable
-from normative_conformance.models.case import ExperimentConfig
 
 
 @pytest.mark.parametrize(
@@ -139,29 +136,6 @@ def test_schema_revision_is_read_from_the_current_connection(*, monkeypatch):
     monkeypatch.setattr(database.MigrationContext, "configure", configure)
     assert database.get_schema_revision(engine=engine) == "0002"
     configure.assert_called_once_with(connection)
-
-
-@pytest.mark.parametrize("existing", [False, True])
-def test_experiment_is_initialized_only_once(*, monkeypatch, existing):
-    session = Mock(spec=Session)
-    session.get.return_value = (
-        ExperimentConfig(subject_speaker_id="original", created_at_us=1) if existing else None
-    )
-    monkeypatch.setattr(database, "write_session", Mock(return_value=nullcontext(session)))
-    clock = Mock(return_value=datetime(1970, 1, 1, 0, 0, 0, 10, tzinfo=timezone.utc))
-    database.initialize_experiment_config(
-        engine=object(), subject_speaker_id="requested", now=clock
-    )
-    session.get.assert_called_once_with(ExperimentConfig, 1)
-    if existing:
-        session.add.assert_not_called()
-        session.commit.assert_not_called()
-        clock.assert_not_called()
-    else:
-        row = session.add.call_args.args[0]
-        assert row.subject_speaker_id == "requested"
-        assert row.created_at_us == 10
-        session.commit.assert_called_once()
 
 
 @pytest.mark.parametrize("write", [False, True])

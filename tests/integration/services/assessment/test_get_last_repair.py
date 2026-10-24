@@ -21,8 +21,9 @@ from ...storage import persist
 def test_recorded_repair_uses_speech_order_with_sequence_as_tiebreaker(
     *, session, intervals, expected
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 

@@ -17,9 +17,6 @@ from sqlmodel import Session
 from sqlmodel import create_engine
 
 from normative_conformance.errors import StorageUnavailable
-from normative_conformance.models.case import ExperimentConfig
-from normative_conformance.schemas.internal import Clock
-from normative_conformance.timestamps import to_microseconds
 
 MIGRATIONS_LOCATION = "normative_conformance:migrations"
 
@@ -106,18 +103,6 @@ def initialize_database(*, engine: Engine) -> None:
 def get_schema_revision(*, engine: Engine) -> str | None:
     with engine.connect() as connection:
         return MigrationContext.configure(connection).get_current_revision()
-
-
-def initialize_experiment_config(*, engine: Engine, subject_speaker_id: str, now: Clock) -> None:
-    with write_session(engine=engine) as session:
-        if session.get(ExperimentConfig, 1) is None:
-            session.add(
-                ExperimentConfig(
-                    subject_speaker_id=subject_speaker_id,
-                    created_at_us=to_microseconds(value=now()),
-                )
-            )
-            session.commit()
 
 
 @contextmanager

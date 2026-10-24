@@ -8,7 +8,7 @@ from normative_conformance import models
 
 
 def test_assessment_round_trip_with_defaults_and_generated_id(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -36,6 +36,7 @@ def test_assessment_round_trip_with_defaults_and_generated_id(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -74,7 +75,7 @@ def test_assessment_round_trip_with_defaults_and_generated_id(*, session):
     ],
 )
 def test_invalid_assessments_are_rejected(*, session, changes, constraint):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -102,6 +103,7 @@ def test_invalid_assessments_are_rejected(*, session, changes, constraint):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -127,7 +129,7 @@ def test_invalid_assessments_are_rejected(*, session, changes, constraint):
 
 @pytest.mark.parametrize("status", ["conformant", "non-conformant", "pending", "conflicted"])
 def test_new_evaluations_accept_all_statuses(*, session, status):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -155,6 +157,7 @@ def test_new_evaluations_accept_all_statuses(*, session, status):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -184,7 +187,7 @@ def test_new_evaluations_accept_all_statuses(*, session, status):
 
 
 def test_evaluation_can_include_multiple_model_versions(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -212,6 +215,7 @@ def test_evaluation_can_include_multiple_model_versions(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -240,7 +244,7 @@ def test_evaluation_can_include_multiple_model_versions(*, session):
 
 
 def test_later_observations_do_not_extend_a_saved_assessment(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -268,6 +272,7 @@ def test_later_observations_do_not_extend_a_saved_assessment(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -299,7 +304,7 @@ def test_later_observations_do_not_extend_a_saved_assessment(*, session):
 
 
 def test_pending_assessment_accepts_one_appended_resolution(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -327,6 +332,7 @@ def test_pending_assessment_accepts_one_appended_resolution(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -351,7 +357,7 @@ def test_pending_assessment_accepts_one_appended_resolution(*, session):
                 "status": "pending",
                 "next_due_at_us": 20,
             }
-        )
+        ),
     )
     session.add(pending)
     session.commit()
@@ -372,7 +378,7 @@ def test_pending_assessment_accepts_one_appended_resolution(*, session):
 
 
 def test_finalized_assessment_cannot_be_resolved(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -400,6 +406,7 @@ def test_finalized_assessment_cannot_be_resolved(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",

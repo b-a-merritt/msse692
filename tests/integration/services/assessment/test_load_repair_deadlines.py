@@ -6,7 +6,7 @@ from normative_conformance.services.assessment.load_repair_deadlines import load
 
 
 def test_loads_only_earliest_unresolved_pending_deadlines(*, session, engine):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -34,6 +34,7 @@ def test_loads_only_earliest_unresolved_pending_deadlines(*, session, engine):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -50,13 +51,19 @@ def test_loads_only_earliest_unresolved_pending_deadlines(*, session, engine):
     records = {"assessment": assessment, "case": case, "model": model, "observation": observation}
 
     values = records["assessment"].model_dump() | {"assessment_id": None, "status": "pending"}
-    resolved = Assessment(**(values | {"evaluation_id": "resolved", "next_due_at_us": 5}))
+    resolved = Assessment(
+        **(values | {"evaluation_id": "resolved", "next_due_at_us": 5}),
+    )
     session.add_all(
         [
             resolved,
-            Assessment(**(values | {"evaluation_id": "later", "next_due_at_us": 30})),
-            Assessment(**(values | {"evaluation_id": "earlier", "next_due_at_us": 20})),
-            CaseLog(case_id="other", created_at_us=0),
+            Assessment(
+                **(values | {"evaluation_id": "later", "next_due_at_us": 30}),
+            ),
+            Assessment(
+                **(values | {"evaluation_id": "earlier", "next_due_at_us": 20}),
+            ),
+            CaseLog(target_speaker_id="configured-subject", case_id="other", created_at_us=0),
         ]
     )
     session.flush()
@@ -72,10 +79,10 @@ def test_loads_only_earliest_unresolved_pending_deadlines(*, session, engine):
                         "status": "non-conformant",
                         "resolves_assessment_id": resolved.assessment_id,
                     }
-                )
+                ),
             ),
             Assessment(
-                **(values | {"evaluation_id": "other", "case_id": "other", "next_due_at_us": 10})
+                **(values | {"evaluation_id": "other", "case_id": "other", "next_due_at_us": 10}),
             ),
         ]
     )
@@ -85,7 +92,7 @@ def test_loads_only_earliest_unresolved_pending_deadlines(*, session, engine):
 
 
 def test_no_pending_assessments_returns_no_deadlines(*, session, engine):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -113,6 +120,7 @@ def test_no_pending_assessments_returns_no_deadlines(*, session, engine):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",

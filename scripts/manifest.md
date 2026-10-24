@@ -17,7 +17,11 @@
 
 ## Expected outcomes
 
-The assessed speaker is `speaker-2`.
+The assessed speaker is `speaker-2`. Configure it explicitly when replaying:
+
+```bash
+uv run python scripts/send_observations.py scripts/cases/case-3.jsonl --target-speaker-id speaker-2
+```
 
 - **case-3:** There should be no interventions for mark because he says "I'm sorry." He seems incapable of realizing how he offended her, but realizes he said something he shouldn't have.
 - **case-4:** Jesse uses some high intensity and bad language. I expect at least one or two interventions.

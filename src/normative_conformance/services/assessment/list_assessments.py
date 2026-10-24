@@ -5,6 +5,7 @@ from sqlmodel import col
 from sqlmodel import select
 
 from normative_conformance.models.assessment import Assessment
+from normative_conformance.models.case import CaseLog
 
 
 def list_assessments(
@@ -14,10 +15,16 @@ def list_assessments(
     evaluation_id: str | None = None,
     status: Literal["conformant", "non-conformant", "pending", "conflicted"] | None = None,
     unresolved: bool = False,
+    current_target: bool = False,
 ) -> list[Assessment]:
     """Read stored assessments in ID order, optionally excluding resolved results."""
     query = select(Assessment)
 
+    if current_target:
+        query = query.join(CaseLog, col(CaseLog.case_id) == Assessment.case_id).where(
+            Assessment.target_revision == CaseLog.target_revision,
+            Assessment.subject_speaker_id == CaseLog.target_speaker_id,
+        )
     if case_id is not None:
         query = query.where(Assessment.case_id == case_id)
     if evaluation_id is not None:

@@ -9,8 +9,9 @@ from ...storage import persist
 
 
 def test_reads_only_the_requested_case_prefix_in_sequence_order(*, session):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -62,7 +63,7 @@ def test_reads_only_the_requested_case_prefix_in_sequence_order(*, session):
             signal_level_max=0.0,
         ),
     )
-    session.add(CaseLog(case_id="other", created_at_us=0))
+    session.add(CaseLog(target_speaker_id="configured-subject", case_id="other", created_at_us=0))
     session.flush()
     session.add(Observation(**(first.model_dump() | {"case_id": "other"})))
     session.commit()

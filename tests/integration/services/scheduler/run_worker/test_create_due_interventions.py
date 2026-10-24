@@ -15,8 +15,9 @@ from ....storage import persist_in_database
 
 @pytest.mark.parametrize("current_time_us", [101_999_999, 102_000_000, 103_000_000])
 def test_window_creates_one_intervention_only_when_due(*, engine, session, current_time_us):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -38,6 +39,7 @@ def test_window_creates_one_intervention_only_when_due(*, engine, session, curre
     persist_in_database(
         engine=engine,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=str(uuid4()),
             case_id="case",
             model_id="harm_phrase",
@@ -66,8 +68,9 @@ def test_window_creates_one_intervention_only_when_due(*, engine, session, curre
 def test_failed_decision_consumes_its_window_and_other_cases_continue(
     *, engine, session, monkeypatch
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -89,6 +92,7 @@ def test_failed_decision_consumes_its_window_and_other_cases_continue(
     persist_in_database(
         engine=engine,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=str(uuid4()),
             case_id="case",
             model_id="harm_phrase",

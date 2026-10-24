@@ -15,13 +15,11 @@ from normative_conformance.config import Settings
 from normative_conformance.database import create_database_engine
 from normative_conformance.database import get_schema_revision
 from normative_conformance.database import initialize_database
-from normative_conformance.database import initialize_experiment_config
 from normative_conformance.database import read_session
 from normative_conformance.logging import start_logging
 from normative_conformance.logging import stop_logging
 from normative_conformance.queue import create_assessment_queue
 from normative_conformance.schemas.model import ModelVersion
-from normative_conformance.services.model.get_subject_speaker_id import get_subject_speaker_id
 from normative_conformance.services.model.validate_models import validate_models
 from normative_conformance.services.scheduler.run_worker import run_worker
 from normative_conformance.services.scheduler.state import SchedulerState
@@ -73,15 +71,12 @@ def _log_started(
     models: list[ModelVersion],
 ) -> None:
     """Record the configuration that later decisions reference by model ID and version."""
-    with read_session(engine=engine) as session:
-        subject_speaker_id = get_subject_speaker_id(session=session)
     logger.info(
         "Application started",
         extra={
             "event": "app.started",
             "log_file": str(log_path),
             "schema_revision": get_schema_revision(engine=engine),
-            "subject_speaker_id": subject_speaker_id,
             "intervention_window_us": settings.intervention_window_us,
             "models": [
                 {"model_id": model.model_id, "version": model.version, "type": model.type}
@@ -102,11 +97,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         engine = create_database_engine(path=settings.app_db_path)
         try:
             initialize_database(engine=engine)
-            initialize_experiment_config(
-                engine=engine,
-                subject_speaker_id=settings.subject_speaker_id,
-                now=app.state.clock,
-            )
 
             stage = "models"
             with read_session(engine=engine) as session:

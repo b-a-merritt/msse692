@@ -4,9 +4,11 @@ from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 from sqlmodel import col
+from sqlmodel import select
 
 from normative_conformance import models
 from normative_conformance.errors import StorageUnavailable
+from normative_conformance.models.case import CaseLog
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.schemas.intervention import Intervention
 from normative_conformance.services.intervention.list_intervention_records import (
@@ -35,6 +37,13 @@ def deliver_pending(
                 .where(
                     col(models.Intervention.case_id) == case_id,
                     col(models.Intervention.sent_at_us).is_(None),
+                    select(CaseLog.case_id)
+                    .where(
+                        CaseLog.case_id == models.Intervention.case_id,
+                        CaseLog.target_revision == models.Intervention.target_revision,
+                        CaseLog.target_speaker_id == models.Intervention.subject_speaker_id,
+                    )
+                    .exists(),
                 )
                 .values(sent_at_us=sent_at_us)
                 .returning(col(models.Intervention.intervention_id))

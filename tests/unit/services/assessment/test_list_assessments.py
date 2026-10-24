@@ -18,6 +18,7 @@ def test_optional_identity_status_and_resolution_filters(*, filtered):
             evaluation_id="evaluation" if filtered else None,
             status="pending" if filtered else None,
             unresolved=filtered,
+            current_target=filtered,
         )
         == rows
     )
@@ -28,6 +29,8 @@ def test_optional_identity_status_and_resolution_filters(*, filtered):
             "evaluation_id_1": "evaluation",
             "status_1": "pending",
         }
+        assert "assessment.target_revision = case_log.target_revision" in str(query)
+        assert "assessment.subject_speaker_id = case_log.target_speaker_id" in str(query)
         assert "NOT IN" in str(query)
         assert "resolves_assessment_id IS NOT NULL" in str(query)
     else:

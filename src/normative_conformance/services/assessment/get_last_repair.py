@@ -3,6 +3,7 @@ from sqlmodel import col
 from sqlmodel import select
 
 from normative_conformance.models.assessment import Assessment
+from normative_conformance.models.case import CaseLog
 from normative_conformance.models.normative_model import NormativeModelVersion
 from normative_conformance.models.observation import Observation
 
@@ -21,7 +22,10 @@ def get_last_repair(*, case_id: str, session: Session) -> Observation | None:
             (col(NormativeModelVersion.model_id) == Assessment.model_id)
             & (col(NormativeModelVersion.version) == Assessment.model_version),
         )
+        .join(CaseLog, col(CaseLog.case_id) == Assessment.case_id)
         .where(
+            Assessment.target_revision == CaseLog.target_revision,
+            Assessment.subject_speaker_id == CaseLog.target_speaker_id,
             Observation.case_id == case_id,
             NormativeModelVersion.type == "repairs",
             Assessment.status == "conformant",

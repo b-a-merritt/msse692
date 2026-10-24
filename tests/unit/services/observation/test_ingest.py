@@ -18,7 +18,12 @@ module = import_module("normative_conformance.services.observation.ingest")
 
 
 @pytest.mark.parametrize(
-    "existing_case,last_sequence", [(None, None), (CaseLog(case_id="case", created_at_us=0), 7)]
+    "existing_case,last_sequence",
+    [
+        (None, None),
+        (CaseLog(case_id="case", created_at_us=0), 7),
+        (CaseLog(case_id="case", created_at_us=0, target_speaker_order=2), 2),
+    ],
 )
 def test_assigns_receipt_sequence_and_commits_before_requesting_assessment(
     *, monkeypatch, existing_case, last_sequence
@@ -37,6 +42,7 @@ def test_assigns_receipt_sequence_and_commits_before_requesting_assessment(
     session = Mock(spec=Session)
     session.get.side_effect = [None, existing_case]
     session.exec.return_value.one.return_value = last_sequence
+    session.exec.return_value.all.return_value = ["A", "A", "B"]
     clock = Mock(return_value=datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc))
     scheduler = object()
     order = []
@@ -71,6 +77,9 @@ def test_assigns_receipt_sequence_and_commits_before_requesting_assessment(
         "signal_level_avg": -30,
         "signal_level_max": -10,
     }
+    if existing_case is not None and existing_case.target_speaker_order == 2:
+        assert existing_case.target_speaker_id == "B"
+        assert existing_case.target_revision == 1
     request.assert_called_once_with(case_id="case", scheduler=scheduler)
     session.rollback.assert_not_called()
 
@@ -91,7 +100,10 @@ def test_failures_distinguish_rolled_back_work_from_committed_observations(
         signal_level_max=-10,
     )
     session = Mock(spec=Session)
-    session.get.side_effect = [object() if failure_stage == "duplicate" else None, object()]
+    session.get.side_effect = [
+        object() if failure_stage == "duplicate" else None,
+        CaseLog(case_id="case", created_at_us=0),
+    ]
     session.exec.return_value.one.return_value = 0
     error = (
         EnqueueFailed(message="Queue unavailable")

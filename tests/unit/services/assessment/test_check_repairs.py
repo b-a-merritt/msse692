@@ -47,9 +47,15 @@ def test_records_repairs_and_resolves_pending_before_requesting_reassessment(
         for name, kind in [("harm_phrase", "undesired"), ("apology", "repairs")]
     ]
     pending = Assessment(
-        assessment_id=1, case_id="case", model_id="harm_phrase", model_version="1", status="pending"
+        subject_speaker_id="subject",
+        assessment_id=1,
+        case_id="case",
+        model_id="harm_phrase",
+        model_version="1",
+        status="pending",
     )
     resolution = Assessment(
+        subject_speaker_id="subject",
         assessment_id=3,
         case_id="case",
         model_id="harm_phrase",
@@ -59,7 +65,12 @@ def test_records_repairs_and_resolves_pending_before_requesting_reassessment(
     )
     repair = Observation(case_id="case", observation_id="apology", sequence=4)
     repair_result = Assessment(
-        assessment_id=2, case_id="case", model_id="apology", model_version="1", status="conformant"
+        subject_speaker_id="subject",
+        assessment_id=2,
+        case_id="case",
+        model_id="apology",
+        model_version="1",
+        status="conformant",
     )
     monkeypatch.setattr(module, "write_session", Mock(return_value=nullcontext(session)))
     monkeypatch.setattr(module, "get_case_sequence", Mock(return_value=5))
@@ -93,7 +104,7 @@ def test_records_repairs_and_resolves_pending_before_requesting_reassessment(
     assert resolve.call_args.kwargs["model"] is models[0]
     assert resolve.call_args.kwargs["snapshot"].through_sequence == 5
     pending_rows.assert_called_once_with(
-        case_id="case", status="pending", unresolved=True, session=session
+        case_id="case", status="pending", unresolved=True, current_target=True, session=session
     )
     if new_repair:
         assert create.call_args.kwargs["snapshot"].through_sequence == 4
@@ -129,3 +140,26 @@ def test_storage_failure_never_requests_reassessment(*, monkeypatch, failure):
         assert caught.value.__cause__ is failure
         assert str(caught.value) == "Repairs could not be checked"
     request.assert_not_called()
+
+
+def test_unresolved_target_waits_without_assessing_or_scheduling(monkeypatch):
+    session = Mock(spec=Session)
+    monkeypatch.setattr(module, "write_session", Mock(return_value=nullcontext(session)))
+    monkeypatch.setattr(module, "get_subject_speaker_id", Mock(return_value=None))
+    sequence = Mock()
+    monkeypatch.setattr(module, "get_case_sequence", sequence)
+    scheduler = Mock()
+    assert (
+        module.check_repairs(
+            case_id="case",
+            evaluation_id=UUID(int=1),
+            engine=object(),
+            now=Mock(),
+            scheduler=scheduler,
+            models=[],
+        )
+        == []
+    )
+    sequence.assert_not_called()
+    session.commit.assert_not_called()
+    scheduler.assert_not_called()

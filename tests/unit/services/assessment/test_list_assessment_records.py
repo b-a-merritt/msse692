@@ -21,6 +21,7 @@ def test_preserves_each_records_evidence_prefix_and_resolution_link(*, monkeypat
     )
     rows = [
         Assessment(
+            subject_speaker_id="subject",
             assessment_id=identity,
             case_id="case",
             evaluation_id=str(UUID(int=identity)),
@@ -43,7 +44,6 @@ def test_preserves_each_records_evidence_prefix_and_resolution_link(*, monkeypat
         for sequence, name in [(1, "first"), (2, "second"), (3, "later")]
     ]
     monkeypatch.setattr(module, "list_assessments", Mock(return_value=rows))
-    monkeypatch.setattr(module, "get_subject_speaker_id", Mock(return_value="subject"))
     history = Mock(return_value=observations)
     monkeypatch.setattr(module, "get_case_history", history)
     results = module.list_assessment_records(case_id="case", session=session)
@@ -58,9 +58,6 @@ def test_preserves_each_records_evidence_prefix_and_resolution_link(*, monkeypat
     history.assert_called_once_with(case_id="case", through_sequence=2, session=session)
 
 
-def test_empty_case_does_not_require_experiment_configuration(*, monkeypatch):
+def test_empty_case_does_not_require_target_lookup(*, monkeypatch):
     monkeypatch.setattr(module, "list_assessments", Mock(return_value=[]))
-    subject = Mock()
-    monkeypatch.setattr(module, "get_subject_speaker_id", subject)
     assert module.list_assessment_records(case_id="case", session=Mock(spec=Session)) == []
-    subject.assert_not_called()

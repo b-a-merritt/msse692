@@ -10,23 +10,21 @@ TABLES = (
     "normative_model_version",
     "observation",
     "case_log",
-    "experiment_config",
 )
 
 
 def upgrade() -> None:
-    """Create the seven application tables and protect retained records."""
-    op.execute("""
-CREATE TABLE experiment_config (
-    experiment_id INTEGER PRIMARY KEY CHECK (experiment_id = 1),
-    subject_speaker_id TEXT NOT NULL,
-    created_at_us INTEGER NOT NULL
-) STRICT
-""")
+    """Create the application tables and protect retained records."""
     op.execute("""
 CREATE TABLE case_log (
     case_id TEXT PRIMARY KEY NOT NULL,
-    created_at_us INTEGER NOT NULL
+    created_at_us INTEGER NOT NULL,
+    target_speaker_order INTEGER CHECK (target_speaker_order IN (1, 2)),
+    target_speaker_id TEXT
+        CHECK (length(trim(target_speaker_id)) > 0 AND target_speaker_id <> 'PENDING'),
+    target_speaker_manual INTEGER NOT NULL DEFAULT 0 CHECK (target_speaker_manual IN (0, 1)),
+    target_revision INTEGER NOT NULL DEFAULT 0 CHECK (target_revision >= 0),
+    CHECK (target_speaker_manual = 0 OR target_speaker_id IS NOT NULL)
 ) STRICT
 """)
     op.execute("""
@@ -65,6 +63,8 @@ CREATE TABLE assessment (
     assessment_id INTEGER PRIMARY KEY CHECK (assessment_id > 0),
     evaluation_id TEXT NOT NULL,
     case_id TEXT NOT NULL,
+    subject_speaker_id TEXT NOT NULL,
+    target_revision INTEGER NOT NULL DEFAULT 0 CHECK (target_revision >= 0),
     model_id TEXT NOT NULL,
     model_version TEXT NOT NULL,
     evaluated_at_us INTEGER NOT NULL,
@@ -75,7 +75,7 @@ CREATE TABLE assessment (
     next_due_at_us INTEGER,
     resolves_assessment_id INTEGER UNIQUE REFERENCES assessment(assessment_id),
     CHECK (resolves_assessment_id IS NULL OR status IN ('conformant', 'non-conformant')),
-    UNIQUE (evaluation_id, model_id, model_version),
+    UNIQUE (evaluation_id, model_id, model_version, target_revision),
     FOREIGN KEY (model_id, model_version) REFERENCES normative_model_version(model_id, version),
     FOREIGN KEY (case_id, through_sequence) REFERENCES observation(case_id, sequence)
 ) STRICT
@@ -84,6 +84,8 @@ CREATE TABLE assessment (
 CREATE TABLE intervention (
     intervention_id INTEGER PRIMARY KEY CHECK (intervention_id > 0),
     case_id TEXT NOT NULL REFERENCES case_log(case_id),
+    subject_speaker_id TEXT NOT NULL,
+    target_revision INTEGER NOT NULL DEFAULT 0 CHECK (target_revision >= 0),
     message TEXT NOT NULL,
     created_at_us INTEGER NOT NULL,
     sent_at_us INTEGER CHECK (sent_at_us IS NULL OR sent_at_us >= created_at_us)
@@ -136,6 +138,8 @@ WHEN NEW.resolves_assessment_id IS NOT NULL AND NOT EXISTS (
     WHERE original.assessment_id = NEW.resolves_assessment_id AND original.status = 'pending'
       AND original.case_id = NEW.case_id AND original.model_id = NEW.model_id
       AND original.model_version = NEW.model_version
+      AND original.subject_speaker_id = NEW.subject_speaker_id
+      AND original.target_revision = NEW.target_revision
       AND NEW.evaluated_at_us >= original.evaluated_at_us
       AND NEW.through_sequence >= original.through_sequence
 )
@@ -150,6 +154,7 @@ BEGIN SELECT RAISE(ABORT, 'intervention is retained'); END
 CREATE TRIGGER intervention_delivery BEFORE UPDATE ON intervention
 WHEN OLD.sent_at_us IS NOT NULL OR NEW.sent_at_us IS NULL
   OR NEW.intervention_id <> OLD.intervention_id OR NEW.case_id <> OLD.case_id
+  OR NEW.subject_speaker_id <> OLD.subject_speaker_id OR NEW.target_revision <> OLD.target_revision
   OR NEW.message <> OLD.message OR NEW.created_at_us <> OLD.created_at_us
 BEGIN SELECT RAISE(ABORT, 'intervention can only be marked sent once'); END
 """)
@@ -163,6 +168,8 @@ WHEN NOT EXISTS (
     WHERE assessment.assessment_id = NEW.assessment_id
       AND assessment.status = 'conformant' AND model.type = 'undesired'
       AND assessment.case_id = intervention.case_id
+      AND assessment.subject_speaker_id = intervention.subject_speaker_id
+      AND assessment.target_revision = intervention.target_revision
 )
 BEGIN SELECT RAISE(ABORT, 'intervention source must be an eligible assessment in its case'); END
 """)
@@ -173,14 +180,6 @@ BEGIN SELECT RAISE(ABORT, 'intervention source is immutable'); END
     op.execute("""
 CREATE TRIGGER intervention_source_no_delete BEFORE DELETE ON intervention_source
 BEGIN SELECT RAISE(ABORT, 'intervention source is immutable'); END
-""")
-    op.execute("""
-CREATE TRIGGER experiment_no_update BEFORE UPDATE ON experiment_config
-BEGIN SELECT RAISE(ABORT, 'experiment configuration is immutable'); END
-""")
-    op.execute("""
-CREATE TRIGGER experiment_no_delete BEFORE DELETE ON experiment_config
-BEGIN SELECT RAISE(ABORT, 'experiment configuration is immutable'); END
 """)
 
 

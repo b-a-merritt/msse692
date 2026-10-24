@@ -1,0 +1,162 @@
+from datetime import datetime
+from datetime import timezone
+from unittest.mock import Mock
+
+import pytest
+from sqlalchemy.exc import SQLAlchemyError
+from sqlmodel import Session
+
+from normative_conformance.errors import EnqueueFailed
+from normative_conformance.errors import NotFound
+from normative_conformance.errors import StorageUnavailable
+from normative_conformance.models.case import CaseLog
+from normative_conformance.schemas.case import TargetSelection
+from normative_conformance.services.case import selection
+
+
+@pytest.mark.parametrize(
+    "existing,labels,input,expected,manual,scheduled",
+    [
+        (False, [], {"target_speaker_order": 2}, None, False, False),
+        (True, ["A", "A"], {"target_speaker_order": 2}, None, False, False),
+        (True, ["A", "A", "B"], {"target_speaker_order": 2}, "B", False, True),
+        (True, ["B", "A"], {"target_speaker_id": "B"}, "B", True, True),
+        (False, [], {"target_speaker_id": "speaker-2"}, "speaker-2", True, False),
+    ],
+)
+def test_configures_case_and_wakes_stored_speech_after_commit(
+    monkeypatch, existing, labels, input, expected, manual, scheduled
+):
+    case = CaseLog(case_id="case", created_at_us=5)
+    session = Mock(spec=Session)
+    session.get.return_value = case if existing else None
+    session.exec.return_value.all.return_value = labels
+    clock = Mock(return_value=datetime(1970, 1, 1, 0, 0, 0, 10, tzinfo=timezone.utc))
+    order = []
+    session.connection.side_effect = lambda: order.append("lock")
+    session.commit.side_effect = lambda: order.append("commit")
+    request = Mock(side_effect=lambda **kwargs: order.append("enqueue"))
+    monkeypatch.setattr(selection, "request_assessment", request)
+    scheduler = object()
+    result = selection.select_target(
+        case_id="case",
+        selection=TargetSelection(**input),
+        session=session,
+        now=clock,
+        scheduler=scheduler,
+    )
+    assert result.target_speaker_id == expected
+    assert result.target_speaker_manual is manual
+    assert result.target_speaker_order == input.get("target_speaker_order")
+    assert result.created_at.microsecond == (5 if existing else 10)
+    assert result.target_revision == (0 if expected is None else 1)
+    assert order == (["lock", "commit", "enqueue"] if scheduled else ["lock", "commit"])
+    if scheduled:
+        request.assert_called_once_with(case_id="case", scheduler=scheduler)
+    else:
+        request.assert_not_called()
+    if existing:
+        clock.assert_not_called()
+    else:
+        assert session.add.call_args.args[0].case_id == "case"
+    query = session.exec.call_args.args[0].compile()
+    assert query.params == {"case_id_1": "case"}
+    assert "ORDER BY observation.start_at_us, observation.end_at_us, observation.sequence" in str(
+        query
+    )
+
+
+def test_selecting_order_explicitly_releases_manual_override(monkeypatch):
+    case = CaseLog(
+        case_id="case",
+        created_at_us=0,
+        target_speaker_id="A",
+        target_speaker_order=2,
+        target_speaker_manual=True,
+        target_revision=1,
+    )
+    session = Mock(spec=Session)
+    session.get.return_value = case
+    session.exec.return_value.all.return_value = ["A", "B"]
+    monkeypatch.setattr(selection, "request_assessment", Mock())
+    result = selection.select_target(
+        case_id="case",
+        selection=TargetSelection(target_speaker_order=2),
+        session=session,
+        now=Mock(),
+        scheduler=object(),
+    )
+    assert result.target_speaker_id == "B"
+    assert not result.target_speaker_manual
+    assert result.target_revision == 2
+
+
+@pytest.mark.parametrize("stage", ["connection", "exec", "commit"])
+def test_storage_failure_rolls_back_without_scheduling(monkeypatch, stage):
+    session = Mock(spec=Session)
+    session.get.return_value = CaseLog(case_id="case", created_at_us=0)
+    session.exec.return_value.all.return_value = ["A"]
+    error = SQLAlchemyError("database failed")
+    getattr(session, stage).side_effect = error
+    request = Mock()
+    monkeypatch.setattr(selection, "request_assessment", request)
+    with pytest.raises(StorageUnavailable) as caught:
+        selection.select_target(
+            case_id="case",
+            selection=TargetSelection(target_speaker_id="A"),
+            session=session,
+            now=Mock(),
+            scheduler=object(),
+        )
+    assert caught.value.__cause__ is error
+    session.rollback.assert_called_once()
+    request.assert_not_called()
+
+
+def test_retry_after_enqueue_failure_keeps_selection_and_revision(monkeypatch):
+    case = CaseLog(case_id="case", created_at_us=0)
+    session = Mock(spec=Session)
+    session.get.return_value = case
+    session.exec.return_value.all.return_value = ["A"]
+    request = Mock(side_effect=[EnqueueFailed(message="Queue unavailable"), None])
+    monkeypatch.setattr(selection, "request_assessment", request)
+    input = TargetSelection(target_speaker_id="A")
+    with pytest.raises(EnqueueFailed):
+        selection.select_target(
+            case_id="case", selection=input, session=session, now=Mock(), scheduler=object()
+        )
+    assert case.target_speaker_id == "A"
+    assert case.target_revision == 1
+    session.commit.assert_called_once()
+    session.rollback.assert_not_called()
+    result = selection.select_target(
+        case_id="case", selection=input, session=session, now=Mock(), scheduler=object()
+    )
+    assert result.target_revision == 1
+    assert request.call_count == 2
+
+
+def test_get_case_returns_stored_selection():
+    session = Mock(spec=Session)
+    session.get.return_value = CaseLog(
+        case_id="case",
+        created_at_us=4,
+        target_speaker_order=2,
+        target_speaker_id="B",
+        target_revision=1,
+    )
+    result = selection.get_case(case_id="case", session=session)
+    assert result.case_id == "case"
+    assert result.created_at.microsecond == 4
+    assert result.target_speaker_order == 2
+    assert result.target_speaker_id == "B"
+    assert result.target_revision == 1
+    assert not result.target_speaker_manual
+    session.get.assert_called_once_with(CaseLog, "case")
+
+
+def test_missing_case_is_not_found():
+    session = Mock(spec=Session)
+    session.get.return_value = None
+    with pytest.raises(NotFound):
+        selection.get_case(case_id="missing", session=session)

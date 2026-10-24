@@ -8,7 +8,6 @@ from normative_conformance.models.intervention import Intervention as Interventi
 from normative_conformance.models.intervention import InterventionSource
 from normative_conformance.schemas.intervention import Intervention
 from normative_conformance.services.intervention.list_interventions import list_interventions
-from normative_conformance.services.model.get_subject_speaker_id import get_subject_speaker_id
 from normative_conformance.timestamps import from_microseconds
 
 
@@ -34,26 +33,21 @@ def list_intervention_records(
     ):
         sources.setdefault(source.intervention_id, []).append(source.assessment_id)
 
-    subject_speaker_id = get_subject_speaker_id(session=session)
-
     return [
         _to_record(
             row=row,
-            subject_speaker_id=subject_speaker_id,
             sources=sources,
         )
         for row in rows
     ]
 
 
-def _to_record(
-    *, row: InterventionModel, subject_speaker_id: str, sources: dict[int, list[int]]
-) -> Intervention:
+def _to_record(*, row: InterventionModel, sources: dict[int, list[int]]) -> Intervention:
     assert row.intervention_id is not None
     return Intervention(
         intervention_id=row.intervention_id,
         case_id=row.case_id,
-        subject_speaker_id=subject_speaker_id,
+        subject_speaker_id=row.subject_speaker_id,
         assessment_ids=sources[row.intervention_id],
         message=row.message,
         created_at=from_microseconds(value=row.created_at_us),

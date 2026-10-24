@@ -22,8 +22,9 @@ THREAT = "You said something that could be heard as a threat. Take a moment befo
 
 
 def test_single_match_creates_a_pending_intervention(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -46,6 +47,7 @@ def test_single_match_creates_a_pending_intervention(*, session, engine):
     assessment = persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="repeated_interruption",
@@ -68,6 +70,8 @@ def test_single_match_creates_a_pending_intervention(*, session, engine):
         )
     row = session.exec(select(models.Intervention)).one()
     assert row.model_dump() == {
+        "subject_speaker_id": "configured-subject",
+        "target_revision": 0,
         "intervention_id": row.intervention_id,
         "case_id": "case",
         "message": INTERRUPTION,
@@ -95,8 +99,9 @@ def test_single_match_creates_a_pending_intervention(*, session, engine):
     ],
 )
 def test_matches_share_one_message(*, session, engine, model_ids, message):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -120,6 +125,7 @@ def test_matches_share_one_message(*, session, engine, model_ids, message):
         persist(
             session=session,
             record=models.Assessment(
+                subject_speaker_id="configured-subject",
                 evaluation_id=f"evaluation-{next(assessment_ids)}",
                 case_id="case",
                 model_id=model_id,
@@ -148,8 +154,9 @@ def test_matches_share_one_message(*, session, engine, model_ids, message):
 
 
 def test_every_undesired_model_has_its_own_message(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -175,6 +182,7 @@ def test_every_undesired_model_has_its_own_message(*, session, engine):
         persist(
             session=session,
             record=models.Assessment(
+                subject_speaker_id="configured-subject",
                 evaluation_id=f"evaluation-{next(assessment_ids)}",
                 case_id="case",
                 model_id=model.model_id,
@@ -205,8 +213,9 @@ def test_every_undesired_model_has_its_own_message(*, session, engine):
     ],
 )
 def test_ineligible_assessments_create_nothing(*, session, engine, changes):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -229,6 +238,7 @@ def test_ineligible_assessments_create_nothing(*, session, engine, changes):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id=({"model_id": "harm_phrase"} | changes).get("model_id", "harm_phrase"),
@@ -255,8 +265,9 @@ def test_ineligible_assessments_create_nothing(*, session, engine, changes):
 
 
 def test_other_cases_are_excluded(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -276,7 +287,9 @@ def test_other_cases_are_excluded(*, session, engine):
     )
     assessment_ids = count(1)
 
-    session.add(models.CaseLog(case_id="other", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="other", created_at_us=0)
+    )
     session.add(
         models.Observation(
             case_id="other",
@@ -296,6 +309,7 @@ def test_other_cases_are_excluded(*, session, engine):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="other",
             model_id="harm_phrase",
@@ -319,8 +333,9 @@ def test_other_cases_are_excluded(*, session, engine):
 
 
 def test_linked_assessments_are_not_decided_again(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -343,6 +358,7 @@ def test_linked_assessments_are_not_decided_again(*, session, engine):
     first = persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="harm_phrase",
@@ -371,6 +387,7 @@ def test_linked_assessments_are_not_decided_again(*, session, engine):
     second = persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="extended_turn",
@@ -400,8 +417,9 @@ def test_linked_assessments_are_not_decided_again(*, session, engine):
 
 
 def test_missing_message_fails_without_storing(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -434,6 +452,7 @@ def test_missing_message_fails_without_storing(*, session, engine):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="unlisted",
@@ -458,8 +477,9 @@ def test_missing_message_fails_without_storing(*, session, engine):
 
 
 def test_storage_failure_rolls_back(*, session, engine):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     persist(
         session=session,
@@ -482,6 +502,7 @@ def test_storage_failure_rolls_back(*, session, engine):
     persist(
         session=session,
         record=models.Assessment(
+            subject_speaker_id="configured-subject",
             evaluation_id=f"evaluation-{next(assessment_ids)}",
             case_id="case",
             model_id="harm_phrase",

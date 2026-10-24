@@ -12,8 +12,9 @@ from ...storage import persist
 
 
 def test_interruption_counts_distinct_entries_in_captured_prefix(*, session):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -69,7 +70,7 @@ def test_interruption_counts_distinct_entries_in_captured_prefix(*, session):
     assert not evaluate_model(
         model=get_model(model_id="repeated_interruption", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(session=session),
+        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
         through_sequence=3,
         session=session,
         after_observation=None,
@@ -78,7 +79,7 @@ def test_interruption_counts_distinct_entries_in_captured_prefix(*, session):
     assert evaluate_model(
         model=get_model(model_id="repeated_interruption", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(session=session),
+        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=None,
@@ -88,8 +89,9 @@ def test_interruption_counts_distinct_entries_in_captured_prefix(*, session):
 
 @pytest.mark.parametrize("overlap,expected", [(0.15, True), (0.149999, False)])
 def test_interruption_requires_minimum_overlap(*, session, overlap, expected):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -130,7 +132,7 @@ def test_interruption_requires_minimum_overlap(*, session, overlap, expected):
         evaluate_model(
             model=get_model(model_id="repeated_interruption", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -141,8 +143,9 @@ def test_interruption_requires_minimum_overlap(*, session, overlap, expected):
 
 
 def test_continuous_speech_does_not_manufacture_interruptions(*, session):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -182,7 +185,7 @@ def test_continuous_speech_does_not_manufacture_interruptions(*, session):
     assert not evaluate_model(
         model=get_model(model_id="repeated_interruption", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(session=session),
+        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=None,
@@ -200,8 +203,9 @@ def test_continuous_speech_does_not_manufacture_interruptions(*, session):
     ],
 )
 def test_address_requires_loud_fast_speech(*, session, transcript, duration_us, level, expected):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -225,7 +229,7 @@ def test_address_requires_loud_fast_speech(*, session, transcript, duration_us, 
         evaluate_model(
             model=get_model(model_id="high_intensity_address", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -290,8 +294,9 @@ def test_address_requires_loud_fast_speech(*, session, transcript, duration_us, 
     ],
 )
 def test_address_film_case_lines(*, session, transcript, duration_us, level, expected):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -315,7 +320,7 @@ def test_address_film_case_lines(*, session, transcript, duration_us, level, exp
         evaluate_model(
             model=get_model(model_id="high_intensity_address", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -355,8 +360,9 @@ def test_address_film_case_lines(*, session, transcript, duration_us, level, exp
     ],
 )
 def test_character_label_matches_quiet_slow_speech(*, session, transcript, expected):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -380,7 +386,7 @@ def test_character_label_matches_quiet_slow_speech(*, session, transcript, expec
         evaluate_model(
             model=get_model(model_id="character_label", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -403,8 +409,9 @@ def test_character_label_matches_quiet_slow_speech(*, session, transcript, expec
     ],
 )
 def test_vulgar_language_matches_term_variants(*, session, transcript, expected):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -428,7 +435,7 @@ def test_vulgar_language_matches_term_variants(*, session, transcript, expected)
         evaluate_model(
             model=get_model(model_id="vulgar_language", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -447,8 +454,9 @@ def test_vulgar_language_matches_term_variants(*, session, transcript, expected)
     ],
 )
 def test_harm_phrase_matches_configured_phrases(*, session, transcript, expected):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -472,7 +480,7 @@ def test_harm_phrase_matches_configured_phrases(*, session, transcript, expected
         evaluate_model(
             model=get_model(model_id="harm_phrase", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -491,8 +499,9 @@ def test_harm_phrase_matches_configured_phrases(*, session, transcript, expected
     ],
 )
 def test_absolutist_phrase_requires_second_person(*, session, transcript, expected):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -516,7 +525,7 @@ def test_absolutist_phrase_requires_second_person(*, session, transcript, expect
         evaluate_model(
             model=get_model(model_id="absolutist_phrase", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -526,9 +535,10 @@ def test_absolutist_phrase_requires_second_person(*, session, transcript, expect
     )
 
 
-def test_subject_comes_from_experiment_config(*, session):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+def test_subject_comes_from_case_target(*, session):
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -551,7 +561,7 @@ def test_subject_comes_from_experiment_config(*, session):
     assert not evaluate_model(
         model=get_model(model_id="high_intensity_address", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(session=session),
+        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=None,
@@ -560,8 +570,9 @@ def test_subject_comes_from_experiment_config(*, session):
 
 
 def test_extended_turn_threshold_and_gap(*, session):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -600,7 +611,7 @@ def test_extended_turn_threshold_and_gap(*, session):
     assert not evaluate_model(
         model=get_model(model_id="extended_turn", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(session=session),
+        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=None,
@@ -625,7 +636,7 @@ def test_extended_turn_threshold_and_gap(*, session):
     assert evaluate_model(
         model=get_model(model_id="extended_turn", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(session=session),
+        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=None,
@@ -634,8 +645,9 @@ def test_extended_turn_threshold_and_gap(*, session):
 
 
 def test_other_speaker_breaks_turn_in_gap(*, session):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -690,7 +702,7 @@ def test_other_speaker_breaks_turn_in_gap(*, session):
     assert not evaluate_model(
         model=get_model(model_id="extended_turn", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(session=session),
+        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=None,
@@ -700,8 +712,9 @@ def test_other_speaker_breaks_turn_in_gap(*, session):
 
 @pytest.mark.parametrize("received,expected", [(9.999999, True), (10, False)])
 def test_repair_rule_uses_supplied_source_and_receipt_bounds(*, session, received, expected):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -741,7 +754,7 @@ def test_repair_rule_uses_supplied_source_and_receipt_bounds(*, session, receive
         evaluate_model(
             model=get_model(model_id="apology", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=activation,
@@ -762,8 +775,9 @@ def test_repair_rule_uses_supplied_source_and_receipt_bounds(*, session, receive
     ],
 )
 def test_repair_models_match_configured_phrases(*, session, model_id, transcript, expected):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -803,7 +817,7 @@ def test_repair_models_match_configured_phrases(*, session, model_id, transcript
         evaluate_model(
             model=get_model(model_id=model_id, version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=activation,
@@ -814,8 +828,9 @@ def test_repair_models_match_configured_phrases(*, session, model_id, transcript
 
 
 def test_earlier_spoken_apology_does_not_repair_later_behavior(*, session):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
 
@@ -854,7 +869,7 @@ def test_earlier_spoken_apology_does_not_repair_later_behavior(*, session):
     assert not evaluate_model(
         model=get_model(model_id="apology", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(session=session),
+        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=activation,

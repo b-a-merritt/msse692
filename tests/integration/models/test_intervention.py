@@ -8,10 +8,15 @@ from normative_conformance import models
 
 
 def test_intervention_round_trip_with_defaults_and_generated_id(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     session.commit()
@@ -27,7 +32,7 @@ def test_intervention_round_trip_with_defaults_and_generated_id(*, session):
 
 
 def test_intervention_source_round_trip(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -55,6 +60,7 @@ def test_intervention_source_round_trip(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -66,7 +72,12 @@ def test_intervention_source_round_trip(*, session):
     )
     session.add(assessment)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     intervention_source = models.InterventionSource(
@@ -101,10 +112,15 @@ def test_intervention_source_round_trip(*, session):
     ],
 )
 def test_invalid_interventions_are_rejected(*, session, changes, constraint):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     session.commit()
@@ -118,7 +134,7 @@ def test_invalid_interventions_are_rejected(*, session, changes, constraint):
 
 
 def test_intervention_can_have_several_sources(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -146,6 +162,7 @@ def test_intervention_can_have_several_sources(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -157,7 +174,12 @@ def test_intervention_can_have_several_sources(*, session):
     )
     session.add(assessment)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     intervention_source = models.InterventionSource(
@@ -180,7 +202,7 @@ def test_intervention_can_have_several_sources(*, session):
         **(
             records["assessment"].model_dump()
             | {"assessment_id": None, "evaluation_id": "evaluation-2"}
-        )
+        ),
     )
     session.add(assessment)
     session.flush()
@@ -200,7 +222,7 @@ def test_intervention_can_have_several_sources(*, session):
 
 
 def test_assessment_cannot_source_two_interventions(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -228,6 +250,7 @@ def test_assessment_cannot_source_two_interventions(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -243,7 +266,9 @@ def test_assessment_cannot_source_two_interventions(*, session):
     session.expunge_all()
     records = {"assessment": assessment, "case": case, "model": model, "observation": observation}
 
-    first = models.Intervention(case_id="case", message="First", created_at_us=12)
+    first = models.Intervention(
+        subject_speaker_id="configured-subject", case_id="case", message="First", created_at_us=12
+    )
     session.add(first)
     session.flush()
     session.add(
@@ -254,7 +279,9 @@ def test_assessment_cannot_source_two_interventions(*, session):
     )
     session.commit()
 
-    other = models.Intervention(case_id="case", message="Other", created_at_us=12)
+    other = models.Intervention(
+        subject_speaker_id="configured-subject", case_id="case", message="Other", created_at_us=12
+    )
     session.add(other)
     session.flush()
     session.add(
@@ -269,7 +296,7 @@ def test_assessment_cannot_source_two_interventions(*, session):
 
 @pytest.mark.parametrize("status", ["non-conformant", "pending", "conflicted"])
 def test_unconfirmed_assessments_cannot_be_sources(*, session, status):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -297,6 +324,7 @@ def test_unconfirmed_assessments_cannot_be_sources(*, session, status):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -308,7 +336,12 @@ def test_unconfirmed_assessments_cannot_be_sources(*, session, status):
     )
     session.add(assessment)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     intervention_source = models.InterventionSource(
@@ -331,7 +364,7 @@ def test_unconfirmed_assessments_cannot_be_sources(*, session, status):
         **(
             records["assessment"].model_dump()
             | {"assessment_id": None, "evaluation_id": "evaluation-2", "status": status}
-        )
+        ),
     )
     session.add(assessment)
     session.flush()
@@ -347,7 +380,7 @@ def test_unconfirmed_assessments_cannot_be_sources(*, session, status):
 
 def test_repair_matches_cannot_be_sources(*, session):
     # The seeded apology model has the repairs type.
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -375,6 +408,7 @@ def test_repair_matches_cannot_be_sources(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -386,7 +420,12 @@ def test_repair_matches_cannot_be_sources(*, session):
     )
     session.add(assessment)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     intervention_source = models.InterventionSource(
@@ -409,7 +448,7 @@ def test_repair_matches_cannot_be_sources(*, session):
         **(
             records["assessment"].model_dump()
             | {"assessment_id": None, "evaluation_id": "evaluation-2", "model_id": "apology"}
-        )
+        ),
     )
     session.add(assessment)
     session.flush()
@@ -424,7 +463,7 @@ def test_repair_matches_cannot_be_sources(*, session):
 
 
 def test_sources_must_share_the_intervention_case(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -452,6 +491,7 @@ def test_sources_must_share_the_intervention_case(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -463,7 +503,12 @@ def test_sources_must_share_the_intervention_case(*, session):
     )
     session.add(assessment)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     intervention_source = models.InterventionSource(
@@ -482,7 +527,9 @@ def test_sources_must_share_the_intervention_case(*, session):
         "observation": observation,
     }
 
-    session.add(models.CaseLog(case_id="other", created_at_us=1))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="other", created_at_us=1)
+    )
     session.flush()
     session.add(models.Observation(**(records["observation"].model_dump() | {"case_id": "other"})))
     session.flush()
@@ -490,7 +537,7 @@ def test_sources_must_share_the_intervention_case(*, session):
         **(
             records["assessment"].model_dump()
             | {"assessment_id": None, "evaluation_id": "evaluation-2", "case_id": "other"}
-        )
+        ),
     )
     session.add(assessment)
     session.flush()
@@ -505,7 +552,7 @@ def test_sources_must_share_the_intervention_case(*, session):
 
 
 def test_missing_assessments_cannot_be_sources(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -533,6 +580,7 @@ def test_missing_assessments_cannot_be_sources(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -544,7 +592,12 @@ def test_missing_assessments_cannot_be_sources(*, session):
     )
     session.add(assessment)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     intervention_source = models.InterventionSource(
@@ -573,7 +626,7 @@ def test_missing_assessments_cannot_be_sources(*, session):
 
 
 def test_intervention_sources_are_immutable(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -601,6 +654,7 @@ def test_intervention_sources_are_immutable(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -612,7 +666,12 @@ def test_intervention_sources_are_immutable(*, session):
     )
     session.add(assessment)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     intervention_source = models.InterventionSource(
@@ -642,10 +701,15 @@ def test_intervention_sources_are_immutable(*, session):
 
 @pytest.mark.parametrize("sent_at_us", [12, 13])
 def test_intervention_can_be_marked_sent(*, session, sent_at_us):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     session.commit()
@@ -660,10 +724,15 @@ def test_intervention_can_be_marked_sent(*, session, sent_at_us):
 
 
 def test_intervention_cannot_be_sent_before_creation(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     session.commit()
@@ -686,10 +755,15 @@ def test_intervention_cannot_be_sent_before_creation(*, session):
     ],
 )
 def test_intervention_is_marked_sent_only_once(*, session, changes):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     session.commit()
@@ -713,10 +787,15 @@ def test_intervention_is_marked_sent_only_once(*, session, changes):
     ],
 )
 def test_intervention_decision_is_immutable(*, session, changes):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     session.commit()
@@ -732,10 +811,15 @@ def test_intervention_decision_is_immutable(*, session, changes):
 
 
 def test_intervention_is_retained(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
-    intervention = models.Intervention(case_id="case", message="Feedback", created_at_us=12)
+    intervention = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="Feedback",
+        created_at_us=12,
+    )
     session.add(intervention)
     session.flush()
     session.commit()

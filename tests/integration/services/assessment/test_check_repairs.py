@@ -19,8 +19,9 @@ from ...storage import persist
 
 
 def test_repair_can_resolve_multiple_pending_models(*, session, engine, assessment_queue):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -104,11 +105,12 @@ def test_repair_can_resolve_multiple_pending_models(*, session, engine, assessme
     assert all(row.status == "non-conformant" for row in resolutions)
 
 
-def test_repair_searches_and_resolutions_share_one_subject_lookup(
-    *, session, engine, assessment_queue, subject_config_reads
+def test_repair_and_resolution_records_preserve_the_case_target(
+    *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -171,7 +173,6 @@ def test_repair_searches_and_resolutions_share_one_subject_lookup(
             signal_level_max=0.0,
         ),
     )
-    subject_config_reads.clear()
 
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
@@ -185,14 +186,16 @@ def test_repair_searches_and_resolutions_share_one_subject_lookup(
     )
 
     assert len(results) == 3
-    assert len(subject_config_reads) == 1
+    assert {row.subject_speaker_id for row in results} == {"configured-subject"}
+    assert {row.target_revision for row in results} == {0}
 
 
 def test_late_repair_resets_future_detection_without_retracting_positive(
     *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -292,8 +295,9 @@ def test_late_repair_resets_future_detection_without_retracting_positive(
 
 
 def test_repair_resets_incomplete_interruption_pattern(*, session, engine, assessment_queue):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -415,8 +419,9 @@ def test_repair_resets_incomplete_interruption_pattern(*, session, engine, asses
 
 
 def test_repeated_checks_append_only_one_resolution(*, session, engine, assessment_queue):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -478,8 +483,9 @@ def test_repeated_checks_append_only_one_resolution(*, session, engine, assessme
 def test_repair_requests_assessment_after_commit_unless_stopping(
     *, session, engine, assessment_queue, monkeypatch, stopping
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -560,8 +566,9 @@ def test_repair_requests_assessment_after_commit_unless_stopping(
 
 @pytest.mark.parametrize("at", [105, 110])
 def test_check_without_repair_does_not_request_assessment(*, session, engine, assessment_queue, at):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -611,8 +618,9 @@ def test_check_without_repair_does_not_request_assessment(*, session, engine, as
 def test_failed_resolution_rolls_back_repair_before_requesting_assessment(
     *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)

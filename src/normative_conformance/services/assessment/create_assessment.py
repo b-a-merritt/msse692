@@ -3,6 +3,7 @@ from typing import Literal
 from sqlmodel import Session
 
 from normative_conformance.models.assessment import Assessment
+from normative_conformance.models.case import CaseLog
 from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.schemas.assessment import Explanation
 from normative_conformance.schemas.assessment import RuleResult
@@ -43,7 +44,11 @@ def create_assessment(
             for rule in model.rules
         ],
     )
+    case = session.get(CaseLog, snapshot.case_id)
+    assert case is not None and case.target_speaker_id is not None
     row = Assessment(
+        subject_speaker_id=case.target_speaker_id,
+        target_revision=case.target_revision,
         evaluation_id=snapshot.evaluation_id,
         case_id=snapshot.case_id,
         model_id=model.model_id,

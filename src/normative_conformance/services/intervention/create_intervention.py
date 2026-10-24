@@ -41,6 +41,8 @@ def create_intervention(
 
         intervention = models.Intervention(
             case_id=case_id,
+            subject_speaker_id=sources[0].subject_speaker_id,
+            target_revision=sources[0].target_revision,
             message=_select_message(model_ids={source.model_id for source in sources}),
             created_at_us=to_microseconds(value=now()),
         )
@@ -92,7 +94,10 @@ def _get_sources(
                 (col(models.NormativeModelVersion.model_id) == models.Assessment.model_id)
                 & (col(models.NormativeModelVersion.version) == models.Assessment.model_version),
             )
+            .join(models.CaseLog, col(models.CaseLog.case_id) == models.Assessment.case_id)
             .where(
+                models.Assessment.target_revision == models.CaseLog.target_revision,
+                models.Assessment.subject_speaker_id == models.CaseLog.target_speaker_id,
                 models.Assessment.case_id == case_id,
                 models.Assessment.status == "conformant",
                 models.NormativeModelVersion.type == "undesired",

@@ -6,7 +6,6 @@ from normative_conformance.schemas.assessment import Assessment
 from normative_conformance.schemas.assessment import Explanation
 from normative_conformance.schemas.assessment import Extent
 from normative_conformance.services.assessment.list_assessments import list_assessments
-from normative_conformance.services.model.get_subject_speaker_id import get_subject_speaker_id
 from normative_conformance.services.observation.get_case_history import get_case_history
 from normative_conformance.timestamps import from_microseconds
 
@@ -17,7 +16,6 @@ def list_assessment_records(*, case_id: str, session: Session) -> list[Assessmen
     if not rows:
         return []
 
-    subject_speaker_id = get_subject_speaker_id(session=session)
     history = get_case_history(
         case_id=case_id,
         through_sequence=max(row.through_sequence for row in rows),
@@ -28,7 +26,6 @@ def list_assessment_records(*, case_id: str, session: Session) -> list[Assessmen
         _to_record(
             row=row,
             history=history,
-            subject_speaker_id=subject_speaker_id,
         )
         for row in rows
     ]
@@ -38,7 +35,6 @@ def _to_record(
     *,
     row: models.Assessment,
     history: list[Observation],
-    subject_speaker_id: str,
 ) -> Assessment:
     assert row.assessment_id is not None
 
@@ -53,7 +49,7 @@ def _to_record(
         resolves_assessment_id=row.resolves_assessment_id,
         evaluation_id=row.evaluation_id,
         case_id=row.case_id,
-        subject_speaker_id=subject_speaker_id,
+        subject_speaker_id=row.subject_speaker_id,
         model_id=row.model_id,
         model_version=row.model_version,
         evaluated_at=from_microseconds(value=row.evaluated_at_us),

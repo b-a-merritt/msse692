@@ -25,8 +25,9 @@ from ...storage import persist
 def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(
     *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -98,8 +99,9 @@ def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(
 
 
 def test_no_match_creates_no_pending_assessment(*, session, engine, assessment_queue):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -137,8 +139,9 @@ def test_no_match_creates_no_pending_assessment(*, session, engine, assessment_q
 
 
 def test_no_repair_allowance_confirms_immediately(*, session, engine, assessment_queue):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -207,8 +210,9 @@ def test_no_repair_allowance_confirms_immediately(*, session, engine, assessment
 def test_models_use_their_own_allowance_and_keep_existing_deadlines(
     *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -298,8 +302,9 @@ def test_models_use_their_own_allowance_and_keep_existing_deadlines(
 def test_replay_requests_repair_after_enqueue_failure_without_repeating_assessment(
     *, session, engine, assessment_queue, monkeypatch
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -361,8 +366,9 @@ def test_replay_requests_repair_after_enqueue_failure_without_repeating_assessme
 def test_shutdown_finishes_assessment_without_enqueuing_repair(
     *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -401,8 +407,9 @@ def test_shutdown_finishes_assessment_without_enqueuing_repair(
 
 
 def test_replayed_evaluation_preserves_its_original_results(*, session, engine, assessment_queue):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -485,8 +492,9 @@ def test_replayed_evaluation_preserves_its_original_results(*, session, engine, 
 def test_failed_assessment_rolls_back_all_models_before_requesting_repairs(
     *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -549,8 +557,9 @@ def test_failed_assessment_rolls_back_all_models_before_requesting_repairs(
 
 
 def test_new_matches_share_the_case_evaluation_time(*, session, engine, assessment_queue):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -606,11 +615,10 @@ def test_new_matches_share_the_case_evaluation_time(*, session, engine, assessme
     ]
 
 
-def test_models_share_one_subject_lookup(
-    *, session, engine, assessment_queue, subject_config_reads
-):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+def test_models_record_the_same_case_target(*, session, engine, assessment_queue):
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -650,25 +658,23 @@ def test_models_share_one_subject_lookup(
 
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    assert (
-        len(
-            evaluate_case(
-                case_id="case",
-                evaluation_id=uuid4(),
-                engine=engine,
-                now=lambda: datetime.fromtimestamp(100, timezone.utc),
-                scheduler=scheduler,
-                models=evaluation_models,
-            )
-        )
-        == 2
+    results = evaluate_case(
+        case_id="case",
+        evaluation_id=uuid4(),
+        engine=engine,
+        now=lambda: datetime.fromtimestamp(100, timezone.utc),
+        scheduler=scheduler,
+        models=evaluation_models,
     )
-    assert len(subject_config_reads) == 1
+    assert len(results) == 2
+    assert {row.subject_speaker_id for row in results} == {"configured-subject"}
+    assert {row.target_revision for row in results} == {0}
 
 
 def test_replay_preserves_pending_result_after_resolution(*, session, engine, assessment_queue):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -729,8 +735,9 @@ def test_replay_preserves_pending_result_after_resolution(*, session, engine, as
 def test_model_added_after_the_catalog_was_loaded_is_not_assessed(
     *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)

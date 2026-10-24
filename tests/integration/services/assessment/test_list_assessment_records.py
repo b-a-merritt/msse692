@@ -16,15 +16,16 @@ from normative_conformance.services.scheduler.state import SchedulerState
 from ...storage import persist
 
 
-def test_no_assessments_returns_empty_records_without_experiment_configuration(*, session):
+def test_no_assessments_returns_empty_records_without_target_configuration(*, session):
     assert list_assessment_records(case_id="missing", session=session) == []
 
 
 def test_records_preserve_each_assessments_prefix_explanation_and_deadline(
     *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)

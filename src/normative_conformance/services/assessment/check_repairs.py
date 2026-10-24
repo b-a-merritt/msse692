@@ -37,13 +37,16 @@ def check_repairs(
     """Record repairs and append one final result for each resolved pending match."""
     try:
         with write_session(engine=engine) as session:
+            session.connection()
+            subject_speaker_id = get_subject_speaker_id(case_id=case_id, session=session)
+            if subject_speaker_id is None:
+                return []
             snapshot = CaseSnapshot(
                 case_id=case_id,
                 evaluation_id=str(evaluation_id),
                 through_sequence=get_case_sequence(case_id=case_id, session=session),
                 evaluated_at_us=to_microseconds(value=now()),
             )
-            subject_speaker_id = get_subject_speaker_id(session=session)
 
             models_by_version = {(model.model_id, model.version): model for model in models}
             repair_models = [model for model in models if model.type == "repairs"]
@@ -79,7 +82,11 @@ def check_repairs(
                     session=session,
                 )
                 for pending in list_assessments(
-                    case_id=case_id, status="pending", unresolved=True, session=session
+                    case_id=case_id,
+                    status="pending",
+                    unresolved=True,
+                    current_target=True,
+                    session=session,
                 )
             )
             session.commit()

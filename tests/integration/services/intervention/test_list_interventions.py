@@ -4,12 +4,23 @@ from normative_conformance.services.intervention.list_interventions import list_
 
 def test_reads_stored_interventions_with_case_status_and_id_filters(*, session):
     session.add_all(
-        models.CaseLog(case_id=case_id, created_at_us=0) for case_id in ("case", "other")
+        models.CaseLog(target_speaker_id="configured-subject", case_id=case_id, created_at_us=0)
+        for case_id in ("case", "other")
     )
     session.flush()
-    first = models.Intervention(case_id="case", message="First", created_at_us=1, sent_at_us=2)
-    second = models.Intervention(case_id="case", message="Second", created_at_us=3)
-    other = models.Intervention(case_id="other", message="Other", created_at_us=4)
+    first = models.Intervention(
+        subject_speaker_id="configured-subject",
+        case_id="case",
+        message="First",
+        created_at_us=1,
+        sent_at_us=2,
+    )
+    second = models.Intervention(
+        subject_speaker_id="configured-subject", case_id="case", message="Second", created_at_us=3
+    )
+    other = models.Intervention(
+        subject_speaker_id="configured-subject", case_id="other", message="Other", created_at_us=4
+    )
     session.add_all([first, second, other])
     session.commit()
 

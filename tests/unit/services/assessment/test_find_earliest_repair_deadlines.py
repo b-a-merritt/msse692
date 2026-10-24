@@ -7,6 +7,7 @@ from normative_conformance.services.assessment.find_earliest_repair_deadlines im
 def test_earliest_deadlines_are_independent_of_order_and_case():
     assessments = [
         models.Assessment(
+            subject_speaker_id="subject",
             case_id=case_id,
             evaluation_id="evaluation",
             model_id="harm_phrase",
@@ -42,6 +43,7 @@ def test_no_deadlines_returns_an_empty_mapping():
         find_earliest_repair_deadlines(
             assessments=[
                 models.Assessment(
+                    subject_speaker_id="subject",
                     case_id="case",
                     evaluation_id="evaluation",
                     model_id="harm_phrase",

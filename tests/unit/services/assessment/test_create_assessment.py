@@ -5,6 +5,7 @@ from unittest.mock import Mock
 import pytest
 from sqlmodel import Session
 
+from normative_conformance.models.case import CaseLog
 from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.schemas.assessment import Explanation
 from normative_conformance.schemas.model import ModelVersion
@@ -34,6 +35,9 @@ def test_builds_explanations_for_each_rule_without_committing(
         case_id="case", evaluation_id="evaluation", through_sequence=3, evaluated_at_us=100
     )
     session = Mock(spec=Session)
+    session.get.return_value = CaseLog(
+        case_id="case", created_at_us=0, target_speaker_id="subject", target_revision=2
+    )
     result = create_assessment(
         model=model,
         snapshot=snapshot,
@@ -49,6 +53,8 @@ def test_builds_explanations_for_each_rule_without_committing(
         "2",
         "evaluation",
     )
+    assert result.subject_speaker_id == "subject"
+    assert result.target_revision == 2
     assert result.through_sequence == 3
     assert result.evaluated_at_us == 100
     assert result.resolves_assessment_id == 7

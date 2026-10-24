@@ -30,7 +30,7 @@ from normative_conformance.services.intervention.create_intervention import crea
 def test_selects_highest_priority_message_and_links_every_source(*, model_ids, message):
     session = Mock(spec=Session)
     session.exec.return_value.all.return_value = [
-        Assessment(assessment_id=index, model_id=model_id)
+        Assessment(subject_speaker_id="subject", assessment_id=index, model_id=model_id)
         for index, model_id in enumerate(model_ids, start=1)
     ]
     stored = []
@@ -74,7 +74,9 @@ def test_no_eligible_sources_does_not_read_clock_or_write():
 
 def test_unrecognized_combination_fails_before_writing():
     session = Mock(spec=Session)
-    session.exec.return_value.all.return_value = [Assessment(assessment_id=1, model_id="unknown")]
+    session.exec.return_value.all.return_value = [
+        Assessment(subject_speaker_id="subject", assessment_id=1, model_id="unknown")
+    ]
     with pytest.raises(LookupError, match=r"^No intervention message matches the assessments$"):
         create_intervention(case_id="case", since_us=90, session=session, now=Mock())
     session.add.assert_not_called()

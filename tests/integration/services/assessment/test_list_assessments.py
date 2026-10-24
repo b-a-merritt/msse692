@@ -6,7 +6,7 @@ from normative_conformance.services.assessment.list_assessments import list_asse
 
 
 def test_reads_case_history_in_id_order(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -34,6 +34,7 @@ def test_reads_case_history_in_id_order(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -54,7 +55,7 @@ def test_reads_case_history_in_id_order(*, session):
         **(
             original.model_dump()
             | {"assessment_id": None, "evaluation_id": "later", "evaluated_at_us": 1}
-        )
+        ),
     )
     session.add(later)
     session.commit()
@@ -69,7 +70,7 @@ def test_reads_case_history_in_id_order(*, session):
 
 
 def test_pending_work_excludes_assessments_with_a_resolution(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -97,6 +98,7 @@ def test_pending_work_excludes_assessments_with_a_resolution(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -131,7 +133,7 @@ def test_pending_work_excludes_assessments_with_a_resolution(*, session):
                 "next_due_at_us": None,
                 "resolves_assessment_id": resolved.assessment_id,
             }
-        )
+        ),
     )
     session.add(resolution)
     session.commit()
@@ -143,7 +145,7 @@ def test_pending_work_excludes_assessments_with_a_resolution(*, session):
 
 
 def test_case_history_excludes_other_cases(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -171,6 +173,7 @@ def test_case_history_excludes_other_cases(*, session):
     session.add(model)
     session.flush()
     assessment = models.Assessment(
+        subject_speaker_id="configured-subject",
         evaluation_id="evaluation-1",
         case_id="case",
         model_id="anger",
@@ -187,7 +190,7 @@ def test_case_history_excludes_other_cases(*, session):
     records = {"assessment": assessment, "case": case, "model": model, "observation": observation}
 
     original = records["assessment"]
-    session.add(CaseLog(case_id="other", created_at_us=1))
+    session.add(CaseLog(target_speaker_id="configured-subject", case_id="other", created_at_us=1))
     session.flush()
     session.add(Observation(**(records["observation"].model_dump() | {"case_id": "other"})))
     session.flush()
@@ -195,7 +198,7 @@ def test_case_history_excludes_other_cases(*, session):
         **(
             original.model_dump()
             | {"assessment_id": None, "evaluation_id": "other", "case_id": "other"}
-        )
+        ),
     )
     session.add(other)
     session.commit()

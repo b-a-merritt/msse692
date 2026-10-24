@@ -36,6 +36,7 @@ def test_success_is_acknowledged_after_evaluation_and_timer_updates(
         assert assessment_queue.unack_count() == 1
         return [
             db_models.Assessment(
+                subject_speaker_id="configured-subject",
                 case_id="case",
                 evaluation_id=str(evaluation_id),
                 model_id="harm_phrase",

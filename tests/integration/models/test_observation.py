@@ -7,7 +7,7 @@ from normative_conformance import models
 
 
 def test_observation_round_trip(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -53,7 +53,7 @@ def test_observation_round_trip(*, session):
     ],
 )
 def test_invalid_observations_are_rejected(*, session, changes, constraint):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -84,7 +84,7 @@ def test_invalid_observations_are_rejected(*, session, changes, constraint):
 
 
 def test_observation_identity_is_scoped_to_case(*, session):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(
@@ -106,7 +106,9 @@ def test_observation_identity_is_scoped_to_case(*, session):
     session.expunge_all()
     records = {"case": case, "observation": observation}
 
-    session.add(models.CaseLog(case_id="other", created_at_us=1))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="other", created_at_us=1)
+    )
     session.flush()
     session.add(models.Observation(**(records["observation"].model_dump() | {"case_id": "other"})))
     session.commit()
@@ -116,7 +118,7 @@ def test_observation_identity_is_scoped_to_case(*, session):
 
 @pytest.mark.parametrize("level", [-120.0, 0.0])
 def test_signal_boundaries_and_equal_levels_are_valid(*, session, level):
-    case = models.CaseLog(case_id="case", created_at_us=1)
+    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
     session.add(case)
     session.flush()
     observation = models.Observation(

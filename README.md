@@ -32,7 +32,7 @@ Prerequisites: Git, [uv](https://docs.astral.sh/uv/getting-started/installation/
 4. Open [readiness](http://127.0.0.1:8000/health/ready). Expect `{"status":"ready"}`.
 5. Open [interactive API docs](http://127.0.0.1:8000/docs) and follow the [user walkthrough](docs/user_guide.md).
 
-Startup creates and migrates the database, seeds the models, and starts the worker. The default target is `speaker-2`. It is fixed at the database's first startup. Use a fresh database for the walkthrough. Configuration and storage paths are in [the deployment guide](docs/deployment_guide.md#configuration).
+Startup creates and migrates the database, seeds the models, and starts the worker. Configure a target for each case by speaking order or an explicit speaker label. Observations are stored while the target is unresolved.
 
 This prototype supports local research demonstrations. It has no authentication and has unresolved recovery defects. See [known issues](docs/known_issues.md) before using its results or deploying it.
 

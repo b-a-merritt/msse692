@@ -18,7 +18,9 @@ from normative_conformance.models import CaseLog
 
 def test_reopening_and_reinitializing_preserves_records(*, engine):
     with Session(bind=engine) as session:
-        session.add(CaseLog(case_id="retained", created_at_us=123))
+        session.add(
+            CaseLog(target_speaker_id="configured-subject", case_id="retained", created_at_us=123)
+        )
         session.commit()
     engine.dispose()
 
@@ -57,7 +59,9 @@ def test_failed_migration_rolls_back_schema_and_data(
     if already_initialized:
         database.initialize_database(engine=empty_engine)
         with empty_engine.begin() as connection:
-            connection.exec_driver_sql("INSERT INTO case_log VALUES ('retained', 123)")
+            connection.exec_driver_sql(
+                "INSERT INTO case_log (case_id, created_at_us) VALUES ('retained', 123)"
+            )
     original_tables = inspect(empty_engine).get_table_names()
 
     migration_dir = tmp_path / "migrations"
@@ -75,7 +79,7 @@ def test_failed_migration_rolls_back_schema_and_data(
 
             def upgrade():
                 op.execute("CREATE TABLE partial (id INTEGER PRIMARY KEY)")
-                op.execute("INSERT INTO case_log VALUES ('partial', 456)")
+                op.execute("INSERT INTO case_log (case_id, created_at_us) VALUES ('partial', 456)")
                 op.execute("INSERT INTO missing_table VALUES (1)")
 
             def downgrade():
@@ -97,4 +101,6 @@ def test_failed_migration_rolls_back_schema_and_data(
                 connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
                 == "0002"
             )
-            assert connection.exec_driver_sql("SELECT * FROM case_log").all() == [("retained", 123)]
+            assert connection.exec_driver_sql(
+                "SELECT case_id, created_at_us FROM case_log"
+            ).all() == [("retained", 123)]

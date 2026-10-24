@@ -15,7 +15,7 @@ def test_loads_only_unresolved_pending_deadlines_and_selects_earliest_per_case(*
     reading = Mock(return_value=nullcontext(session))
     listing = Mock(
         return_value=[
-            Assessment(case_id=case, next_due_at_us=due)
+            Assessment(subject_speaker_id="subject", case_id=case, next_due_at_us=due)
             for case, due in [("a", 20), ("a", 10), ("b", 30)]
         ]
     )
@@ -23,4 +23,6 @@ def test_loads_only_unresolved_pending_deadlines_and_selects_earliest_per_case(*
     monkeypatch.setattr(module, "list_assessments", listing)
     assert module.load_repair_deadlines(engine=engine) == {"a": 10, "b": 30}
     reading.assert_called_once_with(engine=engine)
-    listing.assert_called_once_with(status="pending", unresolved=True, session=session)
+    listing.assert_called_once_with(
+        status="pending", unresolved=True, current_target=True, session=session
+    )

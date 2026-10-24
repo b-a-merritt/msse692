@@ -13,7 +13,19 @@ from normative_conformance.services.model.list_models import list_models
 
 def test_returns_api_records_with_original_extents_and_resolution_links(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
+        assert (
+            client.put(
+                "/api/v1/cases/case/target", json={"target_speaker_id": "speaker-2"}
+            ).status_code
+            == 200
+        )
+        assert (
+            client.put(
+                "/api/v1/cases/other/target", json={"target_speaker_id": "speaker-2"}
+            ).status_code
+            == 200
+        )
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -86,7 +98,7 @@ def test_returns_api_records_with_original_extents_and_resolution_links(*, open_
             "resolves_assessment_id": None,
             "evaluation_id": pending.evaluation_id,
             "case_id": "case",
-            "subject_speaker_id": client.app.state.settings.subject_speaker_id,
+            "subject_speaker_id": "speaker-2",
             "model_id": "extended_turn",
             "model_version": "1",
             "evaluated_at": received_at.isoformat().replace("+00:00", "Z"),
@@ -160,7 +172,13 @@ def test_returns_api_records_with_original_extents_and_resolution_links(*, open_
 
 def test_preserves_repair_evidence_in_the_explanation(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
+        assert (
+            client.put(
+                "/api/v1/cases/case/target", json={"target_speaker_id": "speaker-2"}
+            ).status_code
+            == 200
+        )
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -202,7 +220,7 @@ def test_preserves_repair_evidence_in_the_explanation(*, open_client):
                 json=observation_data
                 | {
                     "observation_id": "apology",
-                    "speaker_id": client.app.state.settings.subject_speaker_id,
+                    "speaker_id": "speaker-2",
                     "start_at": "2026-09-26T09:00:32Z",
                     "end_at": "2026-09-26T09:00:33Z",
                     "transcript": "I apologize",
@@ -235,7 +253,7 @@ def test_preserves_repair_evidence_in_the_explanation(*, open_client):
 @pytest.mark.parametrize("case_id", ["case", "missing"])
 def test_returns_empty_items_when_no_assessments_exist(*, open_client, case_id):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
             "observation_id": "chunk",
@@ -258,7 +276,7 @@ def test_returns_empty_items_when_no_assessments_exist(*, open_client, case_id):
 
 def test_openapi_describes_the_assessment_response(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at, subject_speaker_id="speaker-2") as client:
+    with open_client(now=lambda: received_at) as client:
         responses = client.get("/openapi.json").json()["paths"][
             "/api/v1/cases/{case_id}/assessments"
         ]["get"]["responses"]

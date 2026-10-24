@@ -11,7 +11,6 @@ uv sync --locked
 export APP_DB_PATH=data/walkthrough/app.sqlite3
 export ASSESSMENT_QUEUE_PATH=data/walkthrough/queue
 export LOG_DIR=data/walkthrough/logs
-export SUBJECT_SPEAKER_ID=speaker-2
 uv run fastapi dev src/normative_conformance/main.py
 ```
 
@@ -24,6 +23,8 @@ flowchart LR
     C --> D[Read results]
     D --> E[Deliver intervention]
 ```
+
+First execute **PUT /api/v1/cases/{case_id}/target** with `case_id` set to `docs-demo` and body `{"target_speaker_id":"speaker-2"}`. Expect **200**. This creates the case and explicitly selects the known replay label.
 
 Expand **POST /api/v1/observations**, select **Try it out**, replace the request body with the JSON below, and select **Execute**. This synthetic phrase deliberately matches `harm_phrase`. The four-second duration and low signal levels avoid a loud-and-fast match.
 
@@ -65,7 +66,7 @@ Next execute **GET /api/v1/cases/{case_id}/assessments** with the same case ID. 
 For timing experiments, use the supplied replay cases:
 
 ```bash
-uv run python scripts/send_observations.py scripts/cases/case-3.jsonl
+uv run python scripts/send_observations.py scripts/cases/case-3.jsonl --target-speaker-id speaker-2
 ```
 
 This preserves recorded gaps. [The case manifest](../scripts/manifest.md) describes inputs and expected results. A fixed `--delay` changes receipt timing and can change whether a repair is timely. Keep each experiment's storage separate.
@@ -88,4 +89,4 @@ Execute **POST /api/v1/cases/{case_id}/interventions/deliver** with `case_id` se
 | Empty results | Check readiness, target speaker, and model match. Allow assessment and repair/window delays |
 | 503 | Follow the error-specific action in the [API reference](api.md#errors). Check [known issues](known_issues.md) |
 
-**Why did changing `SUBJECT_SPEAKER_ID` do nothing?** The database retains the subject selected at first startup. Use new storage for a different experiment.
+**How do I change the target?** Use `PUT /api/v1/cases/{case_id}/target` with `{"target_speaker_id":"speaker-2"}`. To return to automatic selection, send `{"target_speaker_order":1}` or `2`. `SUBJECT_SPEAKER_ID` is no longer a runtime setting; remove it from `.env`.

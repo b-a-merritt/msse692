@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     app_db_path: Path = Path("data/prototype.sqlite3")
     assessment_queue_path: Path = Path("data/assessment_queue")
     log_dir: Path = Path("data/logs")
-    subject_speaker_id: str = Field(default="speaker-2", min_length=1, pattern=r"^[^/]+$")
     intervention_window_us: int = Field(default=2_000_000, gt=0)
 
 

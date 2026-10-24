@@ -29,7 +29,7 @@ flowchart LR
 
 Routes validate input, supply dependencies, and return service results. Services own operations, including transaction boundaries and follow-up work. The scheduler coalesces waiting requests per case. After a task starts, new observations can queue a follow-up. Assessment and repair requests have separate waiting sets. One process owns the worker and its coordination state.
 
-Startup configures logging, migrates storage, initializes the subject, validates every stored model, and starts the worker. Model validation checks the schema, rule execution against an empty case, and intervention-message coverage. The worker uses this validated catalog until restart.
+Startup configures logging, migrates storage, validates every stored model, and starts the worker. Model validation checks the schema, rule execution against an empty case, and intervention-message coverage. The worker uses this validated catalog until restart.
 
 ## 2. Assessment and intervention flow
 
@@ -58,6 +58,8 @@ sequenceDiagram
 
 The sequence shows successful operation. A **202** confirms observation storage and a successful scheduling request, not assessment completion. If queueing fails after commit, **503 ENQUEUE_FAILED** carries `committed_observation`. A duplicate submission does not retry scheduling.
 
+Cases start without a target. The worker skips unresolved cases. Ingestion recomputes order-based selections from speech start/end time and receipt sequence; missing and `PENDING` labels do not count. Manual selections persist until explicitly replaced. Configuring a resolved target schedules existing speech through the current queue.
+
 Each evaluation captures a case sequence and server time. Rules query that prefix. New arrivals belong to later evaluations. A matching undesired model creates `pending` with a deadline or `conformant` immediately when its allowance is null. No match creates no assessment. Reusing a pending match preserves its original deadline.
 
 Repair timeliness uses server receipt time. A qualifying repair must arrive strictly before the deadline and remove the original match at its speech boundary. Resolution appends a linked `non-conformant` or `conformant` assessment. The original remains unchanged. A recognized repair also permits future detection after that boundary.
@@ -72,6 +74,7 @@ Paths below are relative to `src/normative_conformance/`.
 |---|---|
 | `main.py`, `lifespan.py`, `config.py` | ASGI app, startup/shutdown, environment settings |
 | `routes/`, `schemas/` | HTTP boundary and validated public contracts |
+| `services/case/` | Configure case targets and resolve distinct speaker order |
 | `services/observation/` | Store and retrieve case observations |
 | `services/model/`, `services/assessment/` | Evaluate SQL models and append results |
 | `services/scheduler/` | Request coalescing, worker loop, repair and intervention timers |

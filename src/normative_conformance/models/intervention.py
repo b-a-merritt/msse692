@@ -10,6 +10,8 @@ class Intervention(SQLModel, table=True):
 
     intervention_id: int | None = Field(default=None, primary_key=True)
     case_id: str = Field(foreign_key="case_log.case_id", sa_type=Text)
+    subject_speaker_id: str = Field(sa_type=Text)
+    target_revision: int = 0
     message: str = Field(sa_type=Text)
     created_at_us: int
     sent_at_us: int | None = None

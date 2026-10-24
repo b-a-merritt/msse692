@@ -45,6 +45,7 @@ def test_resolution_uses_original_evidence_and_deadline(
         parameters={},
     )
     pending = Assessment(
+        subject_speaker_id="subject",
         assessment_id=7,
         case_id="case",
         evaluation_id="original",

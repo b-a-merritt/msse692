@@ -28,8 +28,9 @@ from ...storage import persist
 def test_repair_uses_fixed_deadline_when_check_is_delayed(
     *, session, engine, assessment_queue, received, expected
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -89,7 +90,7 @@ def test_repair_uses_fixed_deadline_when_check_is_delayed(
             through_sequence=get_case_sequence(case_id="case", session=session),
             evaluated_at_us=120_000_000,
         ),
-        subject_speaker_id=get_subject_speaker_id(session=session),
+        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
         session=session,
     )
     assert resolution.resolves_assessment_id == original.assessment_id
@@ -104,8 +105,9 @@ def test_repair_uses_fixed_deadline_when_check_is_delayed(
 
 
 def test_older_speech_arriving_later_does_not_cancel_pending(*, session, engine, assessment_queue):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -167,7 +169,7 @@ def test_older_speech_arriving_later_does_not_cancel_pending(*, session, engine,
                 through_sequence=get_case_sequence(case_id="case", session=session),
                 evaluated_at_us=110_000_000,
             ),
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             session=session,
         ).status
         == "conformant"
@@ -177,8 +179,9 @@ def test_older_speech_arriving_later_does_not_cancel_pending(*, session, engine,
 def test_latest_late_repair_does_not_hide_earlier_timely_repair(
     *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -256,7 +259,7 @@ def test_latest_late_repair_does_not_hide_earlier_timely_repair(
                 through_sequence=get_case_sequence(case_id="case", session=session),
                 evaluated_at_us=120_000_000,
             ),
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             session=session,
         ).status
         == "non-conformant"
@@ -266,8 +269,9 @@ def test_latest_late_repair_does_not_hide_earlier_timely_repair(
 def test_repair_checks_original_evidence_even_when_later_speech_matches(
     *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -343,7 +347,7 @@ def test_repair_checks_original_evidence_even_when_later_speech_matches(
             through_sequence=get_case_sequence(case_id="case", session=session),
             evaluated_at_us=105_000_000,
         ),
-        subject_speaker_id=get_subject_speaker_id(session=session),
+        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
         session=session,
     )
 

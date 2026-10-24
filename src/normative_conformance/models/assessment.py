@@ -10,7 +10,7 @@ from sqlmodel import SQLModel
 class Assessment(SQLModel, table=True):
     __tablename__: ClassVar[str] = "assessment"
     __table_args__ = (
-        UniqueConstraint("evaluation_id", "model_id", "model_version"),
+        UniqueConstraint("evaluation_id", "model_id", "model_version", "target_revision"),
         ForeignKeyConstraint(
             ["case_id", "through_sequence"], ["observation.case_id", "observation.sequence"]
         ),
@@ -23,6 +23,8 @@ class Assessment(SQLModel, table=True):
     assessment_id: int | None = Field(default=None, primary_key=True)
     evaluation_id: str = Field(sa_type=Text)
     case_id: str = Field(sa_type=Text)
+    subject_speaker_id: str = Field(sa_type=Text)
+    target_revision: int = 0
     model_id: str = Field(sa_type=Text)
     model_version: str = Field(sa_type=Text)
     evaluated_at_us: int

@@ -41,6 +41,7 @@ def test_replays_saved_results_or_evaluates_only_undesired_models_then_schedules
         None
         if status is None
         else Assessment(
+            subject_speaker_id="subject",
             assessment_id=8,
             case_id="case",
             evaluation_id=str(evaluation_id),
@@ -92,13 +93,12 @@ def test_replays_saved_results_or_evaluates_only_undesired_models_then_schedules
     if replayed:
         assess.assert_not_called()
         last.assert_not_called()
-        subject.assert_not_called()
     else:
         assess.assert_called_once()
         assert assess.call_args.kwargs["model"] is models[0]
         assert assess.call_args.kwargs["snapshot"].evaluated_at_us == 100
         assert assess.call_args.kwargs["snapshot"].through_sequence == 3
-        subject.assert_called_once_with(session=session)
+    subject.assert_called_once_with(case_id="case", session=session)
     if scheduled:
         request.assert_called_once_with(case_id="case", scheduler=scheduler)
     else:
@@ -127,3 +127,26 @@ def test_storage_failure_preserves_cause_and_never_schedules(*, monkeypatch, fai
         assert caught.value.__cause__ is failure
         assert str(caught.value) == "The case could not be assessed"
     request.assert_not_called()
+
+
+def test_unresolved_target_waits_without_assessing_or_scheduling(monkeypatch):
+    session = Mock(spec=Session)
+    monkeypatch.setattr(module, "write_session", Mock(return_value=nullcontext(session)))
+    monkeypatch.setattr(module, "get_subject_speaker_id", Mock(return_value=None))
+    sequence = Mock()
+    monkeypatch.setattr(module, "get_case_sequence", sequence)
+    scheduler = Mock()
+    assert (
+        module.evaluate_case(
+            case_id="case",
+            evaluation_id=UUID(int=1),
+            engine=object(),
+            now=Mock(),
+            scheduler=scheduler,
+            models=[],
+        )
+        == []
+    )
+    sequence.assert_not_called()
+    session.commit.assert_not_called()
+    scheduler.assert_not_called()

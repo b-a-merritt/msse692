@@ -16,4 +16,4 @@
 | Check formatting | `uv run ruff format --check .` |  |
 | Check types | `uv run mypy` |  |
 | Run pre-commit checks | `uv run pre-commit run --all-files` | Install the Git hook once per clone with `uv run pre-commit install`. |
-| Replay a case | `uv run python scripts/send_observations.py scripts/cases/case-3.jsonl` | Preserves recorded timing. Each application database fixes its target speaker at first startup, so use fresh storage for an independent replay. See the [case manifest](../scripts/manifest.md). |
+| Replay a case | `uv run python scripts/send_observations.py scripts/cases/case-3.jsonl --target-speaker-id speaker-2` | Preserves recorded timing. The replay configures its case target explicitly. Use new case IDs or fresh storage for an independent replay. See the [case manifest](../scripts/manifest.md). |

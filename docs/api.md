@@ -14,6 +14,8 @@ curl --fail http://127.0.0.1:8000/openapi.json -o openapi.json
 |---|---|---|
 | `GET /health/live` | None | 200: `{"status":"live"}` |
 | `GET /health/ready` | None | 200: `{"status":"ready"}`. Checks database, queue, worker |
+| `PUT /api/v1/cases/{case_id}/target` | Exactly one target order or label | 200: `CaseRecord`; creates the case if absent |
+| `GET /api/v1/cases/{case_id}` | Case ID | 200: `CaseRecord`; 404 if absent |
 | `POST /api/v1/observations` | `ObservationInput` body | 202: `ObservationRecord` |
 | `GET /api/v1/cases/{case_id}/observations` | Case ID | 200: `items` of `ObservationRecord`, newest sequence first |
 | `GET /api/v1/cases/{case_id}/assessments` | Case ID | 200: `items` of `Assessment`, increasing assessment ID |
@@ -75,7 +77,7 @@ Domain errors use this envelope. The request ID is unique to the request.
 
 | HTTP / code | Meaning and caller action |
 |---|---|
-| 404 `NOT_FOUND` | Model version absent. Check the catalog |
+| 404 `NOT_FOUND` | Case or model version absent. Check the requested identity |
 | 409 `OBSERVATION_EXISTS` | Already stored. Read the existing record. No assessment retry is scheduled |
 | 503 `NOT_READY` | Worker unavailable/stopping. Check readiness and restart after investigating |
 | 503 `STORAGE_UNAVAILABLE` | Database or queue access failed. Inspect service health and storage availability |

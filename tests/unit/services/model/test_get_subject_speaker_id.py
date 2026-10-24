@@ -3,20 +3,21 @@ from unittest.mock import Mock
 import pytest
 from sqlmodel import Session
 
-from normative_conformance.errors import NotReady
-from normative_conformance.models.case import ExperimentConfig
+from normative_conformance.errors import NotFound
+from normative_conformance.models.case import CaseLog
 from normative_conformance.services.model.get_subject_speaker_id import get_subject_speaker_id
 
 
-@pytest.mark.parametrize("subject", [None, "configured-subject"])
-def test_requires_the_singleton_experiment_configuration(*, subject):
+@pytest.mark.parametrize("target", [None, "configured-subject"])
+def test_reads_only_the_requested_case_target(target):
     session = Mock(spec=Session)
-    session.get.return_value = (
-        None if subject is None else ExperimentConfig(subject_speaker_id=subject, created_at_us=1)
-    )
-    if subject is None:
-        with pytest.raises(NotReady, match=r"^The experiment has not been configured$"):
-            get_subject_speaker_id(session=session)
-    else:
-        assert get_subject_speaker_id(session=session) == subject
-    session.get.assert_called_once_with(ExperimentConfig, 1)
+    session.get.return_value = CaseLog(case_id="second", created_at_us=1, target_speaker_id=target)
+    assert get_subject_speaker_id(case_id="second", session=session) == target
+    session.get.assert_called_once_with(CaseLog, "second")
+
+
+def test_missing_case_is_not_found():
+    session = Mock(spec=Session)
+    session.get.return_value = None
+    with pytest.raises(NotFound, match="The case does not exist"):
+        get_subject_speaker_id(case_id="missing", session=session)

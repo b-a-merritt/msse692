@@ -27,8 +27,9 @@ from ...storage import persist
 
 
 def test_finalized_match_is_not_repeated_before_repair(*, session, engine, assessment_queue):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -95,7 +96,7 @@ def test_finalized_match_is_not_repeated_before_repair(*, session, engine, asses
                 through_sequence=get_case_sequence(case_id="case", session=session),
                 evaluated_at_us=111_000_000,
             ),
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             last_repair=get_last_repair(case_id="case", session=session),
             session=session,
         ).assessment_id
@@ -107,8 +108,9 @@ def test_finalized_match_is_not_repeated_before_repair(*, session, engine, asses
 def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
     *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -204,7 +206,7 @@ def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
             through_sequence=get_case_sequence(case_id="case", session=session),
             evaluated_at_us=112_000_000,
         ),
-        subject_speaker_id=get_subject_speaker_id(session=session),
+        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
         last_repair=get_last_repair(case_id="case", session=session),
         session=session,
     )
@@ -218,8 +220,9 @@ def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
 def test_reuse_is_specific_to_model_and_version(
     *, session, engine, assessment_queue, repair_allowance_us
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -277,7 +280,7 @@ def test_reuse_is_specific_to_model_and_version(
                 through_sequence=get_case_sequence(case_id="case", session=session),
                 evaluated_at_us=105_000_000,
             ),
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             last_repair=get_last_repair(case_id="case", session=session),
             session=session,
         )
@@ -289,8 +292,9 @@ def test_reuse_is_specific_to_model_and_version(
 def test_unresolved_pending_takes_precedence_over_a_later_result(
     *, session, engine, assessment_queue
 ):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -330,7 +334,7 @@ def test_unresolved_pending_takes_precedence_over_a_later_result(
                 "status": "conformant",
                 "next_due_at_us": None,
             }
-        )
+        ),
     )
     session.add(later)
     session.commit()
@@ -344,7 +348,7 @@ def test_unresolved_pending_takes_precedence_over_a_later_result(
                 through_sequence=get_case_sequence(case_id="case", session=session),
                 evaluated_at_us=105_000_000,
             ),
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             last_repair=get_last_repair(case_id="case", session=session),
             session=session,
         ).assessment_id
@@ -353,8 +357,9 @@ def test_unresolved_pending_takes_precedence_over_a_later_result(
 
 
 def test_reuse_is_specific_to_the_case(*, session, engine, assessment_queue):
-    session.add(models.ExperimentConfig(subject_speaker_id="configured-subject", created_at_us=0))
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(
+        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
+    )
     session.commit()
     observation_sequences = count(1)
     scheduler = SchedulerState(queue=assessment_queue)
@@ -385,7 +390,7 @@ def test_reuse_is_specific_to_the_case(*, session, engine, assessment_queue):
         scheduler=scheduler,
         models=evaluation_models,
     )[0]
-    session.add(CaseLog(case_id="other", created_at_us=0))
+    session.add(CaseLog(target_speaker_id="configured-subject", case_id="other", created_at_us=0))
     session.flush()
     session.add(Observation(**(observation.model_dump() | {"case_id": "other"})))
     session.flush()
@@ -394,7 +399,7 @@ def test_reuse_is_specific_to_the_case(*, session, engine, assessment_queue):
             **(
                 original.model_dump()
                 | {"assessment_id": None, "evaluation_id": "other", "case_id": "other"}
-            )
+            ),
         )
     )
     session.commit()
@@ -408,7 +413,7 @@ def test_reuse_is_specific_to_the_case(*, session, engine, assessment_queue):
                 through_sequence=get_case_sequence(case_id="case", session=session),
                 evaluated_at_us=105_000_000,
             ),
-            subject_speaker_id=get_subject_speaker_id(session=session),
+            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
             last_repair=get_last_repair(case_id="case", session=session),
             session=session,
         ).assessment_id

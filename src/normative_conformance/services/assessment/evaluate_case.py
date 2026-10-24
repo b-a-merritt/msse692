@@ -34,6 +34,10 @@ def evaluate_case(
     """Detect undesired matches, preserving an existing occurrence and its deadline."""
     try:
         with write_session(engine=engine) as session:
+            session.connection()
+            subject_speaker_id = get_subject_speaker_id(case_id=case_id, session=session)
+            if subject_speaker_id is None:
+                return []
             snapshot = CaseSnapshot(
                 case_id=case_id,
                 evaluation_id=str(evaluation_id),
@@ -44,6 +48,7 @@ def evaluate_case(
             results = list_assessments(
                 case_id=case_id,
                 evaluation_id=snapshot.evaluation_id,
+                current_target=True,
                 session=session,
             )
 
@@ -51,7 +56,6 @@ def evaluate_case(
             replayed = bool(results)
             if not replayed:
                 last_repair = get_last_repair(case_id=case_id, session=session)
-                subject_speaker_id = get_subject_speaker_id(session=session)
 
                 for model in models:
                     if model.type != "undesired":

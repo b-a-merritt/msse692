@@ -6,6 +6,7 @@ from contextlib import closing
 from datetime import datetime
 from datetime import timezone
 from threading import Event
+from unittest.mock import patch
 from uuid import UUID
 
 import pytest
@@ -13,16 +14,21 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from normative_conformance.config import Settings
+from normative_conformance.config import get_settings
 from normative_conformance.database import create_database_engine
 from normative_conformance.database import initialize_database
 from normative_conformance.errors import InvalidModel
 from normative_conformance.errors import StorageUnavailable
-from normative_conformance.main import create_app
 from normative_conformance.models.normative_model import NormativeModelVersion
 from normative_conformance.models.observation import Observation
 from normative_conformance.queue import create_assessment_queue
 from normative_conformance.services import assessment
 from normative_conformance.services.scheduler.request_assessment import request_assessment
+
+# Default ASGI construction must not load a developer's local dotenv file.
+with patch.dict(Settings.model_config, {"env_file": None}):
+    from normative_conformance.main import create_app
+get_settings.cache_clear()
 
 
 def test_lifespan_runs_submitted_assessment_and_closes_resources(*, tmp_path, monkeypatch):
@@ -52,6 +58,7 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(*, tmp_path, mo
     monkeypatch.setattr(assessment, "evaluate_case", evaluate_case)
     application = create_app(
         settings=Settings(
+            _env_file=None,
             app_db_path=tmp_path / "app.sqlite3",
             assessment_queue_path=tmp_path / "queue",
             log_dir=tmp_path / "logs",
@@ -97,6 +104,7 @@ def test_shutdown_finishes_active_work_and_leaves_waiting_work(*, tmp_path, monk
     monkeypatch.setattr(assessment, "evaluate_case", evaluate_case)
     application = create_app(
         settings=Settings(
+            _env_file=None,
             app_db_path=tmp_path / "app.sqlite3",
             assessment_queue_path=tmp_path / "queue",
             log_dir=tmp_path / "logs",
@@ -147,6 +155,7 @@ def test_invalid_model_stops_startup_before_the_worker_starts(*, tmp_path):
         engine.dispose()
     application = create_app(
         settings=Settings(
+            _env_file=None,
             app_db_path=tmp_path / "app.sqlite3",
             assessment_queue_path=tmp_path / "queue",
             log_dir=tmp_path / "logs",
@@ -166,6 +175,7 @@ def test_failed_queue_startup_clears_application_resources(*, tmp_path):
     path.write_text("not a directory", encoding="utf-8")
     application = create_app(
         settings=Settings(
+            _env_file=None,
             app_db_path=tmp_path / "app.sqlite3",
             assessment_queue_path=path,
             log_dir=tmp_path / "logs",

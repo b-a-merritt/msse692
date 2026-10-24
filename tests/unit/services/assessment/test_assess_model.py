@@ -5,6 +5,7 @@ import pytest
 from sqlmodel import Session
 
 from normative_conformance.models.assessment import Assessment
+from normative_conformance.models.case import CaseLog
 from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.schemas.model import ModelVersion
 
@@ -43,6 +44,7 @@ def test_reuses_active_occurrences_or_creates_a_new_detection(
         None
         if previous_status is None
         else Assessment(
+            subject_speaker_id="subject",
             assessment_id=5,
             case_id="case",
             evaluation_id="previous",
@@ -63,13 +65,15 @@ def test_reuses_active_occurrences_or_creates_a_new_detection(
     latest_result.first.return_value = previous
     session.exec.side_effect = [pending_result, latest_result]
     original = Assessment(
+        subject_speaker_id="subject",
         assessment_id=4,
         case_id="case",
         evaluation_id="original",
         through_sequence=2,
         status="pending",
     )
-    session.get.return_value = original
+    case = CaseLog(case_id="case", created_at_us=0, target_speaker_id="subject")
+    session.get.side_effect = lambda model, identity: case if model is CaseLog else original
     evaluate = Mock(side_effect=matches)
     monkeypatch.setattr(module, "evaluate_model", evaluate)
 
@@ -98,7 +102,7 @@ def test_reuses_active_occurrences_or_creates_a_new_detection(
     if len(matches) == 2:
         assert evaluate.call_args.kwargs["through_sequence"] == (2 if resolves else 7)
     if resolves is not None and matches and matches[0]:
-        session.get.assert_called_once_with(Assessment, 4)
+        session.get.assert_any_call(Assessment, 4)
     session.commit.assert_not_called()
     query = session.exec.call_args_list[0].args[0].compile()
     assert query.params["case_id_1"] == "case"

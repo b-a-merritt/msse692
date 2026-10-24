@@ -27,7 +27,6 @@ def test_resources_are_released_in_dependency_order_after_success_or_failure(
         app_db_path=Path("app.sqlite3"),
         assessment_queue_path=Path("queue"),
         log_dir=Path("logs"),
-        subject_speaker_id="subject",
         intervention_window_us=10,
     )
     clock = Mock()
@@ -58,14 +57,12 @@ def test_resources_are_released_in_dependency_order_after_success_or_failure(
     for name, value in [
         ("create_database_engine", creation),
         ("initialize_database", migration),
-        ("initialize_experiment_config", Mock()),
         ("read_session", Mock(side_effect=lambda **kwargs: nullcontext(session))),
         ("validate_models", validation),
         ("create_assessment_queue", open_queue),
         ("Thread", thread),
         ("start_logging", Mock(return_value=Path("logs/run.jsonl"))),
         ("stop_logging", stop_logging),
-        ("get_subject_speaker_id", Mock(return_value="subject")),
         ("get_schema_revision", Mock(return_value="0002")),
     ]:
         monkeypatch.setattr(module, name, value)

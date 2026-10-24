@@ -45,7 +45,7 @@ def test_only_new_undesired_confirmations_qualify(*, task_kind, changes, expecte
                 "explanation_json": "{}",
             }
             | changes
-        )
+        ),
     )
     original = assessment.model_dump()
 
@@ -65,6 +65,7 @@ def test_one_qualifying_result_is_enough():
     assert should_open_intervention_window(
         assessments=[
             models.Assessment(
+                subject_speaker_id="subject",
                 case_id="case",
                 evaluation_id="evaluation",
                 model_id="harm_phrase",
@@ -77,6 +78,7 @@ def test_one_qualifying_result_is_enough():
                 explanation_json="{}",
             ),
             models.Assessment(
+                subject_speaker_id="subject",
                 case_id="case",
                 evaluation_id="evaluation",
                 model_id="harm_phrase",

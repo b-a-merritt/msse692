@@ -56,6 +56,7 @@ def test_releases_waiting_case_before_evaluation_and_preserves_follow_up(
         request(case_id=case_id, scheduler=scheduler)
         return [
             db_models.Assessment(
+                subject_speaker_id="configured-subject",
                 case_id="case",
                 evaluation_id="evaluation",
                 model_id="harm_phrase",
@@ -68,6 +69,7 @@ def test_releases_waiting_case_before_evaluation_and_preserves_follow_up(
                 explanation_json="{}",
             ),
             db_models.Assessment(
+                subject_speaker_id="configured-subject",
                 case_id="case",
                 evaluation_id=str(evaluation_id),
                 model_id="harm_phrase",
