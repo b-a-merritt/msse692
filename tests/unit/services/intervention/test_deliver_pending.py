@@ -25,12 +25,6 @@ def test_returns_updated_records_only_after_commit(*, monkeypatch, ids):
         now=lambda: datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=timezone.utc),
     )
     assert result == records
-    query = session.exec.call_args.args[0].compile()
-    assert query.params["sent_at_us"] == 100
-    assert query.params["case_id_1"] == "requested"
-    assert "intervention.case_id = :case_id_1" in str(query)
-    assert "sent_at_us IS NULL" in str(query)
-    assert "RETURNING intervention.intervention_id" in str(query)
     if ids:
         listing.assert_called_once_with(intervention_ids=ids, session=session)
         session.commit.assert_called_once()

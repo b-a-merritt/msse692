@@ -29,6 +29,7 @@ def test_interventions_are_listed_in_id_order_with_sorted_sources(*, session, en
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -122,6 +123,7 @@ def test_status_is_derived_from_the_sent_time(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -209,6 +211,7 @@ def test_filters_by_case_and_ids(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -266,6 +269,7 @@ def test_listing_does_not_mark_interventions_sent(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,

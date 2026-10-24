@@ -22,6 +22,7 @@ def test_window_creates_one_intervention_only_when_due(*, engine, session, curre
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -75,6 +76,7 @@ def test_failed_decision_consumes_its_window_and_other_cases_continue(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,

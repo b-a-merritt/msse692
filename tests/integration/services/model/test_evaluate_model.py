@@ -21,6 +21,7 @@ def test_interruption_counts_distinct_entries_in_captured_prefix(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -37,6 +38,7 @@ def test_interruption_counts_distinct_entries_in_captured_prefix(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -54,6 +56,7 @@ def test_interruption_counts_distinct_entries_in_captured_prefix(*, session):
         persist(
             session=session,
             record=models.Observation(
+                updated_at_us=0,
                 case_id="case",
                 observation_id=str(observation_sequence := next(observation_sequences)),
                 sequence=observation_sequence,
@@ -98,6 +101,7 @@ def test_interruption_requires_minimum_overlap(*, session, overlap, expected):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -115,6 +119,7 @@ def test_interruption_requires_minimum_overlap(*, session, overlap, expected):
         persist(
             session=session,
             record=models.Observation(
+                updated_at_us=0,
                 case_id="case",
                 observation_id=str(observation_sequence := next(observation_sequences)),
                 sequence=observation_sequence,
@@ -152,6 +157,7 @@ def test_continuous_speech_does_not_manufacture_interruptions(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -169,6 +175,7 @@ def test_continuous_speech_does_not_manufacture_interruptions(*, session):
         persist(
             session=session,
             record=models.Observation(
+                updated_at_us=0,
                 case_id="case",
                 observation_id=str(observation_sequence := next(observation_sequences)),
                 sequence=observation_sequence,
@@ -212,6 +219,7 @@ def test_address_requires_loud_fast_speech(*, session, transcript, duration_us, 
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -303,6 +311,7 @@ def test_address_film_case_lines(*, session, transcript, duration_us, level, exp
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -369,6 +378,7 @@ def test_character_label_matches_quiet_slow_speech(*, session, transcript, expec
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -418,6 +428,7 @@ def test_vulgar_language_matches_term_variants(*, session, transcript, expected)
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -463,6 +474,7 @@ def test_harm_phrase_matches_configured_phrases(*, session, transcript, expected
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -508,6 +520,7 @@ def test_absolutist_phrase_requires_second_person(*, session, transcript, expect
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -545,6 +558,7 @@ def test_subject_comes_from_case_target(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -579,6 +593,7 @@ def test_extended_turn_threshold_and_gap(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -595,6 +610,7 @@ def test_extended_turn_threshold_and_gap(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -620,6 +636,7 @@ def test_extended_turn_threshold_and_gap(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -654,6 +671,7 @@ def test_other_speaker_breaks_turn_in_gap(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -670,6 +688,7 @@ def test_other_speaker_breaks_turn_in_gap(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -686,6 +705,7 @@ def test_other_speaker_breaks_turn_in_gap(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -721,6 +741,7 @@ def test_repair_rule_uses_supplied_source_and_receipt_bounds(*, session, receive
     activation = persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -737,6 +758,7 @@ def test_repair_rule_uses_supplied_source_and_receipt_bounds(*, session, receive
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=round((received) * 1_000_000),
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -784,6 +806,7 @@ def test_repair_models_match_configured_phrases(*, session, model_id, transcript
     activation = persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -800,6 +823,7 @@ def test_repair_models_match_configured_phrases(*, session, model_id, transcript
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -837,6 +861,7 @@ def test_earlier_spoken_apology_does_not_repair_later_behavior(*, session):
     activation = persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -853,6 +878,7 @@ def test_earlier_spoken_apology_does_not_repair_later_behavior(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=2_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,

@@ -52,9 +52,6 @@ def test_search_stops_at_first_matching_observation_and_preserves_bounds(
         assert call.kwargs["deadline_at_us"] == 100
         assert call.kwargs["after_observation"] is after
         assert call.kwargs["through_sequence"] == 5
-    query = session.exec.call_args.args[0].compile()
-    assert query.params == {"case_id_1": "case", "sequence_1": 5}
-    assert "start_at_us DESC, observation.end_at_us DESC, observation.sequence DESC" in str(query)
 
 
 def test_empty_history_never_evaluates_rules(*, monkeypatch):

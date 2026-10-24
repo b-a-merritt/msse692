@@ -42,6 +42,7 @@ def test_domain_errors_use_stable_status_code_and_request_identity(*, error, sta
 
 def test_enqueue_error_exposes_committed_observation_as_structured_data():
     record = ObservationRecord(
+        updated_at=datetime(1970, 1, 1, tzinfo=timezone.utc),
         case_id="case",
         observation_id="chunk",
         speaker_id="subject",
@@ -62,7 +63,7 @@ def test_enqueue_error_exposes_committed_observation_as_structured_data():
         )
     )
     assert json.loads(response.body)["error"]["committed_observation"] == record.model_dump(
-        mode="json"
+        mode="json", exclude_none=True
     )
 
 

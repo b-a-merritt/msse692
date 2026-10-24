@@ -3,6 +3,16 @@
 Conventions for this repository. Each rule states what to do and why it exists;
 add one when a review or a bug shows that it is missing.
 
+## Describe the current system in documentation
+
+Write user guides, developer guides, and reference documentation in terms of
+the system's current behavior, interfaces, and limitations. Do not narrate
+implementation history, compare with former behavior, refer to work chunks or
+sprints, or promise future changes. State what is supported and what is not.
+
+**Why:** Readers need to understand and use the system as it exists without
+reconstructing its development history.
+
 ## Mirror source directories in tests
 
 Organize tests relative to `tests/unit/` or `tests/integration/` the same way code
@@ -53,6 +63,11 @@ Assert results, exceptions, state changes, and observable effects. Heavily prefe
 not to test log output. Only assert it when there is no other way to test the
 branch, and explain that exception beside the test. Do not use log messages as
 evidence that a service or worker handled an error when its behavior is observable.
+
+Avoid assertions about ORM-generated SQL formatting, exact flush counts, or
+incidental call order. Test query results through database integration tests.
+Keep ordering assertions when order is part of the contract, such as committing
+before scheduling follow-up work.
 
 **Why:** Log wording is incidental to most behavior and makes tests brittle.
 

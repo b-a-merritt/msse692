@@ -36,6 +36,7 @@ def test_intervention_source_round_trip(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -138,6 +139,7 @@ def test_intervention_can_have_several_sources(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -226,6 +228,7 @@ def test_assessment_cannot_source_two_interventions(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -300,6 +303,7 @@ def test_unconfirmed_assessments_cannot_be_sources(*, session, status):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -384,6 +388,7 @@ def test_repair_matches_cannot_be_sources(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -467,6 +472,7 @@ def test_sources_must_share_the_intervention_case(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -556,6 +562,7 @@ def test_missing_assessments_cannot_be_sources(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -630,6 +637,7 @@ def test_intervention_sources_are_immutable(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,

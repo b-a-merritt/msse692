@@ -62,6 +62,7 @@ def test_target_changes_invalidate_stored_work_without_relabeling_history(engine
         session.flush()
         session.add(
             Observation(
+                updated_at_us=10,
                 case_id="case",
                 observation_id="first",
                 sequence=1,

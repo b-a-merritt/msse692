@@ -42,6 +42,7 @@ def test_pending_interventions_are_returned_sent_once(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -112,6 +113,7 @@ def test_sent_interventions_are_excluded(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -209,6 +211,7 @@ def test_delivery_leaves_other_cases_pending(*, session, engine):
         persist(
             session=session,
             record=models.Observation(
+                updated_at_us=0,
                 case_id=case_id,
                 observation_id="1",
                 sequence=1,
@@ -266,6 +269,7 @@ def test_failure_before_commit_leaves_interventions_pending(*, session, engine, 
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -327,6 +331,7 @@ def test_concurrent_delivery_returns_each_intervention_once(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,

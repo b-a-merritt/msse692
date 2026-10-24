@@ -16,6 +16,7 @@ from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.schemas.observation import ObservationRecord
 from normative_conformance.services.case.selection import speaker_labels
 from normative_conformance.services.case.target import refresh_target
+from normative_conformance.services.observation.records import to_record
 from normative_conformance.services.scheduler.request_assessment import request_assessment
 from normative_conformance.services.scheduler.state import SchedulerState
 from normative_conformance.timestamps import to_microseconds
@@ -59,6 +60,46 @@ def _next_sequence_num(
     return (last_sequence or 0) + 1
 
 
+def stage_observation(
+    *,
+    input: ObservationInput,
+    session: Session,
+    now: Clock,
+) -> ObservationRecord:
+    """Insert without committing, rolling back, or enqueueing.
+
+    Use a write_session. The caller must commit all related changes together or
+    roll back on any failure, and schedule follow-up work only after committing.
+    """
+    session.connection()
+    received_at_us = to_microseconds(value=now().astimezone(timezone.utc))
+    _check_uniqueness(case_id=input.case_id, observation_id=input.observation_id, session=session)
+    case = _create_case_if_missing(
+        case_id=input.case_id,
+        received_at_us=received_at_us,
+        session=session,
+    )
+    observation = Observation(
+        case_id=input.case_id,
+        observation_id=input.observation_id,
+        sequence=_next_sequence_num(case_id=input.case_id, session=session),
+        received_at_us=received_at_us,
+        updated_at_us=received_at_us,
+        speaker_id=input.speaker_id,
+        start_at_us=to_microseconds(value=input.start_at),
+        end_at_us=to_microseconds(value=input.end_at),
+        transcript=input.transcript,
+        signal_level_min=input.signal_level_min,
+        signal_level_avg=input.signal_level_avg,
+        signal_level_max=input.signal_level_max,
+    )
+    session.add(observation)
+    if case.target_speaker_order is not None and not case.target_speaker_manual:
+        refresh_target(case=case, labels=speaker_labels(case_id=input.case_id, session=session))
+    session.flush()
+    return to_record(observation=observation)
+
+
 def ingest(
     *,
     input: ObservationInput,
@@ -68,47 +109,7 @@ def ingest(
 ) -> ObservationRecord:
     """Commit an observation, then request assessment of its case."""
     try:
-        # Acquire the writer lock before checking identity or assigning receipt order.
-        session.connection()
-
-        received_at = now().astimezone(timezone.utc)
-        received_at_us = to_microseconds(value=received_at)
-
-        _check_uniqueness(
-            case_id=input.case_id,
-            observation_id=input.observation_id,
-            session=session,
-        )
-        case = _create_case_if_missing(
-            case_id=input.case_id,
-            received_at_us=received_at_us,
-            session=session,
-        )
-
-        record = ObservationRecord(
-            **input.model_dump(),
-            received_at=received_at,
-            sequence=_next_sequence_num(case_id=input.case_id, session=session),
-        )
-
-        session.add(
-            Observation(
-                case_id=record.case_id,
-                observation_id=record.observation_id,
-                sequence=record.sequence,
-                received_at_us=received_at_us,
-                speaker_id=record.speaker_id,
-                start_at_us=to_microseconds(value=record.start_at),
-                end_at_us=to_microseconds(value=record.end_at),
-                transcript=record.transcript,
-                signal_level_min=record.signal_level_min,
-                signal_level_avg=record.signal_level_avg,
-                signal_level_max=record.signal_level_max,
-            )
-        )
-
-        if case.target_speaker_order is not None and not case.target_speaker_manual:
-            refresh_target(case=case, labels=speaker_labels(case_id=input.case_id, session=session))
+        record = stage_observation(input=input, session=session, now=now)
         session.commit()
     except SQLAlchemyError as error:
         session.rollback()

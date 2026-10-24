@@ -38,6 +38,7 @@ def test_repair_uses_fixed_deadline_when_check_is_delayed(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -65,6 +66,7 @@ def test_repair_uses_fixed_deadline_when_check_is_delayed(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=round((received) * 1_000_000),
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -115,6 +117,7 @@ def test_older_speech_arriving_later_does_not_cancel_pending(*, session, engine,
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -141,6 +144,7 @@ def test_older_speech_arriving_later_does_not_cancel_pending(*, session, engine,
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=105_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -189,6 +193,7 @@ def test_latest_late_repair_does_not_hide_earlier_timely_repair(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -215,6 +220,7 @@ def test_latest_late_repair_does_not_hide_earlier_timely_repair(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=105_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -231,6 +237,7 @@ def test_latest_late_repair_does_not_hide_earlier_timely_repair(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=115_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -279,6 +286,7 @@ def test_repair_checks_original_evidence_even_when_later_speech_matches(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -305,6 +313,7 @@ def test_repair_checks_original_evidence_even_when_later_speech_matches(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=104_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -321,6 +330,7 @@ def test_repair_checks_original_evidence_even_when_later_speech_matches(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=105_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,

@@ -33,6 +33,7 @@ CREATE TABLE observation (
     observation_id TEXT NOT NULL,
     sequence INTEGER NOT NULL CHECK (sequence > 0),
     received_at_us INTEGER NOT NULL,
+    updated_at_us INTEGER NOT NULL CHECK (updated_at_us >= received_at_us),
     speaker_id TEXT NOT NULL,
     start_at_us INTEGER NOT NULL,
     end_at_us INTEGER NOT NULL CHECK (end_at_us > start_at_us),
@@ -105,8 +106,7 @@ CREATE INDEX assessment_case_model ON assessment (case_id, model_id, model_versi
     op.execute("""
 CREATE INDEX intervention_pending ON intervention (intervention_id) WHERE sent_at_us IS NULL
 """)
-    # Stored evidence cannot be updated or deleted. Ingestion must assign
-    # increasing per-case sequence numbers to keep assessed prefixes stable.
+    # Stored observations cannot be updated or deleted; sequence prefixes stay stable.
     op.execute("""
 CREATE TRIGGER observation_no_update BEFORE UPDATE ON observation
 BEGIN SELECT RAISE(ABORT, 'observation is append-only'); END

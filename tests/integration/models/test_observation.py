@@ -11,6 +11,7 @@ def test_observation_round_trip(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -50,6 +51,8 @@ def test_observation_round_trip(*, session):
         pytest.param({"signal_level_avg": -9}, "CHECK", id="average-above-maximum"),
         pytest.param({"received_at_us": "invalid"}, "cannot store TEXT", id="strict-type"),
         pytest.param({"transcript": None}, "NOT NULL", id="required-transcript"),
+        pytest.param({"updated_at_us": None}, "NOT NULL", id="required-update-time"),
+        pytest.param({"updated_at_us": 9}, "CHECK", id="update-before-receipt"),
     ],
 )
 def test_invalid_observations_are_rejected(*, session, changes, constraint):
@@ -57,6 +60,7 @@ def test_invalid_observations_are_rejected(*, session, changes, constraint):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -88,6 +92,7 @@ def test_observation_identity_is_scoped_to_case(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -122,6 +127,7 @@ def test_signal_boundaries_and_equal_levels_are_valid(*, session, level):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -151,3 +157,38 @@ def test_signal_boundaries_and_equal_levels_are_valid(*, session, level):
     session.add(models.Observation(**values))
     session.commit()
     assert session.get(models.Observation, ("case", "boundary")).signal_level_avg == level
+
+
+@pytest.mark.parametrize("operation", ["update", "delete"])
+def test_observations_are_append_only(session, operation):
+    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.flush()
+    row = models.Observation(
+        case_id="case",
+        observation_id="old",
+        sequence=1,
+        received_at_us=10,
+        updated_at_us=10,
+        speaker_id="A",
+        start_at_us=1,
+        end_at_us=9,
+        transcript="Hello",
+        signal_level_min=-50,
+        signal_level_avg=-30,
+        signal_level_max=-10,
+    )
+    session.add(row)
+    session.commit()
+    if operation == "delete":
+        session.delete(row)
+    else:
+        row.updated_at_us = 20
+        row.speaker_id = "B"
+    with pytest.raises(IntegrityError, match="observation is append-only"):
+        session.commit()
+    session.rollback()
+    session.expire_all()
+    stored = session.get(models.Observation, ("case", "old"))
+    assert stored is not None
+    assert stored.speaker_id == "A"
+    assert stored.updated_at_us == 10

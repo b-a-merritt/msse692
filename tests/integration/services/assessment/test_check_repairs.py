@@ -29,6 +29,7 @@ def test_repair_can_resolve_multiple_pending_models(*, session, engine, assessme
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -45,6 +46,7 @@ def test_repair_can_resolve_multiple_pending_models(*, session, engine, assessme
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -72,6 +74,7 @@ def test_repair_can_resolve_multiple_pending_models(*, session, engine, assessme
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=105_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -118,6 +121,7 @@ def test_repair_and_resolution_records_preserve_the_case_target(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -134,6 +138,7 @@ def test_repair_and_resolution_records_preserve_the_case_target(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -160,6 +165,7 @@ def test_repair_and_resolution_records_preserve_the_case_target(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=105_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -203,6 +209,7 @@ def test_late_repair_resets_future_detection_without_retracting_positive(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -240,6 +247,7 @@ def test_late_repair_resets_future_detection_without_retracting_positive(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=111_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -266,6 +274,7 @@ def test_late_repair_resets_future_detection_without_retracting_positive(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=112_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -305,6 +314,7 @@ def test_repair_resets_incomplete_interruption_pattern(*, session, engine, asses
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -321,6 +331,7 @@ def test_repair_resets_incomplete_interruption_pattern(*, session, engine, asses
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -337,6 +348,7 @@ def test_repair_resets_incomplete_interruption_pattern(*, session, engine, asses
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -353,6 +365,7 @@ def test_repair_resets_incomplete_interruption_pattern(*, session, engine, asses
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -369,6 +382,7 @@ def test_repair_resets_incomplete_interruption_pattern(*, session, engine, asses
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -429,6 +443,7 @@ def test_repeated_checks_append_only_one_resolution(*, session, engine, assessme
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -493,6 +508,7 @@ def test_repair_requests_assessment_after_commit_unless_stopping(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -519,6 +535,7 @@ def test_repair_requests_assessment_after_commit_unless_stopping(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=105_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -576,6 +593,7 @@ def test_check_without_repair_does_not_request_assessment(*, session, engine, as
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -628,6 +646,7 @@ def test_failed_resolution_rolls_back_repair_before_requesting_assessment(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -654,6 +673,7 @@ def test_failed_resolution_rolls_back_repair_before_requesting_assessment(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=105_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,

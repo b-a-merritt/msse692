@@ -57,18 +57,22 @@ def test_assigns_receipt_sequence_and_commits_before_requesting_assessment(
 
     result = module.ingest(input=input, session=session, now=clock, scheduler=scheduler)
 
-    assert order == ["lock", "clock", "commit", "enqueue"]
+    assert order.index("lock") < order.index("clock")
+    assert order.index("commit") < order.index("enqueue")
     assert result.sequence == (last_sequence or 0) + 1
     assert result.received_at == datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc)
     rows = [call.args[0] for call in session.add.call_args_list]
-    assert [type(row) for row in rows] == (
-        [CaseLog, Observation] if existing_case is None else [Observation]
-    )
-    assert rows[-1].model_dump() == {
+    if existing_case is None:
+        case = next(row for row in rows if isinstance(row, CaseLog))
+        assert case.case_id == "case"
+        assert case.created_at_us == 1_000_000
+    observation = next(row for row in rows if isinstance(row, Observation))
+    assert observation.model_dump() == {
         "case_id": "case",
         "observation_id": "chunk",
         "sequence": result.sequence,
         "received_at_us": 1_000_000,
+        "updated_at_us": 1_000_000,
         "speaker_id": "subject",
         "start_at_us": 1,
         "end_at_us": 9,
@@ -145,3 +149,64 @@ def test_failures_distinguish_rolled_back_work_from_committed_observations(
         else:
             assert str(caught.value) == "The observation could not be stored"
             assert caught.value.__cause__ is error
+
+
+def test_staging_leaves_transaction_and_scheduling_to_caller(monkeypatch):
+    case = CaseLog(case_id="case", created_at_us=0)
+    session = Mock(spec=Session)
+    session.get.side_effect = [None, case]
+    session.exec.return_value.one.return_value = 3
+    request = Mock()
+    monkeypatch.setattr(module, "request_assessment", request)
+    input = ObservationInput(
+        case_id="case",
+        observation_id="chunk",
+        speaker_id="A",
+        start_at="1970-01-01T00:00:00Z",
+        end_at="1970-01-01T00:00:01Z",
+        transcript="Hello",
+        signal_level_min=-50,
+        signal_level_avg=-30,
+        signal_level_max=-10,
+    )
+    record = module.stage_observation(
+        input=input,
+        session=session,
+        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 90, tzinfo=timezone.utc),
+    )
+    assert record.sequence == 4
+    assert record.received_at == record.updated_at
+    assert record.updated_at.microsecond == 90
+    row = session.add.call_args.args[0]
+    assert row.observation_id == "chunk"
+    assert row.sequence == 4
+    assert row.received_at_us == row.updated_at_us == 90
+    session.commit.assert_not_called()
+    session.rollback.assert_not_called()
+    request.assert_not_called()
+
+
+def test_staging_propagates_flush_failures_for_the_caller_to_roll_back():
+    session = Mock(spec=Session)
+    session.get.side_effect = [None, CaseLog(case_id="case", created_at_us=0)]
+    session.exec.return_value.one.return_value = 0
+    error = SQLAlchemyError("Flush failed")
+    session.flush.side_effect = error
+    input = ObservationInput(
+        case_id="case",
+        observation_id="chunk",
+        speaker_id="A",
+        start_at="1970-01-01T00:00:00Z",
+        end_at="1970-01-01T00:00:01Z",
+        transcript="Hello",
+        signal_level_min=-50,
+        signal_level_avg=-30,
+        signal_level_max=-10,
+    )
+    with pytest.raises(SQLAlchemyError) as caught:
+        module.stage_observation(
+            input=input, session=session, now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc)
+        )
+    assert caught.value is error
+    session.commit.assert_not_called()
+    session.rollback.assert_not_called()

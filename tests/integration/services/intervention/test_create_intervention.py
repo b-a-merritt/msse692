@@ -29,6 +29,7 @@ def test_single_match_creates_a_pending_intervention(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -106,6 +107,7 @@ def test_matches_share_one_message(*, session, engine, model_ids, message):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -161,6 +163,7 @@ def test_every_undesired_model_has_its_own_message(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -220,6 +223,7 @@ def test_ineligible_assessments_create_nothing(*, session, engine, changes):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -272,6 +276,7 @@ def test_other_cases_are_excluded(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -292,6 +297,7 @@ def test_other_cases_are_excluded(*, session, engine):
     )
     session.add(
         models.Observation(
+            updated_at_us=0,
             case_id="other",
             observation_id="1",
             sequence=1,
@@ -340,6 +346,7 @@ def test_linked_assessments_are_not_decided_again(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -424,6 +431,7 @@ def test_missing_message_fails_without_storing(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -484,6 +492,7 @@ def test_storage_failure_rolls_back(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,

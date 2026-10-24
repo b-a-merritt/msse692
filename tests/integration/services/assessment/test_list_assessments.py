@@ -10,6 +10,7 @@ def test_reads_case_history_in_id_order(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -74,6 +75,7 @@ def test_pending_work_excludes_assessments_with_a_resolution(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -149,6 +151,7 @@ def test_case_history_excludes_other_cases(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,

@@ -31,6 +31,7 @@ def test_recorded_repair_uses_speech_order_with_sequence_as_tiebreaker(
         persist(
             session=session,
             record=models.Observation(
+                updated_at_us=round((100 + index) * 1_000_000),
                 case_id="case",
                 observation_id=str(observation_sequence := next(observation_sequences)),
                 sequence=observation_sequence,
@@ -66,6 +67,7 @@ def test_recorded_repair_uses_speech_order_with_sequence_as_tiebreaker(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=102_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,

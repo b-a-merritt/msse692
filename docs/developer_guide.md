@@ -29,6 +29,8 @@ flowchart LR
 
 Routes validate input, supply dependencies, and return service results. Services own operations, including transaction boundaries and follow-up work. The scheduler coalesces waiting requests per case. After a task starts, new observations can queue a follow-up. Assessment and repair requests have separate waiting sets. One process owns the worker and its coordination state.
 
+`stage_observation` inserts an observation within a caller-owned write transaction. It does not commit, roll back, or schedule assessment. `ingest` commits the transaction before requesting assessment.
+
 Startup configures logging, migrates storage, validates every stored model, and starts the worker. Model validation checks the schema, rule execution against an empty case, and intervention-message coverage. The worker uses this validated catalog until restart.
 
 ## 2. Assessment and intervention flow
@@ -75,7 +77,7 @@ Paths below are relative to `src/normative_conformance/`.
 | `main.py`, `lifespan.py`, `config.py` | ASGI app, startup/shutdown, environment settings |
 | `routes/`, `schemas/` | HTTP boundary and validated public contracts |
 | `services/case/` | Configure case targets and resolve distinct speaker order |
-| `services/observation/` | Store and retrieve case observations |
+| `services/observation/` | Store and retrieve observations; stage inserts within caller-owned transactions |
 | `services/model/`, `services/assessment/` | Evaluate SQL models and append results |
 | `services/scheduler/` | Request coalescing, worker loop, repair and intervention timers |
 | `services/intervention/`, `services/health/` | Create/deliver messages. Check readiness |

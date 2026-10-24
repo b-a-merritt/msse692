@@ -33,6 +33,7 @@ def test_records_preserve_each_assessments_prefix_explanation_and_deadline(
     first = persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -59,6 +60,7 @@ def test_records_preserve_each_assessments_prefix_explanation_and_deadline(
     second = persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -85,6 +87,7 @@ def test_records_preserve_each_assessments_prefix_explanation_and_deadline(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,

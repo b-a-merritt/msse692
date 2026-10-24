@@ -69,5 +69,4 @@ def test_builds_explanations_for_each_rule_without_committing(
             datetime(1970, 1, 1, 0, 0, 0, 110, tzinfo=timezone.utc) if deadline else None
         )
     session.add.assert_called_once_with(result)
-    session.flush.assert_called_once()
     session.commit.assert_not_called()

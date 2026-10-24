@@ -12,6 +12,7 @@ def test_assessment_round_trip_with_defaults_and_generated_id(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -79,6 +80,7 @@ def test_invalid_assessments_are_rejected(*, session, changes, constraint):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -133,6 +135,7 @@ def test_new_evaluations_accept_all_statuses(*, session, status):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -191,6 +194,7 @@ def test_evaluation_can_include_multiple_model_versions(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -248,6 +252,7 @@ def test_later_observations_do_not_extend_a_saved_assessment(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -308,6 +313,7 @@ def test_pending_assessment_accepts_one_appended_resolution(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -382,6 +388,7 @@ def test_finalized_assessment_cannot_be_resolved(*, session):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,

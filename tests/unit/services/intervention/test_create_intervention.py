@@ -54,12 +54,6 @@ def test_selects_highest_priority_message_and_links_every_source(*, model_ids, m
     ]
     session.commit.assert_called_once()
     session.rollback.assert_not_called()
-    query = session.exec.call_args.args[0].compile()
-    assert query.params["case_id_1"] == "case"
-    assert query.params["evaluated_at_us_1"] == 90
-    assert query.params["status_1"] == "conformant"
-    assert query.params["type_1"] == "undesired"
-    assert "NOT IN" in str(query)
 
 
 def test_no_eligible_sources_does_not_read_clock_or_write():

@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 from sqlmodel import select
 
+from normative_conformance.database import read_session
 from normative_conformance.database import write_session
 from normative_conformance.errors import EnqueueFailed
 from normative_conformance.errors import ObservationExists
@@ -392,6 +393,7 @@ def test_enqueue_failure_keeps_committed_observation(*, engine, assessment_queue
     assert record is not None
     assert record.model_dump() == observation_input.model_dump() | {
         "received_at": received_at,
+        "updated_at": received_at,
         "sequence": 1,
     }
     assert isinstance(caught.value.__cause__, EnqueueFailed)
@@ -402,3 +404,56 @@ def test_enqueue_failure_keeps_committed_observation(*, engine, assessment_queue
         stored = session.get(Observation, (record.case_id, record.observation_id))
         assert stored is not None
         assert stored.sequence == record.sequence
+
+
+@pytest.mark.parametrize("commit", [False, True])
+def test_staged_observations_and_case_share_one_transaction(engine, commit):
+    from normative_conformance.services.observation.ingest import stage_observation
+
+    first = ObservationInput(
+        case_id="capture",
+        observation_id="one",
+        speaker_id="A",
+        start_at="1970-01-01T00:00:00Z",
+        end_at="1970-01-01T00:00:01Z",
+        transcript="Hello",
+        signal_level_min=-50,
+        signal_level_avg=-30,
+        signal_level_max=-10,
+    )
+    second = ObservationInput(
+        case_id="capture",
+        observation_id="two",
+        speaker_id="B",
+        start_at="1970-01-01T00:00:01Z",
+        end_at="1970-01-01T00:00:02Z",
+        transcript="Hi",
+        signal_level_min=-50,
+        signal_level_avg=-30,
+        signal_level_max=-10,
+    )
+    with write_session(engine=engine) as session:
+        one = stage_observation(
+            input=first,
+            session=session,
+            now=lambda: datetime(1970, 1, 1, 0, 0, 3, tzinfo=timezone.utc),
+        )
+        two = stage_observation(
+            input=second,
+            session=session,
+            now=lambda: datetime(1970, 1, 1, 0, 0, 3, tzinfo=timezone.utc),
+        )
+        assert (one.sequence, two.sequence) == (1, 2)
+        assert one.received_at == one.updated_at == two.updated_at
+        if commit:
+            session.commit()
+    with read_session(engine=engine) as session:
+        case = session.get(CaseLog, "capture")
+        row = session.get(Observation, ("capture", "one"))
+        other = session.get(Observation, ("capture", "two"))
+        if commit:
+            assert case.created_at_us == 3_000_000
+            assert row.received_at_us == row.updated_at_us == 3_000_000
+            assert other.sequence == 2
+        else:
+            assert case is row is other is None

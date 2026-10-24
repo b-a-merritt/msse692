@@ -14,6 +14,7 @@ class Observation(SQLModel, table=True):
     observation_id: str = Field(primary_key=True, sa_type=Text)
     sequence: int
     received_at_us: int
+    updated_at_us: int
     speaker_id: str = Field(sa_type=Text)
     start_at_us: int
     end_at_us: int

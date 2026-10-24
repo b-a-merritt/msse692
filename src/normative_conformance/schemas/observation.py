@@ -20,6 +20,13 @@ class ObservationInput(ContractModel):
     signal_level_avg: float = Field(strict=True, ge=-120, le=0)
     signal_level_max: float = Field(strict=True, ge=-120, le=0)
 
+    @field_validator("speaker_id")
+    @classmethod
+    def validate_speaker_id(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Speaker ID must not be blank")
+        return value
+
     @field_validator("start_at", "end_at")
     @classmethod
     def normalize_timestamp(cls, value: datetime) -> datetime:
@@ -36,4 +43,5 @@ class ObservationInput(ContractModel):
 
 class ObservationRecord(ObservationInput):
     received_at: AwareDatetime
+    updated_at: AwareDatetime
     sequence: int = Field(strict=True, ge=1)

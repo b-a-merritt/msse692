@@ -76,7 +76,7 @@ def select_target(
     except SQLAlchemyError as error:
         session.rollback()
         raise StorageUnavailable("The target selection could not be stored") from error
-    # Until the polling worker lands, selecting a target wakes existing stored input.
+    # Selecting a target wakes existing stored input.
     # Repeating the PUT also retries an enqueue failure after a successful commit.
     if labels and case.target_speaker_id is not None:
         request_assessment(case_id=case_id, scheduler=scheduler)

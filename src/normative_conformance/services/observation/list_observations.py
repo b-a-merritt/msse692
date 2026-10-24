@@ -4,7 +4,7 @@ from sqlmodel import select
 
 from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.observation import ObservationRecord
-from normative_conformance.timestamps import from_microseconds
+from normative_conformance.services.observation.records import to_record
 
 
 def list_observations(
@@ -21,19 +21,4 @@ def list_observations(
             col(Observation.sequence).desc(),
         )
     )
-    return [
-        ObservationRecord(
-            case_id=observation.case_id,
-            observation_id=observation.observation_id,
-            speaker_id=observation.speaker_id,
-            start_at=from_microseconds(value=observation.start_at_us),
-            end_at=from_microseconds(value=observation.end_at_us),
-            transcript=observation.transcript,
-            signal_level_min=observation.signal_level_min,
-            signal_level_avg=observation.signal_level_avg,
-            signal_level_max=observation.signal_level_max,
-            received_at=from_microseconds(value=observation.received_at_us),
-            sequence=observation.sequence,
-        )
-        for observation in session.exec(query)
-    ]
+    return [to_record(observation=observation) for observation in session.exec(query)]

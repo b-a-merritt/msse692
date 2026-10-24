@@ -42,7 +42,7 @@ Expand **POST /api/v1/observations**, select **Try it out**, replace the request
 }
 ```
 
-Expect **202**, the submitted fields, `sequence: 1`, and a server `received_at` timestamp. Each observation ID must be unique within its case. For another run, use a new case ID or a new storage directory. Submitting this record twice gives **409**. The [API reference](api.md#observation-input) explains validation.
+Expect **202**, the submitted fields, `sequence: 1`, and equal server UTC timestamps for `received_at` and `updated_at`. Each observation ID must be unique within its case. For another run, use a new case ID or a new storage directory. Submitting this record twice gives **409**. The [API reference](api.md#observation-input) explains validation.
 
 ## 2. Inspect the stored results
 
@@ -89,4 +89,4 @@ Execute **POST /api/v1/cases/{case_id}/interventions/deliver** with `case_id` se
 | Empty results | Check readiness, target speaker, and model match. Allow assessment and repair/window delays |
 | 503 | Follow the error-specific action in the [API reference](api.md#errors). Check [known issues](known_issues.md) |
 
-**How do I change the target?** Use `PUT /api/v1/cases/{case_id}/target` with `{"target_speaker_id":"speaker-2"}`. To return to automatic selection, send `{"target_speaker_order":1}` or `2`. `SUBJECT_SPEAKER_ID` is no longer a runtime setting; remove it from `.env`.
+**How do I change the target?** Use `PUT /api/v1/cases/{case_id}/target` with `{"target_speaker_id":"speaker-2"}`. For automatic selection, send `{"target_speaker_order":1}` or `2`. Target selection is stored per case.

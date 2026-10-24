@@ -23,7 +23,7 @@ Set environment variables or put the same names in `.env` at the repository root
 | `DEBUG` | `false` | Framework debug mode. Leave disabled for handoff |
 | `APP_NAME` | `normative-conformance` | Application title |
 
-The target is configured per case through `PUT /api/v1/cases/{case_id}/target`, not an environment variable. Remove `SUBJECT_SPEAKER_ID` from an existing `.env`. This prototype edits the initial migration in place: use new database and queue paths when moving from the global-target schema. Existing databases are not upgraded automatically.
+Configure the target per case through `PUT /api/v1/cases/{case_id}/target`. The prototype uses disposable storage: initialize fresh database and queue paths for the checkout being run. Schema compatibility between checkouts is not guaranteed by the migration revision.
 
 From the reviewed checkout, install runtime dependencies, configure dedicated storage, and start one process with reload disabled:
 

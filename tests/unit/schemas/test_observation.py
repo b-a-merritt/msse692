@@ -8,11 +8,12 @@ from pydantic import ValidationError
 from normative_conformance.schemas.observation import ObservationInput
 
 
-def test_normalizes_source_times_to_utc_and_preserves_transcript():
+@pytest.mark.parametrize("speaker_id", ["subject", "PENDING", "Speaker 2"])
+def test_normalizes_source_times_and_preserves_labels_and_transcript(speaker_id):
     observation_data = {
         "case_id": "case",
         "observation_id": "chunk",
-        "speaker_id": "subject",
+        "speaker_id": speaker_id,
         "start_at": "2026-09-26T12:00:00.123456+03:00",
         "end_at": "2026-09-26T12:00:01.654321+03:00",
         "transcript": "  Hello!\n",
@@ -28,6 +29,7 @@ def test_normalizes_source_times_to_utc_and_preserves_transcript():
     assert observation.end_at.tzinfo == timezone.utc
     assert observation.end_at.microsecond == 654_321
     assert observation.transcript == observation_data["transcript"]
+    assert observation.speaker_id == speaker_id
 
 
 @pytest.mark.parametrize(
@@ -47,8 +49,12 @@ def test_normalizes_source_times_to_utc_and_preserves_transcript():
         pytest.param({"signal_level_max": float("inf")}, id="infinity"),
         pytest.param({"transcript": " \t\n"}, id="blank-transcript"),
         pytest.param({"case_id": ""}, id="empty-identity"),
+        pytest.param({"speaker_id": ""}, id="empty-speaker"),
+        pytest.param({"speaker_id": " \t\n"}, id="blank-speaker"),
+        pytest.param({"speaker_id": "path/segment"}, id="invalid-speaker"),
         pytest.param({"observation_id": "path/segment"}, id="invalid-identity"),
         pytest.param({"sequence": 1}, id="client-sequence"),
+        pytest.param({"updated_at": "2026-09-26T09:00:02Z"}, id="client-update-time"),
         pytest.param({"received_at": "2026-09-26T09:00:02Z"}, id="client-receipt-time"),
     ],
 )

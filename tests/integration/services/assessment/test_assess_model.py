@@ -37,6 +37,7 @@ def test_finalized_match_is_not_repeated_before_repair(*, session, engine, asses
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -74,6 +75,7 @@ def test_finalized_match_is_not_repeated_before_repair(*, session, engine, asses
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=111_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -118,6 +120,7 @@ def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -144,6 +147,7 @@ def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=109_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -175,6 +179,7 @@ def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=111_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -230,6 +235,7 @@ def test_reuse_is_specific_to_model_and_version(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -302,6 +308,7 @@ def test_unresolved_pending_takes_precedence_over_a_later_result(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -367,6 +374,7 @@ def test_reuse_is_specific_to_the_case(*, session, engine, assessment_queue):
     observation = persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,

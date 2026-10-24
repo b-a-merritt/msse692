@@ -16,6 +16,3 @@ def test_requires_a_committed_observation_in_the_requested_case(*, sequence):
             get_case_sequence(case_id="requested", session=session)
     else:
         assert get_case_sequence(case_id="requested", session=session) == 7
-    query = session.exec.call_args.args[0].compile()
-    assert query.params == {"case_id_1": "requested"}
-    assert "max(observation.sequence)" in str(query)

@@ -18,6 +18,7 @@ def test_returns_observations_newest_first_with_converted_timestamps(*, session)
     first = persist(
         session=session,
         record=models.Observation(
+            updated_at_us=10_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -34,6 +35,7 @@ def test_returns_observations_newest_first_with_converted_timestamps(*, session)
     second = persist(
         session=session,
         record=models.Observation(
+            updated_at_us=20_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -80,6 +82,7 @@ def test_only_returns_observations_for_the_requested_case(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -98,6 +101,7 @@ def test_only_returns_observations_for_the_requested_case(*, session):
     )
     session.add(
         models.Observation(
+            updated_at_us=0,
             case_id="other",
             observation_id="other-chunk",
             sequence=1,

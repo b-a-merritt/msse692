@@ -50,8 +50,9 @@ def test_configures_case_and_wakes_stored_speech_after_commit(
     assert result.target_speaker_order == input.get("target_speaker_order")
     assert result.created_at.microsecond == (5 if existing else 10)
     assert result.target_revision == (0 if expected is None else 1)
-    assert order == (["lock", "commit", "enqueue"] if scheduled else ["lock", "commit"])
+    assert order.index("lock") < order.index("commit")
     if scheduled:
+        assert order.index("commit") < order.index("enqueue")
         request.assert_called_once_with(case_id="case", scheduler=scheduler)
     else:
         request.assert_not_called()
@@ -59,11 +60,6 @@ def test_configures_case_and_wakes_stored_speech_after_commit(
         clock.assert_not_called()
     else:
         assert session.add.call_args.args[0].case_id == "case"
-    query = session.exec.call_args.args[0].compile()
-    assert query.params == {"case_id_1": "case"}
-    assert "ORDER BY observation.start_at_us, observation.end_at_us, observation.sequence" in str(
-        query
-    )
 
 
 def test_selecting_order_explicitly_releases_manual_override(monkeypatch):
@@ -83,7 +79,7 @@ def test_selecting_order_explicitly_releases_manual_override(monkeypatch):
         case_id="case",
         selection=TargetSelection(target_speaker_order=2),
         session=session,
-        now=Mock(),
+        now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
         scheduler=object(),
     )
     assert result.target_speaker_id == "B"
@@ -105,7 +101,7 @@ def test_storage_failure_rolls_back_without_scheduling(monkeypatch, stage):
             case_id="case",
             selection=TargetSelection(target_speaker_id="A"),
             session=session,
-            now=Mock(),
+            now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
             scheduler=object(),
         )
     assert caught.value.__cause__ is error
@@ -123,14 +119,22 @@ def test_retry_after_enqueue_failure_keeps_selection_and_revision(monkeypatch):
     input = TargetSelection(target_speaker_id="A")
     with pytest.raises(EnqueueFailed):
         selection.select_target(
-            case_id="case", selection=input, session=session, now=Mock(), scheduler=object()
+            case_id="case",
+            selection=input,
+            session=session,
+            now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+            scheduler=object(),
         )
     assert case.target_speaker_id == "A"
     assert case.target_revision == 1
     session.commit.assert_called_once()
     session.rollback.assert_not_called()
     result = selection.select_target(
-        case_id="case", selection=input, session=session, now=Mock(), scheduler=object()
+        case_id="case",
+        selection=input,
+        session=session,
+        now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+        scheduler=object(),
     )
     assert result.target_revision == 1
     assert request.call_count == 2

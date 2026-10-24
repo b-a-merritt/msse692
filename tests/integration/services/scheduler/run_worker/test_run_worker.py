@@ -64,6 +64,7 @@ def test_due_repair_enqueue_failure_stops_worker(*, engine, assessment_queue, se
     persist(
         session=session,
         record=db_models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -115,6 +116,7 @@ def test_shutdown_discards_open_windows_without_recovering_them_on_restart(
     persist(
         session=session,
         record=db_models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -316,6 +318,7 @@ def test_worker_checks_deadline_without_more_observations(
     persist(
         session=session,
         record=db_models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -412,6 +415,7 @@ def test_repaired_match_requests_another_assessment(
     persist(
         session=session,
         record=db_models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -440,6 +444,7 @@ def test_repaired_match_requests_another_assessment(
     persist(
         session=session,
         record=db_models.Observation(
+            updated_at_us=105_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -527,6 +532,7 @@ def test_confirmations_within_the_window_share_one_intervention(
     persist(
         session=session,
         record=db_models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -599,6 +605,7 @@ def test_ineligible_results_do_not_split_later_confirmations(
     persist(
         session=session,
         record=db_models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -688,6 +695,7 @@ def test_immediate_and_repair_deadline_confirmations_share_one_intervention(
     persist(
         session=session,
         record=db_models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -712,6 +720,7 @@ def test_immediate_and_repair_deadline_confirmations_share_one_intervention(
     persist(
         session=session,
         record=db_models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -767,6 +776,7 @@ def test_slow_evaluation_keeps_later_confirmations_in_the_open_window(
     persist(
         session=session,
         record=db_models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,
@@ -837,6 +847,7 @@ def test_confirmed_match_becomes_one_intervention(
     persist(
         session=session,
         record=db_models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -879,6 +890,7 @@ def test_intervention_failure_does_not_stop_work(*, assessment_queue, session, e
     persist(
         session=session,
         record=db_models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id="1",
             sequence=1,

@@ -32,7 +32,8 @@ All fields are required. Unknown fields are rejected.
 
 | Fields | Format and constraints |
 |---|---|
-| `case_id`, `observation_id`, `speaker_id` | Nonempty strings with no `/`. Observation identity is the case/observation pair |
+| `case_id`, `observation_id` | Nonempty strings with no `/`. Observation identity is the case/observation pair |
+| `speaker_id` | String containing at least one non-whitespace character and no `/` |
 | `start_at`, `end_at` | Timezone-aware timestamps. End must follow start. Normalized to UTC |
 | `transcript` | String containing at least one non-whitespace character |
 | `signal_level_min`, `signal_level_avg`, `signal_level_max` | Finite JSON numbers in dBFS, each between −120 and 0. Min ≤ avg ≤ max |
@@ -51,7 +52,7 @@ curl -i -X POST http://127.0.0.1:8000/api/v1/observations \
   }'
 ```
 
-The 202 response repeats these fields and adds `sequence` (1 for a new case) and `received_at` (the server's UTC receipt timestamp). It confirms storage and a scheduling request. Assessment completes asynchronously. The [user walkthrough](user_guide.md) shows the actual response and expected results.
+The 202 response repeats these fields and adds `sequence` (1 for a new case), `received_at`, and `updated_at`. Receipt and update times are server UTC timestamps and are equal at insertion. It confirms storage and a scheduling request. Assessment completes asynchronously. The [user walkthrough](user_guide.md) shows the actual response and expected results.
 
 ```bash
 curl --fail http://127.0.0.1:8000/api/v1/cases/docs-demo/observations
@@ -60,6 +61,12 @@ curl --fail http://127.0.0.1:8000/api/v1/models/harm_phrase/versions/1
 curl --fail 'http://127.0.0.1:8000/api/v1/interventions?case_id=docs-demo&status=pending'
 curl --fail -X POST http://127.0.0.1:8000/api/v1/cases/docs-demo/interventions/deliver
 ```
+
+## Observation records
+
+Observations are append-only and identified by `(case_id, observation_id)`. Duplicate HTTP observation IDs within a case return 409. The API does not expose a correction endpoint.
+
+The server assigns `sequence`, `received_at`, and `updated_at`; POST observation requests cannot supply them. Both timestamps are UTC and equal at insertion. Stored observations cannot be updated or deleted.
 
 ## Errors
 

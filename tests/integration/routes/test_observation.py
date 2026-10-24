@@ -38,6 +38,7 @@ def test_ingestion_returns_committed_observation_and_requests_assessment(*, open
             "start_at": "2026-09-26T09:00:00.123456Z",
             "end_at": "2026-09-26T09:00:01.654321Z",
             "received_at": received_at.isoformat().replace("+00:00", "Z"),
+            "updated_at": received_at.isoformat().replace("+00:00", "Z"),
             "sequence": 1,
         }
         assert UUID(response.headers["X-Request-ID"])

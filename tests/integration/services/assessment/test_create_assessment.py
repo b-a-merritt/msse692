@@ -22,6 +22,7 @@ def test_append_flushes_without_committing(*, session, engine):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,

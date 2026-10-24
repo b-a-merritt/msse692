@@ -34,7 +34,7 @@ Prerequisites: Git, [uv](https://docs.astral.sh/uv/getting-started/installation/
 
 Startup creates and migrates the database, seeds the models, and starts the worker. Configure a target for each case by speaking order or an explicit speaker label. Observations are stored while the target is unresolved.
 
-This prototype supports local research demonstrations. It has no authentication and has unresolved recovery defects. See [known issues](docs/known_issues.md) before using its results or deploying it.
+This prototype supports local research demonstrations. It has no authentication and has recovery limitations. See [known issues](docs/known_issues.md) before using its results or deploying it.
 
 ## Documentation
 
@@ -45,6 +45,6 @@ This prototype supports local research demonstrations. It has no authentication 
 | [API reference](docs/api.md) | Find endpoints, data formats, examples, and errors |
 | [Useful commands](docs/commands.md) | Run, test, check, and replay the application |
 | [Deployment guide](docs/deployment_guide.md) | Configure, start, verify, and maintain a local instance |
-| [Known issues](docs/known_issues.md) | Check limitations, workarounds, and planned improvements |
+| [Known issues](docs/known_issues.md) | Check limitations and workarounds |
 
 The [QA report](docs/quality_assurance_report.md) records evaluation evidence.

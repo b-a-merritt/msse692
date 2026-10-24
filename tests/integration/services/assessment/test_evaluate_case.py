@@ -35,6 +35,7 @@ def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -70,6 +71,7 @@ def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=109_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -109,6 +111,7 @@ def test_no_match_creates_no_pending_assessment(*, session, engine, assessment_q
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -149,6 +152,7 @@ def test_no_repair_allowance_confirms_immediately(*, session, engine, assessment
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -220,6 +224,7 @@ def test_models_use_their_own_allowance_and_keep_existing_deadlines(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -315,6 +320,7 @@ def test_replay_requests_repair_after_enqueue_failure_without_repeating_assessme
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -376,6 +382,7 @@ def test_shutdown_finishes_assessment_without_enqueuing_repair(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -417,6 +424,7 @@ def test_replayed_evaluation_preserves_its_original_results(*, session, engine, 
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -444,6 +452,7 @@ def test_replayed_evaluation_preserves_its_original_results(*, session, engine, 
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=101_000_000,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -502,6 +511,7 @@ def test_failed_assessment_rolls_back_all_models_before_requesting_repairs(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -518,6 +528,7 @@ def test_failed_assessment_rolls_back_all_models_before_requesting_repairs(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -569,6 +580,7 @@ def test_new_matches_share_the_case_evaluation_time(*, session, engine, assessme
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -585,6 +597,7 @@ def test_new_matches_share_the_case_evaluation_time(*, session, engine, assessme
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -626,6 +639,7 @@ def test_models_record_the_same_case_target(*, session, engine, assessment_queue
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -642,6 +656,7 @@ def test_models_record_the_same_case_target(*, session, engine, assessment_queue
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -682,6 +697,7 @@ def test_replay_preserves_pending_result_after_resolution(*, session, engine, as
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -748,6 +764,7 @@ def test_model_added_after_the_catalog_was_loaded_is_not_assessed(
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,

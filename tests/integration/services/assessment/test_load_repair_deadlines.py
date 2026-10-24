@@ -10,6 +10,7 @@ def test_loads_only_earliest_unresolved_pending_deadlines(*, session, engine):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,
@@ -96,6 +97,7 @@ def test_no_pending_assessments_returns_no_deadlines(*, session, engine):
     session.add(case)
     session.flush()
     observation = models.Observation(
+        updated_at_us=10,
         case_id="case",
         observation_id="chunk",
         sequence=1,

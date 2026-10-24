@@ -98,14 +98,8 @@ def test_reuses_active_occurrences_or_creates_a_new_detection(
         assert result.evaluation_id == "new"
         assert result.through_sequence == 9
         session.add.assert_called_once_with(result)
-        session.flush.assert_called_once()
     if len(matches) == 2:
         assert evaluate.call_args.kwargs["through_sequence"] == (2 if resolves else 7)
     if resolves is not None and matches and matches[0]:
         session.get.assert_any_call(Assessment, 4)
     session.commit.assert_not_called()
-    query = session.exec.call_args_list[0].args[0].compile()
-    assert query.params["case_id_1"] == "case"
-    assert query.params["model_id_1"] == "harm_phrase"
-    assert query.params["model_version_1"] == "2"
-    assert "NOT IN" in str(query)

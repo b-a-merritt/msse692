@@ -18,6 +18,7 @@ def test_reads_only_the_requested_case_prefix_in_sequence_order(*, session):
     first = persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -34,6 +35,7 @@ def test_reads_only_the_requested_case_prefix_in_sequence_order(*, session):
     second = persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
@@ -50,6 +52,7 @@ def test_reads_only_the_requested_case_prefix_in_sequence_order(*, session):
     persist(
         session=session,
         record=models.Observation(
+            updated_at_us=0,
             case_id="case",
             observation_id=str(observation_sequence := next(observation_sequences)),
             sequence=observation_sequence,
