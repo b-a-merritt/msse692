@@ -7,6 +7,8 @@ class ReadyMessage(TypedDict):
     sample_rate: int
     encoding: Literal["pcm_s16le"]
     channels: Literal[1]
+    session_id: str
+    speech_model: str
 
 
 class FrameLevelPayload(TypedDict):
@@ -24,6 +26,38 @@ class StoppedMessage(TypedDict):
     type: Literal["stopped"]
 
 
+CaptureErrorCode = Literal[
+    "notConfigured",
+    "providerAuth",
+    "providerUnavailable",
+    "providerProtocol",
+    "providerTimeout",
+    "invalidAudio",
+    "incomplete",
+]
+
+
+class WordPayload(TypedDict):
+    text: str
+    start_ms: int
+    end_ms: int
+    speaker_id: str | None
+
+
+class TranscriptMessage(TypedDict):
+    type: Literal["transcript"]
+    turn_order: int
+    final: bool
+    revised: bool
+    transcript: str
+    speaker_id: str | None
+    words: list[WordPayload]
+
+
 class ErrorMessage(TypedDict):
     type: Literal["error"]
+    code: CaptureErrorCode
     message: str
+
+
+OutgoingMessage = ReadyMessage | LevelsMessage | TranscriptMessage | StoppedMessage

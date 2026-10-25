@@ -68,13 +68,35 @@ Observations are append-only and identified by `(case_id, observation_id)`. Dupl
 
 The server assigns `sequence`, `received_at`, and `updated_at`; POST observation requests cannot supply them. Both timestamps are UTC and equal at insertion. Stored observations cannot be updated or deleted.
 
-## Microphone level stream
+## Live capture stream
 
-`GET /capture` serves the microphone check. `WS /api/v1/capture/audio` accepts mono signed little-endian PCM16 at 16 kHz. The server starts with `{"type":"ready","sample_rate":16000,"encoding":"pcm_s16le","channels":1}`. Binary messages must contain 1–1600 complete samples (2–3200 bytes). The page sends 100 ms packets and a shorter final packet.
+`GET /capture` serves live transcription. `WS /api/v1/capture/audio` a session with the provider.
 
-The server measures 20 ms frames across message boundaries. Each `levels` message contains a `frames` array of `{start_ms, end_ms, dbfs}` with offsets from the stream's first sample. RMS is normalized by 32768, converted with `20 * log10(RMS)`, and clamped to −120 dBFS. The page displays the minimum, maximum, and arithmetic mean of frame dBFS values in the latest packet; the average is not computed from pooled linear energy.
+After the provider confirms its session, the server sends:
 
-Send the exact text `stop` to finish. The server measures any remaining partial frame using its actual sample count, emits its `levels` (possibly empty), sends `{"type":"stopped"}`, and closes with code 1000. Invalid messages receive an `error` message and close code 1008. A connection ending without `stopped` is incomplete. This stream does not persist audio or observations, transcribe speech, or trigger assessment.
+```json
+{"type":"ready","sample_rate":16000,"encoding":"pcm_s16le","channels":1,"session_id":"provider-session-id","speech_model":"universal-3-6-pro"}
+```
+
+Binary messages contain 1–1600 complete little-endian signed samples (2–3200 bytes). The page sends 100 ms packets and a shorter final packet. The server retains a small tail to keep upstream packets at least 50 ms long, forwarding every sample unchanged without silence padding. A nonempty capture must contain at least 50 ms of audio.
+
+The server measures 20 ms frames across message boundaries. Each `levels` message contains `frames` of `{start_ms, end_ms, dbfs}` with offsets from the first sample. RMS is normalized by 32768, converted with `20 * log10(RMS)`, and clamped to −120 dBFS. The page displays the minimum, maximum, and arithmetic mean of frame dBFS values in the latest update; the average is not computed from pooled linear energy.
+
+Partial turns, finalized turns, and speaker revisions share this outgoing shape:
+
+```json
+{
+  "type": "transcript", "turn_order": 0, "final": true, "revised": false,
+  "transcript": "Hello.", "speaker_id": "A",
+  "words": [{"text":"Hello.","start_ms":0,"end_ms":500,"speaker_id":"A"}]
+}
+```
+
+`turn_order` identifies a turn within the provider session. Repeated updates replace that turn. Corrections have `final: true` and `revised: true`; their word labels replace the prior labels. `speaker_id` can be null or unresolved. The page groups consecutive finalized words by their own labels and displays missing, `PENDING`, and `UNKNOWN` attribution as **Unassigned**. A dominant turn label does not fill missing word attribution.
+
+Send the exact text `stop` to finish. The server flushes the remaining audio and partial level frame, sends provider `Terminate`, and continues receiving transcripts and revisions until provider `Termination`. Only then does it send `{"type":"stopped"}` and close with code 1000. The provider drain has a ten-second deadline. A connection ending without `stopped` is incomplete.
+
+Capture failures use `{"type":"error","code":"providerAuth","message":"..."}` with fixed application text. Codes are `notConfigured`, `providerAuth`, `providerUnavailable`, `providerProtocol`, `providerTimeout`, `invalidAudio`, and `incomplete`. Invalid audio closes with code 1008; other capture failures use 1011. These WebSocket errors are separate from the HTTP domain envelope below. The key and raw provider exceptions are never sent to the browser.
 
 ## Errors
 

@@ -16,12 +16,15 @@ Set environment variables or put the same names in `.env` at the repository root
 
 | Variable | Default | Purpose |
 |---|---|---|
+| `ASSEMBLY_API_KEY` | Empty | Server-side AssemblyAI credential; required for live capture |
 | `APP_DB_PATH` | `data/prototype.sqlite3` | Application SQLite file |
 | `ASSESSMENT_QUEUE_PATH` | `data/assessment_queue` | Persistent queue directory |
 | `LOG_DIR` | `data/logs` | JSONL log files, one per application start |
 | `INTERVENTION_WINDOW_US` | `2000000` | Positive grouping delay, in microseconds |
 | `DEBUG` | `false` | Framework debug mode. Leave disabled for handoff |
 | `APP_NAME` | `normative-conformance` | Application title |
+
+An empty AssemblyAI key disables live transcription with a capture error; HTTP replays remain available. Capture uses an outbound TLS WebSocket to `streaming.assemblyai.com`.
 
 Configure the target per case through `PUT /api/v1/cases/{case_id}/target`. The prototype uses disposable storage: initialize fresh database and queue paths for the checkout being run. Schema compatibility between checkouts is not guaranteed by the migration revision.
 
@@ -53,3 +56,17 @@ Expect `live`, `ready`, and a catalog with the undesired and repair models. Exec
 ### Diagnostics
 
 Structured logs go to stdout and `$LOG_DIR/<UTC start time>.jsonl`. Use `event` and the case, observation, evaluation, or request IDs to correlate operations. Exception fields contain type names rather than exception messages. Transcripts are not included in application logs. Inspect API records to verify outcomes. Use the [error reference](api.md#errors) when readiness fails or an expected result is missing.
+
+Live capture writes INFO events to the same terminal and JSONL file. Filter by `capture_id` to follow one browser connection. `capture.provider_ready` associates it with the AssemblyAI `provider_session_id` shown on the page.
+
+| Event | Meaning |
+|---|---|
+| `capture.connected` | Browser connected; the server is opening transcription |
+| `capture.provider_ready` | AssemblyAI confirmed its session |
+| `capture.audio_forwarded` | Audio was sent upstream; includes cumulative audio duration and packet count |
+| `capture.speech_started` | AssemblyAI detected speech |
+| `capture.transcript_received` | A partial or final transcript arrived; includes turn order, finality, speaker label, and word/character counts |
+| `capture.speaker_revisions` | Speaker corrections arrived; lists affected turn orders |
+| `capture.stopping` | All buffered audio was sent; waiting for final provider events |
+| `capture.completed` | Provider termination was received and the browser was notified |
+| `capture.failed`, `capture.disconnected` | Capture ended unsuccessfully; failures include an application error code |

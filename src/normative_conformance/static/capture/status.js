@@ -1,9 +1,9 @@
 // Fixed page text keyed by the status keys a capture session reports.
 export const STATUS = Object.freeze({
-  opening: "Opening microphone…",
-  active: "Microphone active.",
-  finishing: "Finishing audio measurement…",
-  stopped: "Microphone stopped. All captured audio was measured.",
+  opening: "Opening microphone and connecting to transcription…",
+  active: "Microphone active. Transcribing live.",
+  finishing: "Finishing transcription and speaker corrections…",
+  stopped: "Microphone stopped. Final transcripts and speaker corrections received.",
   unsupported: "Use a browser with AudioWorklet support on HTTPS or localhost.",
   denied: "Microphone access was denied.",
   processing: "The microphone is applying audio processing. Choose a device that allows it to be disabled.",
@@ -13,5 +13,12 @@ export const STATUS = Object.freeze({
   rejected: "The server rejected the audio stream. Start a new microphone check.",
   connectionFailed: "The audio connection failed.",
   closed: "The audio connection closed before capture finished.",
+  notConfigured: "Transcription is not configured. Set ASSEMBLY_API_KEY on the server.",
+  providerAuth: "AssemblyAI rejected the server API key. Check its credentials.",
+  providerUnavailable: "The transcription connection failed. The transcript is incomplete.",
+  providerProtocol: "The transcription service returned invalid data. The transcript is incomplete.",
+  providerTimeout: "The transcription service did not respond in time. The transcript is incomplete.",
+  invalidAudio: "Audio was rejected. Record at least 50 ms and start a new capture.",
+  incomplete: "The transcription session ended early. The transcript is incomplete.",
   unacknowledged: "Capture stopped before the final audio was acknowledged.",
 });

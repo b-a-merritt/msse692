@@ -13,6 +13,7 @@ dependencies = [
     "persist-queue>=1.1.0",
     "pydantic-settings>=2.15.0",
     "sqlmodel>=0.0.42",
+    "websockets>=16.1.1",
 ]
 
 [build-system]

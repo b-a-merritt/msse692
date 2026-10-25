@@ -1,6 +1,6 @@
 # User guide
 
-For researchers checking microphone levels and replaying synthetic or recorded observations.
+For researchers transcribing live speech and replaying synthetic or recorded observations.
 
 ## 1. Set up and submit an observation
 
@@ -91,12 +91,12 @@ Execute **POST /api/v1/cases/{case_id}/interventions/deliver** with `case_id` se
 
 **How do I change the target?** Use `PUT /api/v1/cases/{case_id}/target` with `{"target_speaker_id":"speaker-2"}`. For automatic selection, send `{"target_speaker_order":1}` or `2`. Target selection is stored per case.
 
-## Microphone check
+## Live microphone transcription
 
-With the server running, open [the microphone check](http://127.0.0.1:8000/capture). Select **Start microphone**, allow microphone access, and speak. The page shows recent minimum, average, and maximum levels in dBFS, plus the duration of audio measured by the server. Silence is −120 dBFS; values near 0 dBFS approach the digital limit.
+Set `ASSEMBLY_API_KEY` in the server environment or repository `.env`, then start the server. Open [live capture](http://127.0.0.1:8000/capture), select **Start microphone**, allow microphone access, and speak. The page shows partial and final transcripts, speaker labels, and recent signal levels. The API key stays on the server; audio is sent to AssemblyAI for transcription.
 
-Select **Stop** and wait for the stopped status, which confirms the final audio was measured. A connection failure, an interrupted microphone, or an audio backlog ends the check with an error. Start again to open a fresh measurement stream.
+A turn can contain several speakers. Labels such as **Speaker A** refer only to the current session. **Unassigned** means the provider has not attributed those words. Speaker revisions update the existing transcript and mark the affected turn; they do not add duplicate rows.
 
-Microphone access requires localhost or HTTPS and a browser supporting AudioWorklet and a 16 kHz audio context. Automatic gain control, noise suppression, and echo cancellation are requested off. If the browser reports any of them enabled, capture is rejected. Hardware processing can still affect the signal.
+Select **Stop** and wait for the completion message confirming final transcripts and speaker corrections. An error or an early close leaves an incomplete transcript visible. Starting again clears it and opens a fresh provider session. This page does not create observations or request assessment, and its transcript is not saved across reloads.
 
-This page measures levels only. It does not transcribe speech, assign speakers, store observations, or request assessment. Audio is discarded after measurement.
+The level display shows recent minimum, average, and maximum dBFS plus the duration measured by the server. Silence is −120 dBFS; values near 0 dBFS approach the digital limit. Microphone access requires localhost or HTTPS, AudioWorklet support, and a 16 kHz audio context. Automatic gain control, noise suppression, and echo cancellation are requested off. Capture is rejected if the browser reports any of them enabled; hardware processing can still affect the signal.

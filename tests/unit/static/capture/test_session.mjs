@@ -6,7 +6,7 @@ import { CaptureSession } from "../../../../src/normative_conformance/static/cap
 import { STATUS } from "../../../../src/normative_conformance/static/capture/status.js";
 
 function record() {
-  const events = { statuses: [], ready: 0, levels: [], ended: 0 };
+  const events = { statuses: [], ready: 0, levels: [], transcripts: [], ended: 0 };
   const session = new CaptureSession({
     onStatus: (key) => {
       assert.ok(Object.hasOwn(STATUS, key), `missing status text for ${key}`);
@@ -14,6 +14,7 @@ function record() {
     },
     onReady: () => { events.ready += 1; },
     onLevels: (frames) => events.levels.push(frames),
+    onTranscript: (message) => events.transcripts.push(message),
     onEnd: () => { events.ended += 1; },
   });
   return { session, events };
@@ -78,7 +79,7 @@ test("an unacknowledged stop times out and releases the microphone", async (t) =
   await session.start();
   browser.socket.receive({ type: "ready" });
   session.stop();
-  t.mock.timers.tick(4999);
+  t.mock.timers.tick(24999);
   assert.equal(browser.track.stopped, false);
   t.mock.timers.tick(1);
   assertReleased();
@@ -173,4 +174,26 @@ test("stop after release does nothing", async () => {
   session.stop();
   assert.deepEqual(browser.node.port.sent, []);
   assert.deepEqual(events.statuses, ["opening"]);
+});
+
+test("forwards final speaker revisions before reporting a completed stop", async () => {
+  const { session, events } = record();
+  await session.start();
+  browser.socket.receive({ type: "ready" });
+  session.stop();
+  const correction = { type: "transcript", turn_order: 0, final: true, revised: true,
+    transcript: "Hello", speaker_id: "B", words: [] };
+  browser.socket.receive(correction);
+  assert.deepEqual(events.transcripts, [correction]);
+  assert.equal(events.ended, 0);
+  browser.socket.receive({ type: "stopped" });
+  assert.equal(events.ended, 1);
+});
+
+test("maps a provider error to fixed status text and releases the microphone", async () => {
+  const { session, events } = record();
+  await session.start();
+  browser.socket.receive({ type: "error", code: "providerAuth", message: "private details" });
+  assert.equal(events.statuses.at(-1), "providerAuth");
+  assertReleased();
 });

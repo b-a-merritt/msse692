@@ -1,8 +1,8 @@
 const SAMPLE_RATE = 16000;
 const MAX_BUFFERED_BYTES = 32000; // One second of PCM16 at 16 kHz.
-const STOP_TIMEOUT_MS = 5000;
+const STOP_TIMEOUT_MS = 25000;
 
-// Own one microphone check: audio graph, WebSocket, and their release.
+// Own one live transcription session: audio graph, WebSocket, and their release.
 // Reports status keys; the page maps them to text.
 export class CaptureSession {
   #callbacks;
@@ -14,8 +14,8 @@ export class CaptureSession {
   #socket;
   #timer;
 
-  constructor({ onStatus, onReady, onLevels, onEnd }) {
-    this.#callbacks = { onStatus, onReady, onLevels, onEnd };
+  constructor({ onStatus, onReady, onLevels, onTranscript, onEnd }) {
+    this.#callbacks = { onStatus, onReady, onLevels, onTranscript, onEnd };
   }
 
   async start() {
@@ -98,14 +98,16 @@ export class CaptureSession {
       this.#source.connect(this.#node);
       this.#node.connect(this.#context.destination);
       this.#callbacks.onStatus("active");
-      this.#callbacks.onReady();
+      this.#callbacks.onReady(message);
     } else if (message.type === "levels" && message.frames.length) {
       this.#callbacks.onLevels(message.frames);
+    } else if (message.type === "transcript") {
+      this.#callbacks.onTranscript(message);
     } else if (message.type === "stopped") {
       this.#callbacks.onStatus("stopped");
       this.release();
     } else if (message.type === "error") {
-      this.#fail("rejected");
+      this.#fail(message.code ?? "rejected");
     }
   }
 }

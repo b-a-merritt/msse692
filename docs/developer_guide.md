@@ -76,7 +76,8 @@ Paths below are relative to `src/normative_conformance/`.
 |---|---|
 | `main.py`, `lifespan.py`, `config.py` | ASGI app, startup/shutdown, environment settings |
 | `routes/`, `schemas/` | HTTP boundary and validated public contracts |
-| `static/`, `services/capture/` | Microphone PCM streaming, controls, and RMS level measurement |
+| `static/`, `services/capture/` | Microphone streaming, transcripts, and RMS levels |
+| `clients/` | External service adapters; `assemblyai.py` implements the capture `Transcriber` |
 | `services/case/` | Configure case targets and resolve distinct speaker order |
 | `services/observation/` | Store and retrieve observations; stage inserts within caller-owned transactions |
 | `services/model/`, `services/assessment/` | Evaluate SQL models and append results |
@@ -104,17 +105,22 @@ The page scripts are ES modules under `static/`:
 
 | File | Responsibility |
 |---|---|
-| `capture.js` | Binds buttons and readouts; the only module that touches the page |
+| `capture.js` | Binds buttons, readouts, and the transcript view |
 | `capture/session.js` | `CaptureSession` owns the microphone, audio graph, and WebSocket, and releases them once. It reports status keys, not text |
 | `capture/status.js` | Fixed page text for each status key |
 | `capture/levels.js` | Summarizes one `levels` message |
+| `capture/transcript.js` | Groups word labels and updates transcript rows by turn order |
 | `pcm-worklet.js` | Converts audio to 100 ms PCM16 packets |
 
 The capture page uses an [AudioWorklet](https://developer.mozilla.org/en-US/docs/Web/API/AudioWorkletProcessor) in a 16 kHz audio context to emit mono PCM16. The worklet leaves its output silent to avoid microphone playback. It flushes its final packet before sending the stop command. Browser and server buffers are bounded; a browser send backlog above one second stops capture with a gap message.
 
-`LevelMeter` consumes the WebSocket bytes, carries incomplete 20 ms frames between messages, and discards audio after measurement. It has no database or provider dependency. The page displays returned levels and releases the microphone and audio context on stop, failure, or navigation.
+`routes/capture.py` owns the browser WebSocket: it reads binary PCM and the `stop` text, sends JSON messages, and maps failures to fixed error text and close codes. `services/capture/run_capture.py` contains the capture logic and does not see the socket. It receives browser messages as an async iterator and a send function. It measures levels, buffers and forwards audio, converts transcript events to browser messages, and waits for the transcriber to finish on Stop. It does not write to the database.
 
-Python unit tests cover the math and route orchestration with in-memory inputs and WebSocket doubles. HTTP/WebSocket integration tests cover packaged assets and the wire protocol. JavaScript unit tests use Node's built-in test runner and browser API doubles; they do not establish microphone or browser compatibility. Run them with the Node version pinned in `.nvmrc`:
+`LevelMeter` carries incomplete 20 ms frames between messages and discards audio after measurement. `PCMBuffer` keeps a short audio tail so the final provider packet meets the 50 ms minimum without modifying samples.
+
+`services/capture/transcriber.py` defines the `Transcriber` interface and the transcript events capture consumes: turn updates, speaker revisions, and speech start. `clients/assemblyai.py` implements it over `websockets`. It holds the stream settings, validates the provider event fields it consumes, ignores the rest, and terminates the session on exit unless Stop already did. Unknown or malformed provider events end capture with a protocol error. Provider exceptions become fixed error codes without exposing credentials or response bodies. `schemas/capture.py` types the outgoing browser messages.
+
+Python unit tests cover level math, packet boundaries, capture orchestration with a fake transcriber, AssemblyAI event conversion with a connection double, and route transport with a socket double. Integration tests exercise both WebSocket connections against a local provider server, including final revisions and early disconnects. JavaScript unit tests use Node's built-in test runner and browser API doubles; they do not establish microphone or browser compatibility. Run them with the Node version pinned in `.nvmrc`:
 
 ```bash
 nvm use

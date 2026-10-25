@@ -1,3 +1,4 @@
+from normative_conformance.schemas.capture import CaptureErrorCode
 from normative_conformance.schemas.observation import ObservationRecord
 
 
@@ -32,3 +33,15 @@ class EnqueueFailed(RuntimeError):
     ) -> None:
         super().__init__(message)
         self.committed_observation = committed_observation
+
+
+class CaptureFailure(RuntimeError):
+    """Capture ended early; the code selects fixed browser text."""
+
+    def __init__(self, code: CaptureErrorCode) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+class CaptureDisconnected(RuntimeError):
+    """The browser left before capture completed; nothing can be reported to it."""

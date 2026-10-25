@@ -1,5 +1,6 @@
 import { summarize } from "./capture/levels.js";
 import { CaptureSession } from "./capture/session.js";
+import { Transcript } from "./capture/transcript.js";
 import { STATUS } from "./capture/status.js";
 
 const startButton = document.getElementById("start");
@@ -12,6 +13,8 @@ const readouts = {
   duration: document.getElementById("duration"),
 };
 const meter = document.getElementById("level");
+const transcript = new Transcript(document.getElementById("transcript"));
+const providerSession = document.getElementById("provider-session");
 let session = null;
 
 function resetLevels() {
@@ -33,11 +36,17 @@ function showLevels(summary) {
 startButton.addEventListener("click", async () => {
   if (session) return;
   resetLevels();
+  transcript.clear();
+  providerSession.textContent = "Connecting…";
   startButton.disabled = true;
   session = new CaptureSession({
-    onStatus: (key) => { statusLine.textContent = STATUS[key]; },
-    onReady: () => { stopButton.disabled = false; },
+    onStatus: (key) => { statusLine.textContent = STATUS[key] ?? STATUS.rejected; },
+    onReady: (message) => {
+      stopButton.disabled = false;
+      providerSession.textContent = `Session ${message.session_id} · ${message.speech_model}`;
+    },
     onLevels: (frames) => showLevels(summarize(frames)),
+    onTranscript: (message) => transcript.update(message),
     onEnd: () => {
       session = null;
       startButton.disabled = false;
