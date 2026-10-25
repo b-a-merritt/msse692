@@ -68,6 +68,14 @@ Observations are append-only and identified by `(case_id, observation_id)`. Dupl
 
 The server assigns `sequence`, `received_at`, and `updated_at`; POST observation requests cannot supply them. Both timestamps are UTC and equal at insertion. Stored observations cannot be updated or deleted.
 
+## Microphone level stream
+
+`GET /capture` serves the microphone check. `WS /api/v1/capture/audio` accepts mono signed little-endian PCM16 at 16 kHz. The server starts with `{"type":"ready","sample_rate":16000,"encoding":"pcm_s16le","channels":1}`. Binary messages must contain 1–1600 complete samples (2–3200 bytes). The page sends 100 ms packets and a shorter final packet.
+
+The server measures 20 ms frames across message boundaries. Each `levels` message contains a `frames` array of `{start_ms, end_ms, dbfs}` with offsets from the stream's first sample. RMS is normalized by 32768, converted with `20 * log10(RMS)`, and clamped to −120 dBFS. The page displays the minimum, maximum, and arithmetic mean of frame dBFS values in the latest packet; the average is not computed from pooled linear energy.
+
+Send the exact text `stop` to finish. The server measures any remaining partial frame using its actual sample count, emits its `levels` (possibly empty), sends `{"type":"stopped"}`, and closes with code 1000. Invalid messages receive an `error` message and close code 1008. A connection ending without `stopped` is incomplete. This stream does not persist audio or observations, transcribe speech, or trigger assessment.
+
 ## Errors
 
 Domain errors use this envelope. The request ID is unique to the request.

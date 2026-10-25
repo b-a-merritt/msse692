@@ -19,6 +19,7 @@ flowchart LR
 - Asynchronous assessment, repair deadlines, and grouped intervention messages.
 - Stored observations, assessment history, and links from interventions to evidence.
 - Interactive API documentation and repeatable case replays.
+- Browser microphone check with server-measured signal levels at `/capture`.
 
 **Stack:** Python 3.13, FastAPI, Pydantic, SQLModel, SQLite, Alembic, and persist-queue. Development uses uv, pytest/pytest-cov, Ruff, mypy, and pre-commit.
 

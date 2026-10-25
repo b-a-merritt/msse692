@@ -76,6 +76,7 @@ Paths below are relative to `src/normative_conformance/`.
 |---|---|
 | `main.py`, `lifespan.py`, `config.py` | ASGI app, startup/shutdown, environment settings |
 | `routes/`, `schemas/` | HTTP boundary and validated public contracts |
+| `static/`, `services/capture/` | Microphone PCM streaming, controls, and RMS level measurement |
 | `services/case/` | Configure case targets and resolve distinct speaker order |
 | `services/observation/` | Store and retrieve observations; stage inserts within caller-owned transactions |
 | `services/model/`, `services/assessment/` | Evaluate SQL models and append results |
@@ -96,3 +97,28 @@ flowchart LR
 ```
 
 An assessment records its model version and evaluated prefix (`through_sequence`). The API reconstructs that prefix as `extent`. It is the evaluated history, not a minimal set of causal observations. Rule explanations record status and any repair observation IDs. SQLModel tables and database triggers enforce the stored invariants. Times are integer UTC microseconds in storage and timezone-aware timestamps at API boundaries.
+
+## Microphone capture and tests
+
+The page scripts are ES modules under `static/`:
+
+| File | Responsibility |
+|---|---|
+| `capture.js` | Binds buttons and readouts; the only module that touches the page |
+| `capture/session.js` | `CaptureSession` owns the microphone, audio graph, and WebSocket, and releases them once. It reports status keys, not text |
+| `capture/status.js` | Fixed page text for each status key |
+| `capture/levels.js` | Summarizes one `levels` message |
+| `pcm-worklet.js` | Converts audio to 100 ms PCM16 packets |
+
+The capture page uses an [AudioWorklet](https://developer.mozilla.org/en-US/docs/Web/API/AudioWorkletProcessor) in a 16 kHz audio context to emit mono PCM16. The worklet leaves its output silent to avoid microphone playback. It flushes its final packet before sending the stop command. Browser and server buffers are bounded; a browser send backlog above one second stops capture with a gap message.
+
+`LevelMeter` consumes the WebSocket bytes, carries incomplete 20 ms frames between messages, and discards audio after measurement. It has no database or provider dependency. The page displays returned levels and releases the microphone and audio context on stop, failure, or navigation.
+
+Python unit tests cover the math and route orchestration with in-memory inputs and WebSocket doubles. HTTP/WebSocket integration tests cover packaged assets and the wire protocol. JavaScript unit tests use Node's built-in test runner and browser API doubles; they do not establish microphone or browser compatibility. Run them with the Node version pinned in `.nvmrc`:
+
+```bash
+nvm use
+node --test "tests/unit/static/**/test_*.mjs"
+```
+
+For a browser check, open `/capture` on localhost, grant microphone access, speak, stop, and confirm the microphone indicator switches off. Repeat after denying permission and after interrupting the connection. Run the Python checks listed in [Useful commands](commands.md).

@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
     app_name: str = "normative-conformance"
+    assembly_api_key: str = ""
+    type_safe_api_key: str = ""
     debug: bool = False
     app_db_path: Path = Path("data/prototype.sqlite3")
     assessment_queue_path: Path = Path("data/assessment_queue")
