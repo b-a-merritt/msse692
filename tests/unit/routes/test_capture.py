@@ -159,7 +159,6 @@ def test_capture_passes_storage_work_to_threadpool(monkeypatch):
         observations=rows,
         engine=websocket.app.state.engine,
         now=websocket.app.state.clock,
-        scheduler=websocket.app.state.scheduler,
     )
 
 

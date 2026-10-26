@@ -7,7 +7,6 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
-from normative_conformance.errors import EnqueueFailed
 from normative_conformance.errors import ObservationExists
 from normative_conformance.errors import StorageUnavailable
 from normative_conformance.models.case import CaseLog
@@ -25,9 +24,7 @@ module = import_module("normative_conformance.services.observation.ingest")
         (CaseLog(case_id="case", created_at_us=0, target_speaker_order=2), 2),
     ],
 )
-def test_assigns_receipt_sequence_and_commits_before_requesting_assessment(
-    *, monkeypatch, existing_case, last_sequence
-):
+def test_assigns_receipt_sequence_and_commits(*, monkeypatch, existing_case, last_sequence):
     input = ObservationInput(
         case_id="case",
         observation_id="chunk",
@@ -40,11 +37,10 @@ def test_assigns_receipt_sequence_and_commits_before_requesting_assessment(
         signal_level_max=-10,
     )
     session = Mock(spec=Session)
-    session.get.side_effect = [None, existing_case]
+    session.get.side_effect = lambda model, key: existing_case if model is CaseLog else None
     session.exec.return_value.one.return_value = last_sequence
     session.exec.return_value.all.return_value = ["A", "A", "B"]
     clock = Mock(return_value=datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc))
-    scheduler = object()
     order = []
     session.connection.side_effect = lambda: order.append("lock")
     clock.side_effect = lambda: (
@@ -52,13 +48,10 @@ def test_assigns_receipt_sequence_and_commits_before_requesting_assessment(
         datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc),
     )[1]
     session.commit.side_effect = lambda: order.append("commit")
-    request = Mock(side_effect=lambda **kwargs: order.append("enqueue"))
-    monkeypatch.setattr(module, "request_assessment", request)
 
-    result = module.ingest(input=input, session=session, now=clock, scheduler=scheduler)
+    result = module.ingest(input=input, session=session, now=clock)
 
     assert order.index("lock") < order.index("clock")
-    assert order.index("commit") < order.index("enqueue")
     assert result.sequence == (last_sequence or 0) + 1
     assert result.received_at == datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc)
     rows = [call.args[0] for call in session.add.call_args_list]
@@ -84,11 +77,10 @@ def test_assigns_receipt_sequence_and_commits_before_requesting_assessment(
     if existing_case is not None and existing_case.target_speaker_order == 2:
         assert existing_case.target_speaker_id == "B"
         assert existing_case.target_revision == 1
-    request.assert_called_once_with(case_id="case", scheduler=scheduler)
     session.rollback.assert_not_called()
 
 
-@pytest.mark.parametrize("failure_stage", ["duplicate", "lock", "commit", "enqueue"])
+@pytest.mark.parametrize("failure_stage", ["duplicate", "lock", "commit"])
 def test_failures_distinguish_rolled_back_work_from_committed_observations(
     *, monkeypatch, failure_stage
 ):
@@ -104,60 +96,39 @@ def test_failures_distinguish_rolled_back_work_from_committed_observations(
         signal_level_max=-10,
     )
     session = Mock(spec=Session)
-    session.get.side_effect = [
-        object() if failure_stage == "duplicate" else None,
-        CaseLog(case_id="case", created_at_us=0),
-    ]
-    session.exec.return_value.one.return_value = 0
-    error = (
-        EnqueueFailed(message="Queue unavailable")
-        if failure_stage == "enqueue"
-        else SQLAlchemyError("Private driver details")
+    session.get.side_effect = lambda model, key: (
+        CaseLog(case_id="case", created_at_us=0)
+        if model is CaseLog
+        else object()
+        if failure_stage == "duplicate"
+        else None
     )
+    session.exec.return_value.one.return_value = 0
+    error = SQLAlchemyError("Private driver details")
     if failure_stage in {"lock", "commit"}:
         getattr(session, "connection" if failure_stage == "lock" else "commit").side_effect = error
-    request = Mock(side_effect=error if failure_stage == "enqueue" else None)
-    monkeypatch.setattr(module, "request_assessment", request)
     with pytest.raises(
-        ObservationExists
-        if failure_stage == "duplicate"
-        else EnqueueFailed
-        if failure_stage == "enqueue"
-        else StorageUnavailable
+        ObservationExists if failure_stage == "duplicate" else StorageUnavailable
     ) as caught:
         module.ingest(
             input=input,
             session=session,
             now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
-            scheduler=object(),
         )
-    if failure_stage == "enqueue":
-        assert caught.value.committed_observation.observation_id == "chunk"
-        assert (
-            str(caught.value)
-            == "The observation was stored but its assessment could not be requested"
-        )
-        assert caught.value.__cause__ is error
-        session.commit.assert_called_once()
-        session.rollback.assert_not_called()
+    session.rollback.assert_called_once()
+    if failure_stage == "duplicate":
+        assert str(caught.value) == "An observation with this identity already exists"
+        session.add.assert_not_called()
     else:
-        session.rollback.assert_called_once()
-        request.assert_not_called()
-        if failure_stage == "duplicate":
-            assert str(caught.value) == "An observation with this identity already exists"
-            session.add.assert_not_called()
-        else:
-            assert str(caught.value) == "The observation could not be stored"
-            assert caught.value.__cause__ is error
+        assert str(caught.value) == "The observation could not be stored"
+        assert caught.value.__cause__ is error
 
 
-def test_staging_leaves_transaction_and_scheduling_to_caller(monkeypatch):
+def test_staging_leaves_transaction_to_caller(monkeypatch):
     case = CaseLog(case_id="case", created_at_us=0)
     session = Mock(spec=Session)
-    session.get.side_effect = [None, case]
+    session.get.side_effect = lambda model, key: case if model is CaseLog else None
     session.exec.return_value.one.return_value = 3
-    request = Mock()
-    monkeypatch.setattr(module, "request_assessment", request)
     input = ObservationInput(
         case_id="case",
         observation_id="chunk",
@@ -183,12 +154,13 @@ def test_staging_leaves_transaction_and_scheduling_to_caller(monkeypatch):
     assert row.received_at_us == row.updated_at_us == 90
     session.commit.assert_not_called()
     session.rollback.assert_not_called()
-    request.assert_not_called()
 
 
 def test_staging_propagates_flush_failures_for_the_caller_to_roll_back():
     session = Mock(spec=Session)
-    session.get.side_effect = [None, CaseLog(case_id="case", created_at_us=0)]
+    session.get.side_effect = lambda model, key: (
+        CaseLog(case_id="case", created_at_us=0) if model is CaseLog else None
+    )
     session.exec.return_value.one.return_value = 0
     error = SQLAlchemyError("Flush failed")
     session.flush.side_effect = error

@@ -9,16 +9,15 @@ Install Git and [uv](https://docs.astral.sh/uv/getting-started/installation/), c
 ```bash
 uv sync --locked
 export APP_DB_PATH=data/walkthrough/app.sqlite3
-export ASSESSMENT_QUEUE_PATH=data/walkthrough/queue
 export LOG_DIR=data/walkthrough/logs
 uv run fastapi dev src/normative_conformance/main.py
 ```
 
-Use an unused storage directory for a new run. Keep this terminal open. Startup creates the storage and models automatically. Open [readiness](http://127.0.0.1:8000/health/ready). `{"status":"ready"}` means the database, queue, and worker are available. Open [API docs](http://127.0.0.1:8000/docs).
+Use an unused storage directory for a new run. Keep this terminal open. Startup creates the storage and models automatically. Open [readiness](http://127.0.0.1:8000/health/ready). `{"status":"ready"}` means the database and worker are available. Open [API docs](http://127.0.0.1:8000/docs).
 
 ```mermaid
 flowchart LR
-    A[Submit observation] --> B[202: stored]
+    A[Submit observation] --> B[201: stored]
     B --> C[Worker assesses]
     C --> D[Read results]
     D --> E[Deliver intervention]
@@ -42,7 +41,7 @@ Expand **POST /api/v1/observations**, select **Try it out**, replace the request
 }
 ```
 
-Expect **202**, the submitted fields, `sequence: 1`, and equal server UTC timestamps for `received_at` and `updated_at`. Each observation ID must be unique within its case. For another run, use a new case ID or a new storage directory. Submitting this record twice gives **409**. The [API reference](api.md#observation-input) explains validation.
+Expect **201**, the submitted fields, `sequence: 1`, and equal server UTC timestamps for `received_at` and `updated_at`. Each observation ID must be unique within its case. For another run, use a new case ID or a new storage directory. Submitting this record twice gives **409**. The [API reference](api.md#observation-input) explains validation.
 
 ## 2. Inspect the stored results
 

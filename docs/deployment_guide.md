@@ -7,7 +7,7 @@ Prerequisites: a checkout, Git, [uv](https://docs.astral.sh/uv/getting-started/i
 ```mermaid
 flowchart LR
     C[Local client] -->|127.0.0.1:8000| P[One process + one worker]
-    P --> D[(Database + queue + logs)]
+    P --> D[(Database + logs)]
 ```
 
 ### Configuration
@@ -18,7 +18,6 @@ Set environment variables or put the same names in `.env` at the repository root
 |---|---|---|
 | `ASSEMBLY_API_KEY` | Empty | Server-side AssemblyAI credential; required for live capture |
 | `APP_DB_PATH` | `data/prototype.sqlite3` | Application SQLite file |
-| `ASSESSMENT_QUEUE_PATH` | `data/assessment_queue` | Persistent queue directory |
 | `LOG_DIR` | `data/logs` | JSONL log files, one per application start |
 | `INTERVENTION_WINDOW_US` | `2000000` | Positive grouping delay, in microseconds |
 | `DEBUG` | `false` | Framework debug mode. Leave disabled for handoff |
@@ -26,14 +25,13 @@ Set environment variables or put the same names in `.env` at the repository root
 
 An empty AssemblyAI key disables live transcription with a capture error; HTTP replays remain available. Capture uses an outbound TLS WebSocket to `streaming.assemblyai.com`.
 
-Configure the target per case through `PUT /api/v1/cases/{case_id}/target`. The prototype uses disposable storage: initialize fresh database and queue paths for the checkout being run. Schema compatibility between checkouts is not guaranteed by the migration revision.
+Configure the target per case through `PUT /api/v1/cases/{case_id}/target`. The prototype uses disposable storage: initialize fresh database paths for the checkout being run. Schema compatibility between checkouts is not guaranteed by the migration revision.
 
 From the reviewed checkout, install runtime dependencies, configure dedicated storage, and start one process with reload disabled:
 
 ```bash
 uv sync --locked --no-dev
 export APP_DB_PATH=data/research/app.sqlite3
-export ASSESSMENT_QUEUE_PATH=data/research/queue
 export LOG_DIR=data/research/logs
 export INTERVENTION_WINDOW_US=2000000
 export DEBUG=false
@@ -41,7 +39,7 @@ uv run --no-dev uvicorn normative_conformance.main:app \
   --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-Startup creates directories, applies migrations and validates the catalog. Invalid models stop startup. Each instance needs its own database and queue. Multiple processes sharing this storage are unsupported for this prototype.
+Startup creates directories, applies migrations and validates the catalog. Invalid models stop startup. Each instance needs its own database. Multiple processes sharing this storage are unsupported for this prototype.
 
 ## 2. Verify and operate
 

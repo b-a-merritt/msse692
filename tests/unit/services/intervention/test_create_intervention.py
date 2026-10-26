@@ -76,7 +76,7 @@ def test_unrecognized_combination_fails_before_writing():
     session.add.assert_not_called()
 
 
-def test_storage_failure_rolls_back_and_preserves_driver_cause():
+def test_storage_failure_rolls_backand_preserves_driver_cause():
     session = Mock(spec=Session)
     error = SQLAlchemyError("Private driver details")
     session.exec.side_effect = error

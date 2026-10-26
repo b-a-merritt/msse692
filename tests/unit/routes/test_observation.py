@@ -16,14 +16,14 @@ def test_submission_delegates_the_complete_workflow_to_ingestion(*, monkeypatch)
         signal_level_avg=-30,
         signal_level_max=-10,
     )
-    session, clock, scheduler = object(), Mock(), object()
+    session, clock, _scheduler = object(), Mock(), object()
     service = Mock(return_value=object())
     monkeypatch.setattr(observation.observation, "ingest", service)
     assert (
-        observation.submit_observation(input=input, session=session, now=clock, scheduler=scheduler)
+        observation.submit_observation(input=input, session=session, now=clock)
         is service.return_value
     )
-    service.assert_called_once_with(input=input, session=session, now=clock, scheduler=scheduler)
+    service.assert_called_once_with(input=input, session=session, now=clock)
     clock.assert_not_called()
 
 

@@ -8,14 +8,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
 from normative_conformance.errors import CaptureFailure
-from normative_conformance.errors import EnqueueFailed
-from normative_conformance.models.case import CaseLog
 from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.services.capture import store_observations as module
 
 
-@pytest.mark.parametrize("target", [None, "B"])
-def test_commits_whole_turn_before_scheduling_and_waits_for_target(monkeypatch, target):
+def test_commits_whole_turn(monkeypatch):
     observation = ObservationInput(
         case_id="case",
         observation_id="one",
@@ -31,7 +28,6 @@ def test_commits_whole_turn_before_scheduling_and_waits_for_target(monkeypatch, 
         update={"observation_id": "two", "speaker_id": "B", "transcript": "Yes"}
     )
     session = Mock(spec=Session)
-    session.get.return_value = CaseLog(case_id="case", created_at_us=0, target_speaker_id=target)
     context = MagicMock()
     context.__enter__.return_value = session
     monkeypatch.setattr(module, "write_session", Mock(return_value=context))
@@ -40,30 +36,17 @@ def test_commits_whole_turn_before_scheduling_and_waits_for_target(monkeypatch, 
     committed = []
     session.commit.side_effect = lambda: committed.extend(stages)
 
-    def schedule(**kwargs):
-        assert committed == [observation, other]
-
-    request = Mock(side_effect=schedule)
-    monkeypatch.setattr(module, "request_assessment", request)
-    scheduler = object()
     module.store_observations(
         case_id="case",
         observations=[observation, other],
         engine=object(),
         now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
-        scheduler=scheduler,
     )
     assert committed == [observation, other]
-    if target is None:
-        request.assert_not_called()
-    else:
-        request.assert_called_once_with(case_id="case", scheduler=scheduler)
 
 
-@pytest.mark.parametrize(
-    "stage,expected", [("write", "storageUnavailable"), ("schedule", "assessmentUnavailable")]
-)
-def test_write_and_scheduling_failures_are_distinct(monkeypatch, stage, expected):
+@pytest.mark.parametrize("stage,expected", [("write", "storageUnavailable")])
+def test_write_failure_is_reported(monkeypatch, stage, expected):
     observation = ObservationInput(
         case_id="case",
         observation_id="one",
@@ -76,28 +59,20 @@ def test_write_and_scheduling_failures_are_distinct(monkeypatch, stage, expected
         signal_level_max=-10,
     )
     session = Mock(spec=Session)
-    session.get.return_value = CaseLog(case_id="case", created_at_us=0, target_speaker_id="A")
     context = MagicMock()
     context.__enter__.return_value = session
     monkeypatch.setattr(module, "write_session", Mock(return_value=context))
     insert = Mock(side_effect=SQLAlchemyError("private") if stage == "write" else None)
-    request = Mock(side_effect=EnqueueFailed(message="private"))
     monkeypatch.setattr(module, "stage_observation", insert)
-    monkeypatch.setattr(module, "request_assessment", request)
     with pytest.raises(CaptureFailure) as caught:
         module.store_observations(
             case_id="case",
             observations=[observation],
             engine=object(),
             now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
-            scheduler=object(),
         )
     assert caught.value.code == expected
-    if stage == "write":
-        session.commit.assert_not_called()
-        request.assert_not_called()
-    else:
-        session.commit.assert_called_once()
+    session.commit.assert_not_called()
 
 
 def test_no_observations_requires_no_storage(monkeypatch):
@@ -108,6 +83,5 @@ def test_no_observations_requires_no_storage(monkeypatch):
         observations=[],
         engine=object(),
         now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
-        scheduler=object(),
     )
     write.assert_not_called()

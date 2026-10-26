@@ -4,7 +4,6 @@ from fastapi import APIRouter
 from fastapi import Path
 
 from normative_conformance.routes.dependencies import ReadSession
-from normative_conformance.routes.dependencies import Scheduler
 from normative_conformance.routes.dependencies import ServerClock
 from normative_conformance.routes.dependencies import WriteSession
 from normative_conformance.routes.errors import ERROR_RESPONSES
@@ -24,7 +23,6 @@ def select_target(
     input: TargetSelection,
     session: WriteSession,
     now: ServerClock,
-    scheduler: Scheduler,
 ) -> CaseRecord:
     """Create or configure a case by speaking order or an explicit speaker label."""
     return selection.select_target(
@@ -32,7 +30,6 @@ def select_target(
         selection=input,
         session=session,
         now=now,
-        scheduler=scheduler,
     )
 
 

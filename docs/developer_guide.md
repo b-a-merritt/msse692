@@ -23,13 +23,12 @@ flowchart LR
         W --- T[Deadlines and windows]
     end
     S --> DB[(Application SQLite)]
-    S -->|Request work| Q[(Queue SQLite)]
-    Q --> W
+    W -->|Poll progress and deadlines| DB
 ```
 
-Routes validate input, supply dependencies, and return service results. Services own operations, including transaction boundaries and follow-up work. The scheduler coalesces waiting requests per case. After a task starts, new observations can queue a follow-up. Assessment and repair requests have separate waiting sets. One process owns the worker and its coordination state.
+Routes validate input, supply dependencies, and return service results. Ingestion and target selection commit directly to SQLite. One worker polls resolved cases for new observation sequences or a target revision that differs from the last processed revision.
 
-`stage_observation` inserts an observation within a caller-owned write transaction. It does not commit, roll back, or schedule assessment. `ingest` commits the transaction before requesting assessment.
+`stage_observation` inserts an observation within a caller-owned write transaction. It does not commit or roll back. `ingest` commits the transaction. Neither operation needs a running worker.
 
 Startup configures logging, migrates storage, validates every stored model, and starts the worker. Model validation checks the schema, rule execution against an empty case, and intervention-message coverage. The worker uses this validated catalog until restart.
 
@@ -40,15 +39,13 @@ sequenceDiagram
     participant C as Client
     participant A as API / services
     participant D as Records
-    participant Q as Queue
     participant W as Worker
     C->>A: POST observation
     A->>D: Commit case + observation
-    A->>Q: Request case assessment
-    A-->>C: 202 + stored observation
-    Q->>W: Assessment task
-    W->>D: Capture prefix + time, evaluate models, commit
-    W->>Q: Request repair check
+    A-->>C: 201 + stored observation
+    W->>D: Poll unprocessed cases and repair deadlines
+    W->>D: Capture prefix + time, evaluate models and repairs
+    W->>D: Commit results + case progress
     Note over W,D: Match may wait for repair deadline
     W->>D: Append repair / resolution
     Note over W,D: New confirmation opens a grouping window
@@ -58,9 +55,11 @@ sequenceDiagram
     A-->>C: Sent interventions
 ```
 
-The sequence shows successful operation. A **202** confirms observation storage and a successful scheduling request, not assessment completion. If queueing fails after commit, **503 ENQUEUE_FAILED** carries `committed_observation`. A duplicate submission does not retry scheduling.
+A **201** confirms observation storage. The worker visits each ready case once per pass, then waits 0.1 seconds before polling again. `last_handled_sequence` and `last_handled_target_revision` are committed with the case's assessment and repair results, including evaluations with no match. A failed transaction leaves progress unchanged for the next poll. Restart recovery reads progress and pending repair deadlines from SQLite.
 
-Cases start without a target. The worker skips unresolved cases. Ingestion recomputes order-based selections from speech start/end time and receipt sequence; missing and `PENDING` labels do not count. Manual selections persist until explicitly replaced. Configuring a resolved target schedules existing speech through the current queue.
+SQL detection and repair checks share one write transaction and server timestamp. Incoming writes wait for that transaction and remain eligible for a later poll. Intervention timers run between cases and on idle passes. Grouping windows are held in memory and are discarded on shutdown; they are not reconstructed from confirmed assessments.
+
+Cases start without a target. The worker skips unresolved cases. Ingestion recomputes order-based selections from speech start/end time and receipt sequence; missing and `PENDING` labels do not count. Manual selections persist until explicitly replaced. Configuring a resolved target makes existing speech eligible for polling. An explicit target change is detected even without new observations.
 
 Each evaluation captures a case sequence and server time. Rules query that prefix. New arrivals belong to later evaluations. A matching undesired model creates `pending` with a deadline or `conformant` immediately when its allowance is null. No match creates no assessment. Reusing a pending match preserves its original deadline.
 
@@ -81,9 +80,9 @@ Paths below are relative to `src/normative_conformance/`.
 | `services/case/` | Configure case targets and resolve distinct speaker order |
 | `services/observation/` | Store and retrieve observations; stage inserts within caller-owned transactions |
 | `services/model/`, `services/assessment/` | Evaluate SQL models and append results |
-| `services/scheduler/` | Request coalescing, worker loop, repair and intervention timers |
+| `services/scheduler/` | Database polling, case progress, repair and intervention timers |
 | `services/intervention/`, `services/health/` | Create/deliver messages. Check readiness |
-| `models/`, `database.py`, `queue.py` | SQLModel tables, transactions, persistent task queue |
+| `models/`, `database.py` | SQLModel tables and transactions |
 | `migrations/` | Alembic environment and schema/catalog revisions |
 | `logging.py`, `timestamps.py` | Structured diagnostics and UTC/microsecond conversion |
 
@@ -118,11 +117,11 @@ After microphone access succeeds, the page uses `PUT /api/v1/cases/{case_id}/tar
 
 `routes/capture.py` verifies the case in a short read session before accepting the browser WebSocket. It reads binary PCM and the `stop` text, sends JSON messages, and maps failures to fixed error text and close codes. `services/capture/run_capture.py` contains the capture logic and does not see the socket. It receives the case ID, server clock, browser messages as an async iterator, and send/store functions. It measures levels, buffers and forwards audio, stores finalized speech before sending it to the page, and waits for the transcriber to finish on Stop.
 
-`services/capture/run_capture.py` retains signal frames and maps each finalized turn to its original observation IDs after storage succeeds. Later final messages for an already stored turn are ignored. The pure `build_observations` function in `services/capture/observations.py` groups consecutive word labels, builds stable observation IDs and UTC speech times, and summarizes overlapping frames. Observation IDs derive from the provider session, turn order, first and last word indices, and the run's speaker label. Relabeling an unchanged word span produces a distinct ID. Both original finals and speaker revisions use that function with the same capture time origin and signal frames. `services/capture/store_observations.py` uses `stage_observation` in a short write transaction per turn and schedules assessment after commit when a target is resolved. The route runs storage in a thread pool, so database work does not block the event loop. No database session is held while waiting for provider events.
+`services/capture/run_capture.py` retains signal frames and maps each finalized turn to its original observation IDs after storage succeeds. Later final messages for an already stored turn are ignored. The pure `build_observations` function in `services/capture/observations.py` groups consecutive word labels, builds stable observation IDs and UTC speech times, and summarizes overlapping frames. Observation IDs derive from the provider session, turn order, first and last word indices, and the run's speaker label. Relabeling an unchanged word span produces a distinct ID. Both original finals and speaker revisions use that function with the same capture time origin and signal frames. `services/capture/store_observations.py` uses `stage_observation` in a short write transaction per turn. The route runs storage in a thread pool, so database work does not block the event loop. No database session is held while waiting for provider events.
 
 `services/capture/store_revisions.py` appends each revision batch atomically before the revised transcript messages are sent. The `speaker_revision` table stores one row per revised turn: `case_id`, `received_at_us`, `replaced_observation_ids_json`, and `observations_json`. The latter contains regrouped `ObservationInput` rows, including UTC timestamps and signal summaries. `ObservationReplacement` types this storage input. Replacement IDs always refer to the original observations, even across successive splits and merges. A revision without a stored original turn ends capture with `providerProtocol`.
 
-Storage performs no revision lookup or payload comparison. Every received revision is appended, including repeats. Increasing `revision_id` determines the latest replacement for each original ID group, even when receipt times are equal. Database triggers reject updates and deletes. Existing assessment paths continue to use the original observations; revisions change neither targets nor assessments and do not enqueue work.
+Storage performs no revision lookup or payload comparison. Every received revision is appended, including repeats. Increasing `revision_id` determines the latest replacement for each original ID group, even when receipt times are equal. Database triggers reject updates and deletes. Existing assessment paths continue to use the original observations; revisions change neither targets nor assessments and do not make a case eligible for polling.
 
 `LevelMeter` carries incomplete 20 ms frames between messages and discards audio after measurement. `PCMBuffer` keeps a short audio tail so the final provider packet meets the 50 ms minimum without modifying samples.
 

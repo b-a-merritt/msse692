@@ -10,7 +10,8 @@ No open defects are listed.
 
 | Boundary | Consequence |
 |---|---|
-| Failed operations are not retried | If an operation fails, such as SQLite staying locked past its 5-second timeout, it is marked failed and never retried, even after restart. Late interventions have little value in a time-sensitive conversation |
+| Case processing retries on each poll | A failed transaction leaves progress unchanged, so a persistent error repeats until corrected |
+| Intervention grouping windows are held in memory | Shutdown discards open windows. Failed intervention creation consumes its window and is not retried |
 | Confirmed matches suppressed until repair | A second offense without a repair produces no new intervention |
 | Fixed phrase lists and chunk-level measurements | Phrases outside the lists are missed, such as the threat in case 8 |
 | Target selection is scoped to each case | Speaking order and manual labels select a target within a case; they do not identify a person across sessions |

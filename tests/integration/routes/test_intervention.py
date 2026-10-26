@@ -57,15 +57,16 @@ def test_delivery_marks_listed_interventions_sent_once(*, open_client):
             "/api/v1/observations",
             json=observation_data | {"speaker_id": "speaker-2", "transcript": "I hope you die"},
         )
-        assert response.status_code == 202
-        rows = evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=client.app.state.engine,
-            scheduler=client.app.state.scheduler,
-            now=client.app.state.clock,
-            models=model_catalog,
-        )
+        assert response.status_code == 201
+        with write_session(engine=client.app.state.engine) as assessment_session:
+            rows = evaluate_case(
+                case_id="case",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=client.app.state.clock,
+                models=model_catalog,
+            )
+            assessment_session.commit()
         with write_session(engine=client.app.state.engine) as session:
             create_intervention(
                 case_id="case",
@@ -157,15 +158,16 @@ def test_delivery_storage_error_returns_safe_message_and_stays_pending(*, open_c
             "/api/v1/observations",
             json=observation_data | {"speaker_id": "speaker-2", "transcript": "I hope you die"},
         )
-        assert response.status_code == 202
-        rows = evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=client.app.state.engine,
-            scheduler=client.app.state.scheduler,
-            now=client.app.state.clock,
-            models=model_catalog,
-        )
+        assert response.status_code == 201
+        with write_session(engine=client.app.state.engine) as assessment_session:
+            rows = evaluate_case(
+                case_id="case",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=client.app.state.clock,
+                models=model_catalog,
+            )
+            assessment_session.commit()
         with write_session(engine=client.app.state.engine) as session:
             create_intervention(
                 case_id="case",

@@ -33,5 +33,5 @@ def readiness(
     scheduler: Scheduler,
     worker: AssessmentWorker,
 ) -> Readiness:
-    """Report database, queue, and assessment-worker availability."""
+    """Report database and assessment-worker availability."""
     return health.readiness(session=session, scheduler=scheduler, worker=worker)

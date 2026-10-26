@@ -2,7 +2,6 @@ import logging
 from collections.abc import AsyncIterator
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
-from contextlib import closing
 from contextlib import contextmanager
 from pathlib import Path
 from threading import Thread
@@ -18,7 +17,6 @@ from normative_conformance.database import initialize_database
 from normative_conformance.database import read_session
 from normative_conformance.logging import start_logging
 from normative_conformance.logging import stop_logging
-from normative_conformance.queue import create_assessment_queue
 from normative_conformance.schemas.model import ModelVersion
 from normative_conformance.services.model.validate_models import validate_models
 from normative_conformance.services.scheduler.run_worker import run_worker
@@ -32,35 +30,32 @@ def _scheduler_lifespan(
     *,
     app: FastAPI,
     engine: Engine,
-    queue_path: Path,
     intervention_window_us: int,
     models: list[ModelVersion],
 ) -> Iterator[None]:
-    """Open the queue and keep it available until the worker has stopped."""
-    with closing(create_assessment_queue(path=queue_path)) as queue:
-        scheduler = SchedulerState(queue=queue)
-        worker = Thread(
-            target=run_worker,
-            kwargs={
-                "scheduler": scheduler,
-                "engine": engine,
-                "now": app.state.clock,
-                "intervention_window_us": intervention_window_us,
-                "models": models,
-            },
-            name="assessment-worker",
-        )
+    """Keep the database available until the worker has stopped."""
+    scheduler = SchedulerState()
+    worker = Thread(
+        target=run_worker,
+        kwargs={
+            "scheduler": scheduler,
+            "engine": engine,
+            "now": app.state.clock,
+            "intervention_window_us": intervention_window_us,
+            "models": models,
+        },
+        name="assessment-worker",
+    )
 
-        app.state.assessment_queue = queue
-        app.state.scheduler = scheduler
-        app.state.assessment_worker = worker
+    app.state.scheduler = scheduler
+    app.state.assessment_worker = worker
 
-        worker.start()
-        try:
-            yield
-        finally:
-            scheduler.stopped.set()
-            worker.join()
+    worker.start()
+    try:
+        yield
+    finally:
+        scheduler.stopped.set()
+        worker.join()
 
 
 def _log_started(
@@ -103,11 +98,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 models = validate_models(session=session)
             app.state.engine = engine
 
-            stage = "queue"
+            stage = "worker"
             with _scheduler_lifespan(
                 app=app,
                 engine=engine,
-                queue_path=settings.assessment_queue_path,
                 intervention_window_us=settings.intervention_window_us,
                 models=models,
             ):
@@ -121,7 +115,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 yield
         finally:
             app.state.engine = None
-            app.state.assessment_queue = None
             app.state.scheduler = None
             app.state.assessment_worker = None
             engine.dispose()

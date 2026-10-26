@@ -13,10 +13,10 @@ curl --fail http://127.0.0.1:8000/openapi.json -o openapi.json
 | Method and path | Input | Success response |
 |---|---|---|
 | `GET /health/live` | None | 200: `{"status":"live"}` |
-| `GET /health/ready` | None | 200: `{"status":"ready"}`. Checks database, queue, worker |
+| `GET /health/ready` | None | 200: `{"status":"ready"}`. Checks database and worker |
 | `PUT /api/v1/cases/{case_id}/target` | Exactly one target order or label | 200: `CaseRecord`; creates the case if absent |
 | `GET /api/v1/cases/{case_id}` | Case ID | 200: `CaseRecord`; 404 if absent |
-| `POST /api/v1/observations` | `ObservationInput` body | 202: `ObservationRecord` |
+| `POST /api/v1/observations` | `ObservationInput` body | 201: `ObservationRecord` |
 | `GET /api/v1/cases/{case_id}/observations` | Case ID | 200: `items` of `ObservationRecord`, newest sequence first |
 | `GET /api/v1/cases/{case_id}/assessments` | Case ID | 200: `items` of `Assessment`, increasing assessment ID |
 | `GET /api/v1/models` | None | 200: `items` of `ModelVersion` |
@@ -52,7 +52,7 @@ curl -i -X POST http://127.0.0.1:8000/api/v1/observations \
   }'
 ```
 
-The 202 response repeats these fields and adds `sequence` (1 for a new case), `received_at`, and `updated_at`. Receipt and update times are server UTC timestamps and are equal at insertion. It confirms storage and a scheduling request. Assessment completes asynchronously. The [user walkthrough](user_guide.md) shows the actual response and expected results.
+The 201 response repeats these fields and adds `sequence` (1 for a new case), `received_at`, and `updated_at`. Receipt and update times are server UTC timestamps and are equal at insertion. It confirms storage. The worker polls stored speech and assesses cases with a resolved target. Storage remains available while the worker is stopped. The [user walkthrough](user_guide.md) shows the actual response and expected results.
 
 ```bash
 curl --fail http://127.0.0.1:8000/api/v1/cases/docs-demo/observations
@@ -102,7 +102,7 @@ Speaker revisions update the live transcript but do not change original observat
 
 Send the exact text `stop` to finish. The server flushes the remaining audio and partial level frame, sends provider `Terminate`, and continues receiving transcripts and revisions until provider `Termination`. Only then does it send `{"type":"stopped"}` and close with code 1000. The provider drain has a ten-second deadline. A connection ending without `stopped` is incomplete.
 
-Capture failures use `{"type":"error","code":"providerAuth","message":"..."}` with fixed application text. Codes are `notConfigured`, `providerAuth`, `providerUnavailable`, `providerProtocol`, `providerTimeout`, `invalidAudio`, `incomplete`, `storageUnavailable`, and `assessmentUnavailable`. A storage failure rolls back the current turn or revision batch; previously committed data remains saved. An assessment scheduling failure leaves the current turn saved. Both end capture without `stopped`. Invalid audio closes with code 1008; other capture failures use 1011. These WebSocket errors are separate from the HTTP domain envelope below. The key and raw provider exceptions are never sent to the browser.
+Capture failures use `{"type":"error","code":"providerAuth","message":"..."}` with fixed application text. Codes are `notConfigured`, `providerAuth`, `providerUnavailable`, `providerProtocol`, `providerTimeout`, `invalidAudio`, `incomplete`, and `storageUnavailable`. A storage failure rolls back the current turn or revision batch; previously committed data remains saved. A storage failure ends capture without `stopped`. Invalid audio closes with code 1008; other capture failures use 1011. These WebSocket errors are separate from the HTTP domain envelope below. The key and raw provider exceptions are never sent to the browser.
 
 ## Errors
 
@@ -121,10 +121,9 @@ Domain errors use this envelope. The request ID is unique to the request.
 | HTTP / code | Meaning and caller action |
 |---|---|
 | 404 `NOT_FOUND` | Case or model version absent. Check the requested identity |
-| 409 `OBSERVATION_EXISTS` | Already stored. Read the existing record. No assessment retry is scheduled |
+| 409 `OBSERVATION_EXISTS` | Already stored. Read the existing record. The stored observation remains available for polling |
 | 503 `NOT_READY` | Worker unavailable/stopping. Check readiness and restart after investigating |
-| 503 `STORAGE_UNAVAILABLE` | Database or queue access failed. Inspect service health and storage availability |
-| 503 `ENQUEUE_FAILED` | Scheduling failed. On ingestion, `error.committed_observation` contains the stored record. Preserve it. Duplicate submission cannot repair scheduling |
+| 503 `STORAGE_UNAVAILABLE` | Database access failed. Inspect service health and storage availability |
 | 422 validation | FastAPI `{"detail":[...]}` response identifies invalid fields. Correct the request |
 | 500 unhandled error | Unexpected failure. Inspect records before retrying a state-changing call |
 

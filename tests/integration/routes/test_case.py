@@ -29,7 +29,7 @@ def test_http_configuration_ingestion_and_restart_preserve_case_targets(open_cli
                     "signal_level_max": -10,
                 },
             )
-            assert response.status_code == 202
+            assert response.status_code == 201
         resolved = client.get("/api/v1/cases/live").json()
         assert resolved["target_speaker_id"] == "B"
         assert resolved["target_revision"] == 1
@@ -59,7 +59,7 @@ def test_http_configuration_ingestion_and_restart_preserve_case_targets(open_cli
                 "signal_level_max": -10,
             },
         )
-        assert response.status_code == 202
+        assert response.status_code == 201
         assert client.get("/api/v1/cases/live").json() == manual
         automatic = client.put("/api/v1/cases/live/target", json={"target_speaker_order": 1}).json()
         assert automatic["target_speaker_id"] == "B"

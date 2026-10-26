@@ -2,7 +2,6 @@
 export const STATUS = Object.freeze({
   caseSetupFailed: "Could not create the capture case. Try starting again.",
   storageUnavailable: "Speech or speaker revisions could not be stored. Capture is incomplete.",
-  assessmentUnavailable: "Speech was stored but assessment could not be requested.",
   opening: "Opening microphone and connecting to transcription…",
   active: "Microphone active. Transcribing live.",
   finishing: "Finishing transcription and speaker corrections…",

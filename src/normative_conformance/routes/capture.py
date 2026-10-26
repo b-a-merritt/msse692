@@ -35,7 +35,6 @@ from normative_conformance.services.capture.run_capture import run_capture
 from normative_conformance.services.capture.store_observations import store_observations
 from normative_conformance.services.capture.store_revisions import store_revisions
 from normative_conformance.services.case.selection import get_case
-from normative_conformance.services.scheduler.state import SchedulerState
 
 router = APIRouter()
 STATIC = Path(__file__).parent.parent / "static"
@@ -48,7 +47,6 @@ ERROR_MESSAGES: dict[CaptureErrorCode, str] = {
     "invalidAudio": "Send PCM16 packets of 1-1600 samples and record at least 50 ms.",
     "incomplete": "The transcription session ended before capture finished.",
     "storageUnavailable": "Speech or speaker revisions could not be stored. Capture is incomplete.",
-    "assessmentUnavailable": "Speech was stored but assessment could not be requested.",
 }
 
 
@@ -119,7 +117,6 @@ async def capture_audio(
             observations=observations,
             engine=cast(Engine, websocket.app.state.engine),
             now=cast(Clock, websocket.app.state.clock),
-            scheduler=cast(SchedulerState, websocket.app.state.scheduler),
         )
 
     async def store_corrections(replacements: list[ObservationReplacement]) -> None:

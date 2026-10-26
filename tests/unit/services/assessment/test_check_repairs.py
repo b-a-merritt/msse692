@@ -1,17 +1,12 @@
-from contextlib import nullcontext
 from datetime import datetime
 from datetime import timezone
 from importlib import import_module
-from threading import Event
-from types import SimpleNamespace
 from unittest.mock import Mock
 from uuid import UUID
 
 import pytest
-from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
-from normative_conformance.errors import StorageUnavailable
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.model import ModelVersion
@@ -20,21 +15,18 @@ module = import_module("normative_conformance.services.assessment.check_repairs"
 
 
 @pytest.mark.parametrize(
-    "new_repair,status,stopped,scheduled",
+    "new_repair,status",
     [
-        (True, "non-conformant", False, True),
-        (True, "pending", True, False),
-        (False, "non-conformant", False, True),
-        (False, "conformant", False, False),
+        (True, "non-conformant"),
+        (True, "pending"),
+        (False, "non-conformant"),
+        (False, "conformant"),
     ],
 )
-def test_records_repairs_and_resolves_pending_before_requesting_reassessment(
-    *, monkeypatch, new_repair, status, stopped, scheduled
+def test_records_repairs_and_resolves_pending_without_committing(
+    *, monkeypatch, new_repair, status
 ):
     session = Mock(spec=Session)
-    scheduler = SimpleNamespace(stopped=Event())
-    if stopped:
-        scheduler.stopped.set()
     models = [
         ModelVersion(
             model_id=name,
@@ -72,7 +64,6 @@ def test_records_repairs_and_resolves_pending_before_requesting_reassessment(
         model_version="1",
         status="conformant",
     )
-    monkeypatch.setattr(module, "write_session", Mock(return_value=nullcontext(session)))
     monkeypatch.setattr(module, "get_case_sequence", Mock(return_value=5))
     monkeypatch.setattr(module, "get_subject_speaker_id", Mock(return_value="subject"))
     monkeypatch.setattr(module, "get_last_repair", Mock(return_value=None))
@@ -80,22 +71,19 @@ def test_records_repairs_and_resolves_pending_before_requesting_reassessment(
     create = Mock(return_value=repair_result)
     resolve = Mock(return_value=resolution)
     pending_rows = Mock(return_value=[pending])
-    request = Mock(side_effect=lambda **kwargs: session.commit.assert_called_once())
     for name, value in [
         ("find_repair", find),
         ("create_assessment", create),
         ("resolve_pending", resolve),
         ("list_assessments", pending_rows),
-        ("request_assessment", request),
     ]:
         monkeypatch.setattr(module, name, value)
 
     results = module.check_repairs(
         case_id="case",
         evaluation_id=UUID(int=1),
-        engine=object(),
+        session=session,
         now=lambda: datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=timezone.utc),
-        scheduler=scheduler,
         models=models,
     )
 
@@ -111,55 +99,23 @@ def test_records_repairs_and_resolves_pending_before_requesting_reassessment(
         assert create.call_args.kwargs["observation_ids"] == ["apology"]
     else:
         create.assert_not_called()
-    session.commit.assert_called_once()
-    if scheduled:
-        request.assert_called_once_with(case_id="case", scheduler=scheduler)
-    else:
-        request.assert_not_called()
+    session.commit.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "failure", [SQLAlchemyError("Driver failure"), StorageUnavailable("Stored failure")]
-)
-def test_storage_failure_never_requests_reassessment(*, monkeypatch, failure):
-    monkeypatch.setattr(module, "write_session", Mock(side_effect=failure))
-    request = Mock()
-    monkeypatch.setattr(module, "request_assessment", request)
-    with pytest.raises(StorageUnavailable) as caught:
-        module.check_repairs(
-            case_id="case",
-            evaluation_id=UUID(int=1),
-            engine=object(),
-            now=Mock(),
-            scheduler=Mock(),
-            models=[],
-        )
-    if isinstance(failure, StorageUnavailable):
-        assert caught.value is failure
-    else:
-        assert caught.value.__cause__ is failure
-        assert str(caught.value) == "Repairs could not be checked"
-    request.assert_not_called()
-
-
-def test_unresolved_target_waits_without_assessing_or_scheduling(monkeypatch):
+def test_unresolved_target_waits_without_assessing(monkeypatch):
     session = Mock(spec=Session)
-    monkeypatch.setattr(module, "write_session", Mock(return_value=nullcontext(session)))
     monkeypatch.setattr(module, "get_subject_speaker_id", Mock(return_value=None))
     sequence = Mock()
     monkeypatch.setattr(module, "get_case_sequence", sequence)
-    scheduler = Mock()
     assert (
         module.check_repairs(
             case_id="case",
             evaluation_id=UUID(int=1),
-            engine=object(),
+            session=session,
             now=Mock(),
-            scheduler=scheduler,
             models=[],
         )
         == []
     )
     sequence.assert_not_called()
     session.commit.assert_not_called()
-    scheduler.assert_not_called()

@@ -1,8 +1,5 @@
-"""Startup and shutdown own the queue and its worker thread."""
+"""Startup and shutdown own the database polling worker."""
 
-import sqlite3
-from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
 from datetime import datetime
 from datetime import timezone
 from threading import Event
@@ -18,12 +15,9 @@ from normative_conformance.config import get_settings
 from normative_conformance.database import create_database_engine
 from normative_conformance.database import initialize_database
 from normative_conformance.errors import InvalidModel
-from normative_conformance.errors import StorageUnavailable
 from normative_conformance.models.normative_model import NormativeModelVersion
 from normative_conformance.models.observation import Observation
-from normative_conformance.queue import create_assessment_queue
-from normative_conformance.services import assessment
-from normative_conformance.services.scheduler.request_assessment import request_assessment
+from normative_conformance.services.scheduler.run_worker import process_case as processing
 
 # Default ASGI construction must not load a developer's local dotenv file.
 with patch.dict(Settings.model_config, {"env_file": None}):
@@ -48,29 +42,32 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(*, tmp_path, mo
     handled = Event()
     calls = []
 
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
-        with Session(bind=engine) as session:
-            assert session.get(Observation, (case_id, "chunk")) is not None
+    def evaluate_case(*, case_id, evaluation_id, session, now, models):
+        assert session.get(Observation, (case_id, "chunk")) is not None
         calls.append((case_id, evaluation_id, now()))
         handled.set()
         return []
 
-    monkeypatch.setattr(assessment, "evaluate_case", evaluate_case)
+    monkeypatch.setattr(processing, "evaluate_case", evaluate_case)
     application = create_app(
         settings=Settings(
             _env_file=None,
             app_db_path=tmp_path / "app.sqlite3",
-            assessment_queue_path=tmp_path / "queue",
             log_dir=tmp_path / "logs",
         ),
         now=lambda: received_at,
     )
     with TestClient(application) as client:
         worker = application.state.assessment_worker
-        queue = application.state.assessment_queue
         assert worker.is_alive()
+        assert (
+            client.put(
+                "/api/v1/cases/case/target", json={"target_speaker_id": "subject"}
+            ).status_code
+            == 200
+        )
         response = client.post("/api/v1/observations", json=observation_data)
-        assert response.status_code == 202
+        assert response.status_code == 201
         assert handled.wait(timeout=5)
 
     assert not worker.is_alive()
@@ -78,62 +75,8 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(*, tmp_path, mo
     assert isinstance(calls[0][1], UUID)
     assert calls[0][2] == received_at
     assert application.state.engine is None
-    assert application.state.assessment_queue is None
     assert application.state.scheduler is None
     assert application.state.assessment_worker is None
-    with pytest.raises(sqlite3.ProgrammingError):
-        queue.get(block=False)
-    with closing(create_assessment_queue(path=tmp_path / "queue")) as reopened:
-        assert reopened.acked_count() == 1
-        assert reopened.empty()
-
-
-def test_shutdown_finishes_active_work_and_leaves_waiting_work(*, tmp_path, monkeypatch):
-    entered = Event()
-    release = Event()
-    evaluated = []
-
-    def evaluate_case(*, case_id, evaluation_id, engine, now, scheduler, models):
-        evaluated.append(case_id)
-        entered.set()
-        assert release.wait(timeout=5)
-        # Shutdown must keep the queue open until the active evaluation finishes.
-        assert application.state.assessment_queue.unack_count() == 1
-        return []
-
-    monkeypatch.setattr(assessment, "evaluate_case", evaluate_case)
-    application = create_app(
-        settings=Settings(
-            _env_file=None,
-            app_db_path=tmp_path / "app.sqlite3",
-            assessment_queue_path=tmp_path / "queue",
-            log_dir=tmp_path / "logs",
-        )
-    )
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        with TestClient(application):
-            scheduler = application.state.scheduler
-            worker = application.state.assessment_worker
-            request_assessment(case_id="active", scheduler=scheduler)
-            assert entered.wait(timeout=5)
-            request_assessment(case_id="waiting", scheduler=scheduler)
-
-            def finish_during_shutdown():
-                try:
-                    assert scheduler.stopped.wait(timeout=5)
-                    assert worker.is_alive()
-                finally:
-                    release.set()
-
-            future = executor.submit(finish_during_shutdown)
-        future.result(timeout=5)
-
-    assert not worker.is_alive()
-    assert evaluated == ["active"]
-    with closing(create_assessment_queue(path=tmp_path / "queue")) as reopened:
-        assert reopened.acked_count() == 1
-        assert reopened.qsize() == 1
-        assert reopened.get(block=False)["case_id"] == "waiting"
 
 
 def test_invalid_model_stops_startup_before_the_worker_starts(*, tmp_path):
@@ -157,7 +100,6 @@ def test_invalid_model_stops_startup_before_the_worker_starts(*, tmp_path):
         settings=Settings(
             _env_file=None,
             app_db_path=tmp_path / "app.sqlite3",
-            assessment_queue_path=tmp_path / "queue",
             log_dir=tmp_path / "logs",
         )
     )
@@ -165,27 +107,5 @@ def test_invalid_model_stops_startup_before_the_worker_starts(*, tmp_path):
     with pytest.raises(InvalidModel), TestClient(application):
         pytest.fail("Startup should fail when a stored model is invalid")
 
-    assert not (tmp_path / "queue").exists()
     assert application.state.engine is None
-    assert application.state.assessment_worker is None
-
-
-def test_failed_queue_startup_clears_application_resources(*, tmp_path):
-    path = tmp_path / "file"
-    path.write_text("not a directory", encoding="utf-8")
-    application = create_app(
-        settings=Settings(
-            _env_file=None,
-            app_db_path=tmp_path / "app.sqlite3",
-            assessment_queue_path=path,
-            log_dir=tmp_path / "logs",
-        )
-    )
-
-    with pytest.raises(StorageUnavailable), TestClient(application):
-        pytest.fail("Startup should fail when the queue cannot be opened")
-
-    assert application.state.engine is None
-    assert application.state.assessment_queue is None
-    assert application.state.scheduler is None
     assert application.state.assessment_worker is None

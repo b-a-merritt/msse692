@@ -6,8 +6,7 @@ A research prototype for supporting moral self-regulation in conversation. It ac
 flowchart LR
     C[Researcher / replay client] -->|Observations| A[HTTP API]
     A --> D[(SQLite records)]
-    A --> Q[(Persistent queue)]
-    Q --> W[Assessment worker]
+    D -->|Poll new speech and target changes| W[Assessment worker]
     W -->|Assessments and interventions| D
     D -->|Read / deliver| A
     A --> C
@@ -21,7 +20,7 @@ flowchart LR
 - Interactive API documentation and repeatable case replays.
 - Live AssemblyAI transcripts, speaker labels, and server-measured signal levels at `/capture`.
 
-**Stack:** Python 3.13, FastAPI, Pydantic, SQLModel, SQLite, Alembic, and persist-queue. Development uses uv, pytest/pytest-cov, Ruff, mypy, and pre-commit.
+**Stack:** Python 3.13, FastAPI, Pydantic, SQLModel, SQLite, and Alembic. Development uses uv, pytest/pytest-cov, Ruff, mypy, and pre-commit.
 
 ## Quick start
 

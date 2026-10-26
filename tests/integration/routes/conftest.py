@@ -27,7 +27,6 @@ def open_client(*, tmp_path, monkeypatch):
             settings=Settings(
                 _env_file=None,
                 app_db_path=tmp_path / "api.sqlite3",
-                assessment_queue_path=tmp_path / "queue",
                 log_dir=tmp_path / "logs",
             ),
             now=now,

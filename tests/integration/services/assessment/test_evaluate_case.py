@@ -1,36 +1,31 @@
-import sqlite3
 from datetime import datetime
 from datetime import timezone
 from itertools import count
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import select
 
 from normative_conformance import models
 from normative_conformance.database import read_session
-from normative_conformance.errors import EnqueueFailed
-from normative_conformance.errors import StorageUnavailable
+from normative_conformance.database import write_session
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.normative_model import NormativeModelVersion
 from normative_conformance.schemas.assessment import Explanation
 from normative_conformance.services.assessment.check_repairs import check_repairs
 from normative_conformance.services.assessment.evaluate_case import evaluate_case
 from normative_conformance.services.model.list_models import list_models
-from normative_conformance.services.scheduler.state import SchedulerState
 
 from ...storage import persist
 
 
-def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(
-    *, session, engine, assessment_queue
-):
+def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -51,14 +46,16 @@ def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    first = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )
+    with write_session(engine=engine) as assessment_session:
+        first = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(100, timezone.utc),
+            models=evaluation_models,
+        )
+        assessment_session.commit()
+    session.commit()
     assert len(first) == 1
     assert first[0].status == "pending"
     assert first[0].evaluated_at_us == 100_000_000
@@ -67,7 +64,6 @@ def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(
     assert explanation.reason_code == "awaiting_repair"
     assert explanation.rules[0].outcome == "pending"
     assert explanation.rules[0].deadline_at.timestamp() == 110
-    assert assessment_queue.queue()[0]["data"]["kind"] == "check_repairs"
     persist(
         session=session,
         record=models.Observation(
@@ -87,26 +83,26 @@ def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    again = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(109, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )
+    with write_session(engine=engine) as assessment_session:
+        again = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(109, timezone.utc),
+            models=evaluation_models,
+        )
+        assessment_session.commit()
+    session.commit()
     assert [row.model_dump() for row in again] == [row.model_dump() for row in first]
     assert len(session.exec(select(Assessment)).all()) == 1
-    assert assessment_queue.qsize() == 1
 
 
-def test_no_match_creates_no_pending_assessment(*, session, engine, assessment_queue):
+def test_no_match_creates_no_pending_assessment(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -127,27 +123,26 @@ def test_no_match_creates_no_pending_assessment(*, session, engine, assessment_q
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    assert (
-        evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=engine,
-            now=lambda: datetime.fromtimestamp(100, timezone.utc),
-            scheduler=scheduler,
-            models=evaluation_models,
+    with write_session(engine=engine) as assessment_session:
+        assert (
+            evaluate_case(
+                case_id="case",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=lambda: datetime.fromtimestamp(100, timezone.utc),
+                models=evaluation_models,
+            )
+            == []
         )
-        == []
-    )
-    assert assessment_queue.empty()
+        assessment_session.commit()
 
 
-def test_no_repair_allowance_confirms_immediately(*, session, engine, assessment_queue):
+def test_no_repair_allowance_confirms_immediately(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -180,14 +175,16 @@ def test_no_repair_allowance_confirms_immediately(*, session, engine, assessment
     session.commit()
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    result = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )
+    with write_session(engine=engine) as assessment_session:
+        result = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(100, timezone.utc),
+            models=evaluation_models,
+        )
+        assessment_session.commit()
+    session.commit()
     assert len(result) == 1
     assert result[0].status == "conformant"
     assert result[0].next_due_at_us is None
@@ -195,31 +192,29 @@ def test_no_repair_allowance_confirms_immediately(*, session, engine, assessment
     assert explanation.reason_code == "matched"
     assert explanation.rules[0].outcome == "satisfied"
     assert explanation.rules[0].deadline_at is None
-    assert assessment_queue.empty()
 
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    repeated = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(101, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )
+    with write_session(engine=engine) as assessment_session:
+        repeated = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(101, timezone.utc),
+            models=evaluation_models,
+        )
+        assessment_session.commit()
+    session.commit()
     assert [row.assessment_id for row in repeated] == [result[0].assessment_id]
     assert len(session.exec(select(Assessment)).all()) == 1
 
 
-def test_models_use_their_own_allowance_and_keep_existing_deadlines(
-    *, session, engine, assessment_queue
-):
+def test_models_use_their_own_allowance_and_keep_existing_deadlines(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -254,17 +249,18 @@ def test_models_use_their_own_allowance_and_keep_existing_deadlines(
 
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    originals = {
-        row.model_id: row
-        for row in evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=engine,
-            now=lambda: datetime.fromtimestamp(100, timezone.utc),
-            scheduler=scheduler,
-            models=evaluation_models,
-        )
-    }
+    with write_session(engine=engine) as assessment_session:
+        originals = {
+            row.model_id: row
+            for row in evaluate_case(
+                case_id="case",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=lambda: datetime.fromtimestamp(100, timezone.utc),
+                models=evaluation_models,
+            )
+        }
+        assessment_session.commit()
 
     assert originals["short"].next_due_at_us == 102_000_000
     assert originals["long"].next_due_at_us == 120_000_000
@@ -274,239 +270,44 @@ def test_models_use_their_own_allowance_and_keep_existing_deadlines(
         assert explanation.rules[0].deadline_at.timestamp() * 1_000_000 == row.next_due_at_us
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    assert [
-        row.model_dump()
-        for row in evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=engine,
-            now=lambda: datetime.fromtimestamp(101, timezone.utc),
-            scheduler=scheduler,
-            models=evaluation_models,
-        )
-    ] == [row.model_dump() for row in originals.values()]
+    with write_session(engine=engine) as assessment_session:
+        assert [
+            row.model_dump()
+            for row in evaluate_case(
+                case_id="case",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=lambda: datetime.fromtimestamp(101, timezone.utc),
+                models=evaluation_models,
+            )
+        ] == [row.model_dump() for row in originals.values()]
+        assessment_session.commit()
 
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    checked = {
-        row.model_id: row
-        for row in check_repairs(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=engine,
-            now=lambda: datetime.fromtimestamp(102, timezone.utc),
-            scheduler=scheduler,
-            models=evaluation_models,
-        )
-    }
+    with write_session(engine=engine) as assessment_session:
+        checked = {
+            row.model_id: row
+            for row in check_repairs(
+                case_id="case",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=lambda: datetime.fromtimestamp(102, timezone.utc),
+                models=evaluation_models,
+            )
+        }
+        assessment_session.commit()
     assert checked["short"].status == "conformant"
     assert checked["short"].resolves_assessment_id == originals["short"].assessment_id
     assert checked["long"].model_dump() == originals["long"].model_dump()
 
 
-def test_replay_requests_repair_after_enqueue_failure_without_repeating_assessment(
-    *, session, engine, assessment_queue, monkeypatch
-):
+def test_failed_assessment_rolls_back_all_models(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with read_session(engine=engine) as catalog_session:
-        model_catalog = list_models(session=catalog_session)
-
-    persist(
-        session=session,
-        record=models.Observation(
-            updated_at_us=0,
-            case_id="case",
-            observation_id=str(observation_sequence := next(observation_sequences)),
-            sequence=observation_sequence,
-            speaker_id="configured-subject",
-            start_at_us=0,
-            end_at_us=1_500_000,
-            received_at_us=0,
-            transcript="stop that right now please",
-            signal_level_min=-60.0,
-            signal_level_avg=-16.0,
-            signal_level_max=0.0,
-        ),
-    )
-    evaluation_id = uuid4()
-    put = assessment_queue.put
-
-    def fail_enqueue(*, item):
-        with read_session(engine=engine) as session:
-            assert len(session.exec(select(Assessment)).all()) == 1
-        raise sqlite3.OperationalError("Queue failed")
-
-    monkeypatch.setattr(assessment_queue, "put", fail_enqueue)
-    with pytest.raises(EnqueueFailed):
-        evaluate_case(
-            case_id="case",
-            evaluation_id=evaluation_id,
-            engine=engine,
-            now=lambda: received_at,
-            scheduler=scheduler,
-            models=model_catalog,
-        )
-
-    monkeypatch.setattr(assessment_queue, "put", put)
-    results = evaluate_case(
-        case_id="case",
-        evaluation_id=evaluation_id,
-        engine=engine,
-        now=lambda: received_at,
-        scheduler=scheduler,
-        models=model_catalog,
-    )
-    with read_session(engine=engine) as session:
-        assert len(session.exec(select(Assessment)).all()) == 1
-    assert len(results) == 1
-    assert results[0].evaluation_id == str(evaluation_id)
-    assert assessment_queue.get(block=False)["kind"] == "check_repairs"
-
-
-def test_shutdown_finishes_assessment_without_enqueuing_repair(
-    *, session, engine, assessment_queue
-):
-    session.add(
-        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
-    )
-    session.commit()
-    observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
-
-    persist(
-        session=session,
-        record=models.Observation(
-            updated_at_us=0,
-            case_id="case",
-            observation_id=str(observation_sequence := next(observation_sequences)),
-            sequence=observation_sequence,
-            speaker_id="configured-subject",
-            start_at_us=0,
-            end_at_us=1_500_000,
-            received_at_us=0,
-            transcript="stop that right now please",
-            signal_level_min=-60.0,
-            signal_level_avg=-16.0,
-            signal_level_max=0.0,
-        ),
-    )
-    scheduler.stopped.set()
-    with read_session(engine=engine) as catalog_session:
-        evaluation_models = list_models(session=catalog_session)
-    assert (
-        evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=engine,
-            now=lambda: datetime.fromtimestamp(100, timezone.utc),
-            scheduler=scheduler,
-            models=evaluation_models,
-        )[0].status
-        == "pending"
-    )
-    assert assessment_queue.empty()
-
-
-def test_replayed_evaluation_preserves_its_original_results(*, session, engine, assessment_queue):
-    session.add(
-        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
-    )
-    session.commit()
-    observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
-
-    persist(
-        session=session,
-        record=models.Observation(
-            updated_at_us=0,
-            case_id="case",
-            observation_id=str(observation_sequence := next(observation_sequences)),
-            sequence=observation_sequence,
-            speaker_id="configured-subject",
-            start_at_us=0,
-            end_at_us=1_500_000,
-            received_at_us=0,
-            transcript="stop that right now please",
-            signal_level_min=-60.0,
-            signal_level_avg=-16.0,
-            signal_level_max=0.0,
-        ),
-    )
-    evaluation_id = uuid4()
-    with read_session(engine=engine) as catalog_session:
-        evaluation_models = list_models(session=catalog_session)
-    original = evaluate_case(
-        case_id="case",
-        evaluation_id=evaluation_id,
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )
-    persist(
-        session=session,
-        record=models.Observation(
-            updated_at_us=101_000_000,
-            case_id="case",
-            observation_id=str(observation_sequence := next(observation_sequences)),
-            sequence=observation_sequence,
-            speaker_id="configured-subject",
-            start_at_us=1_000_000,
-            end_at_us=32_000_000,
-            received_at_us=101_000_000,
-            transcript="hello",
-            signal_level_min=-60.0,
-            signal_level_avg=-30.0,
-            signal_level_max=0.0,
-        ),
-    )
-
-    with read_session(engine=engine) as catalog_session:
-        evaluation_models = list_models(session=catalog_session)
-    replayed = evaluate_case(
-        case_id="case",
-        evaluation_id=evaluation_id,
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(102, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )
-
-    assert [row.model_dump() for row in replayed] == [row.model_dump() for row in original]
-    assert replayed[0].through_sequence == 1
-    with read_session(engine=engine) as catalog_session:
-        evaluation_models = list_models(session=catalog_session)
-    assert {
-        row.model_id
-        for row in evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=engine,
-            now=lambda: datetime.fromtimestamp(102, timezone.utc),
-            scheduler=scheduler,
-            models=evaluation_models,
-        )
-    } == {
-        "high_intensity_address",
-        "extended_turn",
-    }
-
-
-def test_failed_assessment_rolls_back_all_models_before_requesting_repairs(
-    *, session, engine, assessment_queue
-):
-    session.add(
-        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
-    )
-    session.commit()
-    observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -550,30 +351,30 @@ def test_failed_assessment_rolls_back_all_models_before_requesting_repairs(
             BEGIN SELECT RAISE(ABORT, 'Assessment write failed'); END
         """)
 
-    with pytest.raises(StorageUnavailable, match="The case could not be assessed"):
+    with pytest.raises(SQLAlchemyError):
         with read_session(engine=engine) as catalog_session:
             evaluation_models = list_models(session=catalog_session)
-        evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=engine,
-            now=lambda: datetime.fromtimestamp(100, timezone.utc),
-            scheduler=scheduler,
-            models=evaluation_models,
-        )
+        with write_session(engine=engine) as assessment_session:
+            evaluate_case(
+                case_id="case",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=lambda: datetime.fromtimestamp(100, timezone.utc),
+                models=evaluation_models,
+            )
+            assessment_session.commit()
+        session.commit()
 
     with read_session(engine=engine) as session:
         assert session.exec(select(Assessment)).all() == []
-    assert assessment_queue.empty()
 
 
-def test_new_matches_share_the_case_evaluation_time(*, session, engine, assessment_queue):
+def test_new_matches_share_the_case_evaluation_time(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
     with read_session(engine=engine) as catalog_session:
         model_catalog = list_models(session=catalog_session)
 
@@ -613,14 +414,16 @@ def test_new_matches_share_the_case_evaluation_time(*, session, engine, assessme
     )
     times = iter([100])
 
-    results = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        scheduler=scheduler,
-        now=lambda: datetime.fromtimestamp(next(times), timezone.utc),
-        models=model_catalog,
-    )
+    with write_session(engine=engine) as assessment_session:
+        results = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(next(times), timezone.utc),
+            models=model_catalog,
+        )
+        assessment_session.commit()
+    session.commit()
 
     assert [(row.model_id, row.evaluated_at_us, row.next_due_at_us) for row in results] == [
         ("extended_turn", 100_000_000, 110_000_000),
@@ -628,13 +431,12 @@ def test_new_matches_share_the_case_evaluation_time(*, session, engine, assessme
     ]
 
 
-def test_models_record_the_same_case_target(*, session, engine, assessment_queue):
+def test_models_record_the_same_case_target(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -673,90 +475,27 @@ def test_models_record_the_same_case_target(*, session, engine, assessment_queue
 
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    results = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )
+    with write_session(engine=engine) as assessment_session:
+        results = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(100, timezone.utc),
+            models=evaluation_models,
+        )
+        assessment_session.commit()
+    session.commit()
     assert len(results) == 2
     assert {row.subject_speaker_id for row in results} == {"configured-subject"}
     assert {row.target_revision for row in results} == {0}
 
 
-def test_replay_preserves_pending_result_after_resolution(*, session, engine, assessment_queue):
+def test_model_added_after_the_catalog_was_loaded_is_not_assessed(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
-
-    persist(
-        session=session,
-        record=models.Observation(
-            updated_at_us=0,
-            case_id="case",
-            observation_id=str(observation_sequence := next(observation_sequences)),
-            sequence=observation_sequence,
-            speaker_id="configured-subject",
-            start_at_us=0,
-            end_at_us=1_500_000,
-            received_at_us=0,
-            transcript="stop that right now please",
-            signal_level_min=-60.0,
-            signal_level_avg=-16.0,
-            signal_level_max=0.0,
-        ),
-    )
-    evaluation_id = uuid4()
-    with read_session(engine=engine) as catalog_session:
-        evaluation_models = list_models(session=catalog_session)
-    original = evaluate_case(
-        case_id="case",
-        evaluation_id=evaluation_id,
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
-    with read_session(engine=engine) as catalog_session:
-        evaluation_models = list_models(session=catalog_session)
-    final = check_repairs(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(110, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
-    assert final.resolves_assessment_id == original.assessment_id
-
-    with read_session(engine=engine) as catalog_session:
-        evaluation_models = list_models(session=catalog_session)
-    replayed = evaluate_case(
-        case_id="case",
-        evaluation_id=evaluation_id,
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(111, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )
-
-    assert [row.model_dump() for row in replayed] == [original.model_dump()]
-
-
-def test_model_added_after_the_catalog_was_loaded_is_not_assessed(
-    *, session, engine, assessment_queue
-):
-    session.add(
-        models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
-    )
-    session.commit()
-    observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
     with read_session(engine=engine) as catalog_session:
         model_catalog = list_models(session=catalog_session)
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
@@ -791,13 +530,15 @@ def test_model_added_after_the_catalog_was_loaded_is_not_assessed(
     )
     session.commit()
 
-    results = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: received_at,
-        scheduler=scheduler,
-        models=model_catalog,
-    )
+    with write_session(engine=engine) as assessment_session:
+        results = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: received_at,
+            models=model_catalog,
+        )
+        assessment_session.commit()
+    session.commit()
 
     assert results == []

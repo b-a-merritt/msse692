@@ -1,4 +1,3 @@
-import sqlite3
 from threading import Thread
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,7 +15,7 @@ def readiness(
     scheduler: SchedulerState,
     worker: Thread,
 ) -> Readiness:
-    """Check the ingestion runtime without changing records or queued work."""
+    """Check the ingestion runtime without changing records."""
     if scheduler.stopped.is_set() or not worker.is_alive():
         raise NotReady("The assessment worker is not running")
 
@@ -24,10 +23,5 @@ def readiness(
         session.exec(select(1)).one()
     except SQLAlchemyError as error:
         raise NotReady("The application database is unavailable") from error
-
-    try:
-        scheduler.queue.ready_count()
-    except (sqlite3.Error, OSError) as error:
-        raise NotReady("The assessment queue is unavailable") from error
 
     return Readiness(status="ready")

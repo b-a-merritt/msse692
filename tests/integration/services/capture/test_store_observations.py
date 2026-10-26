@@ -11,12 +11,9 @@ from normative_conformance.models.case import CaseLog
 from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.services.capture.store_observations import store_observations
-from normative_conformance.services.scheduler.state import SchedulerState
 
 
-def test_turn_is_committed_in_order_resolves_target_and_requests_assessment(
-    engine, assessment_queue
-):
+def test_turn_is_committed_in_order_and_resolves_target(engine):
     first = ObservationInput(
         case_id="case",
         observation_id="one",
@@ -45,7 +42,6 @@ def test_turn_is_committed_in_order_resolves_target_and_requests_assessment(
         observations=[first, second],
         engine=engine,
         now=lambda: datetime(2026, 10, 26, 0, 0, 3, tzinfo=timezone.utc),
-        scheduler=SchedulerState(queue=assessment_queue),
     )
     with read_session(engine=engine) as session:
         rows = session.exec(select(Observation).order_by(Observation.sequence)).all()
@@ -54,10 +50,9 @@ def test_turn_is_committed_in_order_resolves_target_and_requests_assessment(
         case = session.get(CaseLog, "case")
         assert case.target_speaker_id == "B"
         assert case.target_revision == 1
-    assert assessment_queue.get()["case_id"] == "case"
 
 
-def test_second_run_failure_rolls_back_whole_turn_and_target(engine, assessment_queue):
+def test_second_run_failure_rolls_back_whole_turn_and_target(engine):
     first = ObservationInput(
         case_id="case",
         observation_id="one",
@@ -87,10 +82,8 @@ def test_second_run_failure_rolls_back_whole_turn_and_target(engine, assessment_
             observations=[first, second],
             engine=engine,
             now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
-            scheduler=SchedulerState(queue=assessment_queue),
         )
     assert caught.value.code == "storageUnavailable"
-    assert assessment_queue.empty()
     with read_session(engine=engine) as session:
         assert session.exec(select(Observation)).all() == []
         case = session.get(CaseLog, "case")

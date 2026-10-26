@@ -170,7 +170,6 @@ def test_pcm_and_final_revisions_cross_both_websockets(open_client, monkeypatch)
         assert observations[0]["transcript"] == "Hello."
         assert observations[0]["speaker_id"] == "A"
         assert observations[0]["signal_level_avg"] == -120
-        assert client.app.state.assessment_queue.queue() == []
     assert credentials == ["integration-key"]
     assert b"".join(packet for packet in received if isinstance(packet, bytes)) == audio
     assert received[-1] == module.TERMINATE
@@ -320,9 +319,6 @@ def test_live_final_turn_is_stored_once_and_resolves_target_before_stop(open_cli
             assert rows[-1]["end_at"] == "2026-10-26T00:00:00.100000Z"
             assert all(row["received_at"] == row["updated_at"] for row in rows)
             assert client.get("/api/v1/cases/live").json()["target_speaker_id"] == "B"
-            queue = client.app.state.assessment_queue
-            assert queue.qsize() == 1
-            assert queue.get()["case_id"] == "live"
             socket.send_text("stop")
             while (message := socket.receive_json())["type"] != "stopped":
                 assert message["type"] != "error"

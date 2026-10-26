@@ -12,8 +12,6 @@ from normative_conformance.schemas.case import TargetSelection
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.services.case.target import refresh_target
 from normative_conformance.services.case.target import set_target_label
-from normative_conformance.services.scheduler.request_assessment import request_assessment
-from normative_conformance.services.scheduler.state import SchedulerState
 from normative_conformance.timestamps import from_microseconds
 from normative_conformance.timestamps import to_microseconds
 
@@ -55,9 +53,8 @@ def select_target(
     selection: TargetSelection,
     session: Session,
     now: Clock,
-    scheduler: SchedulerState,
 ) -> CaseRecord:
-    """Create/configure a case and request evaluation of any existing speech."""
+    """Persist the target selection for a case."""
     try:
         session.connection()
         case = session.get(CaseLog, case_id)
@@ -76,8 +73,4 @@ def select_target(
     except SQLAlchemyError as error:
         session.rollback()
         raise StorageUnavailable("The target selection could not be stored") from error
-    # Selecting a target wakes existing stored input.
-    # Repeating the PUT also retries an enqueue failure after a successful commit.
-    if labels and case.target_speaker_id is not None:
-        request_assessment(case_id=case_id, scheduler=scheduler)
     return record

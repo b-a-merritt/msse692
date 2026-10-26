@@ -1,6 +1,5 @@
 """Exercise ingestion through FastAPI with the real database and lifespan."""
 
-import sqlite3
 from datetime import datetime
 from datetime import timezone
 from unittest.mock import Mock
@@ -16,7 +15,7 @@ from normative_conformance.models.case import CaseLog
 from normative_conformance.models.observation import Observation
 
 
-def test_ingestion_returns_committed_observation_and_requests_assessment(*, open_client):
+def test_ingestion_returns_committed_observation(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
     with open_client(now=lambda: received_at) as client:
         observation_data = {
@@ -33,7 +32,7 @@ def test_ingestion_returns_committed_observation_and_requests_assessment(*, open
 
         response = client.post("/api/v1/observations", json=observation_data)
 
-        assert response.status_code == 202
+        assert response.status_code == 201
         assert response.json() == observation_data | {
             "start_at": "2026-09-26T09:00:00.123456Z",
             "end_at": "2026-09-26T09:00:01.654321Z",
@@ -50,10 +49,6 @@ def test_ingestion_returns_committed_observation_and_requests_assessment(*, open
             assert stored.transcript == observation_data["transcript"]
             assert stored.sequence == response.json()["sequence"]
             assert session.exec(select(Assessment)).all() == []
-        task = client.app.state.assessment_queue.get(block=False)
-        assert task["kind"] == "assess_case"
-        assert task["case_id"] == "case"
-        assert UUID(task["evaluation_id"]).version == 4
 
 
 def test_duplicate_submission_returns_conflict(*, open_client):
@@ -71,7 +66,7 @@ def test_duplicate_submission_returns_conflict(*, open_client):
             "signal_level_max": -10.0,
         }
 
-        assert client.post("/api/v1/observations", json=observation_data).status_code == 202
+        assert client.post("/api/v1/observations", json=observation_data).status_code == 201
         response = client.post(
             "/api/v1/observations", json=observation_data | {"transcript": "Replacement"}
         )
@@ -88,7 +83,6 @@ def test_duplicate_submission_returns_conflict(*, open_client):
             observations = session.exec(select(Observation)).all()
             assert len(observations) == 1
             assert observations[0].transcript == observation_data["transcript"]
-        assert client.app.state.assessment_queue.qsize() == 1
 
 
 @pytest.mark.parametrize(
@@ -121,7 +115,6 @@ def test_invalid_request_creates_no_records(*, open_client, changes):
         response = client.post("/api/v1/observations", json=observation_data | changes)
 
         assert response.status_code == 422
-        assert client.app.state.assessment_queue.empty()
         with Session(bind=client.app.state.engine) as session:
             assert session.exec(select(CaseLog)).all() == []
             assert session.exec(select(Observation)).all() == []
@@ -150,7 +143,6 @@ def test_storage_error_returns_safe_message_and_rolls_back(*, open_client):
         response = client.post("/api/v1/observations", json=observation_data)
 
         assert response.status_code == 503
-        assert client.app.state.assessment_queue.empty()
         assert response.json() == {
             "error": {
                 "code": "STORAGE_UNAVAILABLE",
@@ -197,58 +189,7 @@ def test_connection_failure_returns_service_unavailable(*, open_client, monkeypa
         }
 
 
-def test_enqueue_failure_returns_committed_observation(*, open_client, monkeypatch):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at) as client:
-        observation_data = {
-            "case_id": "case",
-            "observation_id": "chunk",
-            "speaker_id": "subject",
-            "start_at": "2026-09-26T12:00:00.123456+03:00",
-            "end_at": "2026-09-26T12:00:01.654321+03:00",
-            "transcript": "  Hello!\n",
-            "signal_level_min": -50.0,
-            "signal_level_avg": -30.0,
-            "signal_level_max": -10.0,
-        }
-
-        queue = client.app.state.assessment_queue
-        with monkeypatch.context() as patch:
-            patch.setattr(
-                queue, "put", Mock(side_effect=sqlite3.OperationalError("private queue details"))
-            )
-            response = client.post("/api/v1/observations", json=observation_data)
-
-        assert response.status_code == 503
-        error = response.json()["error"]
-        assert error["code"] == "ENQUEUE_FAILED"
-        assert (
-            error["message"]
-            == "The observation was stored but its assessment could not be requested"
-        )
-        assert error["request_id"] == response.headers["X-Request-ID"]
-        assert error["committed_observation"]["case_id"] == "case"
-        assert error["committed_observation"]["observation_id"] == "chunk"
-        assert error["committed_observation"]["sequence"] == 1
-        assert queue.empty()
-        with Session(bind=client.app.state.engine) as session:
-            assert session.get(CaseLog, "case") is not None
-            stored = session.get(Observation, ("case", "chunk"))
-            assert stored is not None
-            assert stored.sequence == 1
-
-        # Retrying the same observation does not overwrite it or create a work request.
-        assert client.post("/api/v1/observations", json=observation_data).status_code == 409
-        assert queue.empty()
-        next_response = client.post(
-            "/api/v1/observations", json=observation_data | {"observation_id": "next"}
-        )
-        assert next_response.status_code == 202
-        assert next_response.json()["sequence"] == 2
-        assert queue.qsize() == 1
-
-
-def test_uninitialized_scheduler_rejects_submission_before_writing(*, open_client, monkeypatch):
+def test_uninitialized_scheduler_does_not_block_storage(*, open_client, monkeypatch):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
     with open_client(now=lambda: received_at) as client:
         observation_data = {
@@ -266,11 +207,10 @@ def test_uninitialized_scheduler_rejects_submission_before_writing(*, open_clien
         monkeypatch.setattr(client.app.state, "scheduler", None)
         response = client.post("/api/v1/observations", json=observation_data)
 
-        assert response.status_code == 503
-        assert response.json()["error"]["code"] == "NOT_READY"
+        assert response.status_code == 201
         with Session(bind=client.app.state.engine) as session:
-            assert session.exec(select(CaseLog)).all() == []
-            assert session.exec(select(Observation)).all() == []
+            assert len(session.exec(select(CaseLog)).all()) == 1
+            assert len(session.exec(select(Observation)).all()) == 1
 
 
 def test_openapi_describes_ingestion_responses(*, open_client):
@@ -279,13 +219,13 @@ def test_openapi_describes_ingestion_responses(*, open_client):
         responses = client.get("/openapi.json").json()["paths"]["/api/v1/observations"]["post"][
             "responses"
         ]
-        assert set(responses) == {"202", "409", "422", "503"}
-        assert responses["202"]["content"]["application/json"]["schema"]["$ref"] == (
+        assert set(responses) == {"201", "409", "422", "503"}
+        assert responses["201"]["content"]["application/json"]["schema"]["$ref"] == (
             "#/components/schemas/ObservationRecord"
         )
 
 
-def test_stopped_worker_rejects_submission_before_writing(*, open_client):
+def test_stopped_worker_does_not_block_storage(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
     with open_client(now=lambda: received_at) as client:
         observation_data = {
@@ -303,10 +243,9 @@ def test_stopped_worker_rejects_submission_before_writing(*, open_client):
         client.app.state.scheduler.stopped.set()
         response = client.post("/api/v1/observations", json=observation_data)
 
-        assert response.status_code == 503
-        assert response.json()["error"]["code"] == "NOT_READY"
+        assert response.status_code == 201
         with Session(bind=client.app.state.engine) as session:
-            assert session.exec(select(Observation)).all() == []
+            assert len(session.exec(select(Observation)).all()) == 1
 
 
 def test_listing_returns_observations_newest_first(*, open_client):

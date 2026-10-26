@@ -19,14 +19,12 @@ from normative_conformance.services.intervention.deliver_pending import deliver_
 from normative_conformance.services.intervention.list_intervention_records import (
     list_intervention_records,
 )
-from normative_conformance.services.scheduler.state import SchedulerState
 
 
-def test_target_changes_invalidate_stored_work_without_relabeling_history(engine, assessment_queue):
+def test_target_changes_invalidate_stored_work_without_relabeling_history(engine):
     def now():
         return datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc)
 
-    scheduler = SchedulerState(queue=assessment_queue)
     # The model and speech relevant to this storage test are defined here, not in a seed fixture.
     model = ModelVersion(
         model_id="harm_phrase",
@@ -77,33 +75,34 @@ def test_target_changes_invalidate_stored_work_without_relabeling_history(engine
             )
         )
         session.commit()
-    assert (
-        evaluate_case(
-            case_id="case",
-            evaluation_id=UUID(int=1),
-            engine=engine,
-            now=now,
-            scheduler=scheduler,
-            models=[model],
+    with write_session(engine=engine) as assessment_session:
+        assert (
+            evaluate_case(
+                case_id="case",
+                evaluation_id=UUID(int=1),
+                session=assessment_session,
+                now=now,
+                models=[model],
+            )
+            == []
         )
-        == []
-    )
+        assessment_session.commit()
     with write_session(engine=engine) as session:
         select_target(
             case_id="case",
             selection=TargetSelection(target_speaker_id="A"),
             session=session,
             now=now,
-            scheduler=scheduler,
         )
-    first = evaluate_case(
-        case_id="case",
-        evaluation_id=UUID(int=2),
-        engine=engine,
-        now=now,
-        scheduler=scheduler,
-        models=[model],
-    )
+    with write_session(engine=engine) as assessment_session:
+        first = evaluate_case(
+            case_id="case",
+            evaluation_id=UUID(int=2),
+            session=assessment_session,
+            now=now,
+            models=[model],
+        )
+        assessment_session.commit()
     assert len(first) == 1
     assert first[0].target_revision == 1
     with write_session(engine=engine) as session:
@@ -114,7 +113,6 @@ def test_target_changes_invalidate_stored_work_without_relabeling_history(engine
             selection=TargetSelection(target_speaker_id="B"),
             session=session,
             now=now,
-            scheduler=scheduler,
         )
     with write_session(engine=engine) as session:
         assert deliver_pending(case_id="case", session=session, now=now) == []
@@ -128,34 +126,35 @@ def test_target_changes_invalidate_stored_work_without_relabeling_history(engine
             row.subject_speaker_id
             for row in list_intervention_records(case_id="case", session=session)
         ] == ["A"]
-    assert (
-        evaluate_case(
-            case_id="case",
-            evaluation_id=UUID(int=3),
-            engine=engine,
-            now=now,
-            scheduler=scheduler,
-            models=[model],
+    with write_session(engine=engine) as assessment_session:
+        assert (
+            evaluate_case(
+                case_id="case",
+                evaluation_id=UUID(int=3),
+                session=assessment_session,
+                now=now,
+                models=[model],
+            )
+            == []
         )
-        == []
-    )
-    # Returning to A must not revive revision 1, even if a queued evaluation ID is retried.
+        assessment_session.commit()
+    # Returning to A must not revive revision 1, even if an evaluation ID is reused.
     with write_session(engine=engine) as session:
         select_target(
             case_id="case",
             selection=TargetSelection(target_speaker_id="A"),
             session=session,
             now=now,
-            scheduler=scheduler,
         )
-    second = evaluate_case(
-        case_id="case",
-        evaluation_id=UUID(int=2),
-        engine=engine,
-        now=now,
-        scheduler=scheduler,
-        models=[model],
-    )
+    with write_session(engine=engine) as assessment_session:
+        second = evaluate_case(
+            case_id="case",
+            evaluation_id=UUID(int=2),
+            session=assessment_session,
+            now=now,
+            models=[model],
+        )
+        assessment_session.commit()
     assert len(second) == 1
     assert second[0].assessment_id != first[0].assessment_id
     assert second[0].target_revision == 3

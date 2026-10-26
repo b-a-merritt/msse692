@@ -8,6 +8,7 @@ from sqlmodel import select
 
 from normative_conformance import models
 from normative_conformance.database import read_session
+from normative_conformance.database import write_session
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.case import CaseLog
 from normative_conformance.models.normative_model import NormativeModelVersion
@@ -21,18 +22,16 @@ from normative_conformance.services.model.get_model import get_model
 from normative_conformance.services.model.get_subject_speaker_id import get_subject_speaker_id
 from normative_conformance.services.model.list_models import list_models
 from normative_conformance.services.observation.get_case_sequence import get_case_sequence
-from normative_conformance.services.scheduler.state import SchedulerState
 
 from ...storage import persist
 
 
-def test_finalized_match_is_not_repeated_before_repair(*, session, engine, assessment_queue):
+def test_finalized_match_is_not_repeated_before_repair(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -53,24 +52,26 @@ def test_finalized_match_is_not_repeated_before_repair(*, session, engine, asses
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    original = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
+    with write_session(engine=engine) as assessment_session:
+        original = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(100, timezone.utc),
+            models=evaluation_models,
+        )[0]
+        assessment_session.commit()
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    final = check_repairs(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(110, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
+    with write_session(engine=engine) as assessment_session:
+        final = check_repairs(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(110, timezone.utc),
+            models=evaluation_models,
+        )[0]
+        assessment_session.commit()
     assert final.resolves_assessment_id == original.assessment_id
     persist(
         session=session,
@@ -107,15 +108,12 @@ def test_finalized_match_is_not_repeated_before_repair(*, session, engine, asses
     assert len(session.exec(select(Assessment)).all()) == 2
 
 
-def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
-    *, session, engine, assessment_queue
-):
+def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -136,14 +134,15 @@ def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    original = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
+    with write_session(engine=engine) as assessment_session:
+        original = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(100, timezone.utc),
+            models=evaluation_models,
+        )[0]
+        assessment_session.commit()
     persist(
         session=session,
         record=models.Observation(
@@ -163,14 +162,15 @@ def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    final = check_repairs(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(110, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
+    with write_session(engine=engine) as assessment_session:
+        final = check_repairs(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(110, timezone.utc),
+            models=evaluation_models,
+        )[0]
+        assessment_session.commit()
     assert final.resolves_assessment_id == original.assessment_id
     assert original.through_sequence == 1
     assert final.through_sequence == 2
@@ -195,14 +195,16 @@ def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    check_repairs(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(111, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )
+    with write_session(engine=engine) as assessment_session:
+        check_repairs(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(111, timezone.utc),
+            models=evaluation_models,
+        )
+        assessment_session.commit()
+    session.commit()
     new = assess_model(
         model=get_model(model_id="high_intensity_address", version="1", session=session),
         snapshot=CaseSnapshot(
@@ -222,15 +224,12 @@ def test_reuse_checks_original_evidence_when_resolution_includes_later_speech(
 
 
 @pytest.mark.parametrize("repair_allowance_us", [None, 5_000_000])
-def test_reuse_is_specific_to_model_and_version(
-    *, session, engine, assessment_queue, repair_allowance_us
-):
+def test_reuse_is_specific_to_model_and_version(*, session, engine, repair_allowance_us):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -265,17 +264,18 @@ def test_reuse_is_specific_to_model_and_version(
     session.commit()
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    originals = {
-        (row.model_id, row.model_version): row
-        for row in evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=engine,
-            now=lambda: datetime.fromtimestamp(100, timezone.utc),
-            scheduler=scheduler,
-            models=evaluation_models,
-        )
-    }
+    with write_session(engine=engine) as assessment_session:
+        originals = {
+            (row.model_id, row.model_version): row
+            for row in evaluate_case(
+                case_id="case",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=lambda: datetime.fromtimestamp(100, timezone.utc),
+                models=evaluation_models,
+            )
+        }
+        assessment_session.commit()
 
     for model_id, version in identities:
         reused = assess_model(
@@ -295,15 +295,12 @@ def test_reuse_is_specific_to_model_and_version(
     assert len(session.exec(select(Assessment)).all()) == 3
 
 
-def test_unresolved_pending_takes_precedence_over_a_later_result(
-    *, session, engine, assessment_queue
-):
+def test_unresolved_pending_takes_precedence_over_a_later_result(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -324,14 +321,15 @@ def test_unresolved_pending_takes_precedence_over_a_later_result(
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    pending = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
+    with write_session(engine=engine) as assessment_session:
+        pending = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(100, timezone.utc),
+            models=evaluation_models,
+        )[0]
+        assessment_session.commit()
     later = Assessment(
         **(
             pending.model_dump()
@@ -363,13 +361,12 @@ def test_unresolved_pending_takes_precedence_over_a_later_result(
     )
 
 
-def test_reuse_is_specific_to_the_case(*, session, engine, assessment_queue):
+def test_reuse_is_specific_to_the_case(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     observation = persist(
         session=session,
@@ -390,14 +387,15 @@ def test_reuse_is_specific_to_the_case(*, session, engine, assessment_queue):
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    original = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
+    with write_session(engine=engine) as assessment_session:
+        original = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(100, timezone.utc),
+            models=evaluation_models,
+        )[0]
+        assessment_session.commit()
     session.add(CaseLog(target_speaker_id="configured-subject", case_id="other", created_at_us=0))
     session.flush()
     session.add(Observation(**(observation.model_dump() | {"case_id": "other"})))

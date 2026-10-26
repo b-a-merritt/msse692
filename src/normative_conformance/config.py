@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     type_safe_api_key: str = ""
     debug: bool = False
     app_db_path: Path = Path("data/prototype.sqlite3")
-    assessment_queue_path: Path = Path("data/assessment_queue")
     log_dir: Path = Path("data/logs")
     intervention_window_us: int = Field(default=2_000_000, gt=0)
 

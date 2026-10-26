@@ -1,6 +1,5 @@
 """Health checks report runtime availability without creating work."""
 
-import sqlite3
 from threading import Thread
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -25,7 +24,6 @@ def application(*, tmp_path):
         settings=Settings(
             _env_file=None,
             app_db_path=tmp_path / "app.sqlite3",
-            assessment_queue_path=tmp_path / "queue",
             log_dir=tmp_path / "logs",
         )
     )
@@ -50,7 +48,6 @@ def test_liveness_works_before_startup_and_readiness_does_not(*, application, tm
     assert ready.status_code == 503
     assert ready.json()["error"]["code"] == "NOT_READY"
     assert not (tmp_path / "app.sqlite3").exists()
-    assert not (tmp_path / "queue").exists()
 
 
 @pytest.mark.parametrize("endpoint,status", [("live", "live"), ("ready", "ready")])
@@ -61,7 +58,6 @@ def test_healthy_response_has_metadata(*, client, endpoint, status):
     assert response.json() == {"status": status}
     assert UUID(response.headers["X-Request-ID"]).version == 4
     assert response.headers["Cache-Control"] == "no-store"
-    assert client.app.state.assessment_queue.queue() == []
 
 
 @pytest.mark.parametrize("attribute", ["engine", "scheduler", "assessment_worker"])
@@ -87,11 +83,7 @@ def test_dead_worker_is_not_ready(*, client, monkeypatch):
 
 
 def test_worker_failure_is_not_ready(*, client, monkeypatch):
-    monkeypatch.setattr(
-        client.app.state.assessment_queue,
-        "get",
-        Mock(side_effect=sqlite3.OperationalError("private queue details")),
-    )
+    client.app.state.scheduler.stopped.set()
     client.app.state.assessment_worker.join(timeout=5)
     assert not client.app.state.assessment_worker.is_alive()
 
@@ -106,7 +98,6 @@ def test_worker_failure_is_not_ready(*, client, monkeypatch):
     "resource,message",
     [
         ("database", "The application database is unavailable"),
-        ("queue", "The assessment queue is unavailable"),
     ],
 )
 def test_unavailable_storage_returns_safe_error(*, client, monkeypatch, resource, message):
@@ -115,12 +106,6 @@ def test_unavailable_storage_returns_safe_error(*, client, monkeypatch, resource
             client.app.state.engine,
             "connect",
             Mock(side_effect=OperationalError("connect", {}, RuntimeError("private details"))),
-        )
-    else:
-        monkeypatch.setattr(
-            client.app.state.assessment_queue,
-            "ready_count",
-            Mock(side_effect=sqlite3.OperationalError("private details")),
         )
 
     response = client.get("/health/ready")

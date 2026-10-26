@@ -5,16 +5,6 @@ from sqlmodel import Session
 
 from normative_conformance.database import create_database_engine
 from normative_conformance.database import initialize_database
-from normative_conformance.queue import create_assessment_queue
-
-
-@pytest.fixture
-def assessment_queue(*, tmp_path):
-    queue = create_assessment_queue(path=tmp_path / "queue")
-    try:
-        yield queue
-    finally:
-        queue.close()
 
 
 @pytest.fixture

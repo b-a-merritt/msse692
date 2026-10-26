@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 
 from normative_conformance.database import read_session
+from normative_conformance.database import write_session
 from normative_conformance.services.assessment.check_repairs import check_repairs
 from normative_conformance.services.assessment.evaluate_case import evaluate_case
 from normative_conformance.services.model.list_models import list_models
@@ -50,15 +51,16 @@ def test_returns_api_records_with_original_extents_and_resolution_links(*, open_
                 "end_at": "2026-09-26T09:00:31Z",
             },
         )
-        assert response.status_code == 202
-        rows = evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=client.app.state.engine,
-            scheduler=client.app.state.scheduler,
-            now=client.app.state.clock,
-            models=model_catalog,
-        )
+        assert response.status_code == 201
+        with write_session(engine=client.app.state.engine) as assessment_session:
+            rows = evaluate_case(
+                case_id="case",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=client.app.state.clock,
+                models=model_catalog,
+            )
+            assessment_session.commit()
         assert len(rows) == 1
         pending = rows[0]
         response = client.post(
@@ -71,22 +73,23 @@ def test_returns_api_records_with_original_extents_and_resolution_links(*, open_
                 "end_at": "2026-09-26T09:00:31Z",
             },
         )
-        assert response.status_code == 202
-        rows = evaluate_case(
-            case_id="other",
-            evaluation_id=uuid4(),
-            engine=client.app.state.engine,
-            scheduler=client.app.state.scheduler,
-            now=client.app.state.clock,
-            models=model_catalog,
-        )
+        assert response.status_code == 201
+        with write_session(engine=client.app.state.engine) as assessment_session:
+            rows = evaluate_case(
+                case_id="other",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=client.app.state.clock,
+                models=model_catalog,
+            )
+            assessment_session.commit()
         assert len(rows) == 1
         # A later arrival must not change the pending assessment's captured extent.
         assert (
             client.post(
                 "/api/v1/observations", json=observation_data | {"observation_id": "later"}
             ).status_code
-            == 202
+            == 201
         )
 
         response = client.get("/api/v1/cases/case/assessments")
@@ -125,14 +128,15 @@ def test_returns_api_records_with_original_extents_and_resolution_links(*, open_
         }
         assert response.json() == {"items": [expected_pending]}
 
-        resolution = check_repairs(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=client.app.state.engine,
-            scheduler=client.app.state.scheduler,
-            now=lambda: received_at + timedelta(seconds=10),
-            models=model_catalog,
-        )[0]
+        with write_session(engine=client.app.state.engine) as assessment_session:
+            resolution = check_repairs(
+                case_id="case",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=lambda: received_at + timedelta(seconds=10),
+                models=model_catalog,
+            )[0]
+            assessment_session.commit()
         response = client.get("/api/v1/cases/case/assessments")
 
         assert response.status_code == 200
@@ -203,15 +207,16 @@ def test_preserves_repair_evidence_in_the_explanation(*, open_client):
                 "end_at": "2026-09-26T09:00:31Z",
             },
         )
-        assert response.status_code == 202
-        rows = evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=client.app.state.engine,
-            scheduler=client.app.state.scheduler,
-            now=client.app.state.clock,
-            models=model_catalog,
-        )
+        assert response.status_code == 201
+        with write_session(engine=client.app.state.engine) as assessment_session:
+            rows = evaluate_case(
+                case_id="case",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=client.app.state.clock,
+                models=model_catalog,
+            )
+            assessment_session.commit()
         assert len(rows) == 1
         pending = rows[0]
         assert (
@@ -226,16 +231,17 @@ def test_preserves_repair_evidence_in_the_explanation(*, open_client):
                     "transcript": "I apologize",
                 },
             ).status_code
-            == 202
+            == 201
         )
-        check_repairs(
-            case_id="case",
-            evaluation_id=uuid4(),
-            engine=client.app.state.engine,
-            scheduler=client.app.state.scheduler,
-            now=lambda: received_at + timedelta(seconds=5),
-            models=model_catalog,
-        )
+        with write_session(engine=client.app.state.engine) as assessment_session:
+            check_repairs(
+                case_id="case",
+                evaluation_id=uuid4(),
+                session=assessment_session,
+                now=lambda: received_at + timedelta(seconds=5),
+                models=model_catalog,
+            )
+            assessment_session.commit()
 
         response = client.get("/api/v1/cases/case/assessments")
 
@@ -266,7 +272,7 @@ def test_returns_empty_items_when_no_assessments_exist(*, open_client, case_id):
             "signal_level_max": -10.0,
         }
 
-        assert client.post("/api/v1/observations", json=observation_data).status_code == 202
+        assert client.post("/api/v1/observations", json=observation_data).status_code == 201
 
         response = client.get(f"/api/v1/cases/{case_id}/assessments")
 

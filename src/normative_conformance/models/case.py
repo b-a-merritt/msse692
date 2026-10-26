@@ -14,3 +14,5 @@ class CaseLog(SQLModel, table=True):
     target_speaker_id: str | None = Field(default=None, sa_type=Text)
     target_speaker_manual: bool = False
     target_revision: int = 0
+    last_handled_sequence: int = 0
+    last_handled_target_revision: int = 0

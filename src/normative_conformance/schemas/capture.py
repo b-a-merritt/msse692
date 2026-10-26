@@ -36,7 +36,6 @@ CaptureErrorCode = Literal[
     "invalidAudio",
     "incomplete",
     "storageUnavailable",
-    "assessmentUnavailable",
 ]
 
 

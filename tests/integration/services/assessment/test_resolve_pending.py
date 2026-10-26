@@ -7,6 +7,7 @@ import pytest
 
 from normative_conformance import models
 from normative_conformance.database import read_session
+from normative_conformance.database import write_session
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.schemas.assessment import Explanation
@@ -17,7 +18,6 @@ from normative_conformance.services.model.get_model import get_model
 from normative_conformance.services.model.get_subject_speaker_id import get_subject_speaker_id
 from normative_conformance.services.model.list_models import list_models
 from normative_conformance.services.observation.get_case_sequence import get_case_sequence
-from normative_conformance.services.scheduler.state import SchedulerState
 
 from ...storage import persist
 
@@ -25,15 +25,12 @@ from ...storage import persist
 @pytest.mark.parametrize(
     "received,expected", [(109.999999, "non-conformant"), (110, "conformant"), (111, "conformant")]
 )
-def test_repair_uses_fixed_deadline_when_check_is_delayed(
-    *, session, engine, assessment_queue, received, expected
-):
+def test_repair_uses_fixed_deadline_when_check_is_delayed(*, session, engine, received, expected):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -54,14 +51,15 @@ def test_repair_uses_fixed_deadline_when_check_is_delayed(
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    original = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
+    with write_session(engine=engine) as assessment_session:
+        original = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(100, timezone.utc),
+            models=evaluation_models,
+        )[0]
+        assessment_session.commit()
     before = original.model_dump()
     persist(
         session=session,
@@ -106,13 +104,12 @@ def test_repair_uses_fixed_deadline_when_check_is_delayed(
     assert list_assessments(status="pending", unresolved=True, session=session) == []
 
 
-def test_older_speech_arriving_later_does_not_cancel_pending(*, session, engine, assessment_queue):
+def test_older_speech_arriving_later_does_not_cancel_pending(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -133,14 +130,15 @@ def test_older_speech_arriving_later_does_not_cancel_pending(*, session, engine,
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    pending = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
+    with write_session(engine=engine) as assessment_session:
+        pending = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(100, timezone.utc),
+            models=evaluation_models,
+        )[0]
+        assessment_session.commit()
     persist(
         session=session,
         record=models.Observation(
@@ -180,15 +178,12 @@ def test_older_speech_arriving_later_does_not_cancel_pending(*, session, engine,
     )
 
 
-def test_latest_late_repair_does_not_hide_earlier_timely_repair(
-    *, session, engine, assessment_queue
-):
+def test_latest_late_repair_does_not_hide_earlier_timely_repair(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -209,14 +204,15 @@ def test_latest_late_repair_does_not_hide_earlier_timely_repair(
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    pending = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
+    with write_session(engine=engine) as assessment_session:
+        pending = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(100, timezone.utc),
+            models=evaluation_models,
+        )[0]
+        assessment_session.commit()
     persist(
         session=session,
         record=models.Observation(
@@ -273,15 +269,12 @@ def test_latest_late_repair_does_not_hide_earlier_timely_repair(
     )
 
 
-def test_repair_checks_original_evidence_even_when_later_speech_matches(
-    *, session, engine, assessment_queue
-):
+def test_repair_checks_original_evidence_even_when_later_speech_matches(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     persist(
         session=session,
@@ -302,14 +295,15 @@ def test_repair_checks_original_evidence_even_when_later_speech_matches(
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    pending = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
+    with write_session(engine=engine) as assessment_session:
+        pending = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(100, timezone.utc),
+            models=evaluation_models,
+        )[0]
+        assessment_session.commit()
     persist(
         session=session,
         record=models.Observation(

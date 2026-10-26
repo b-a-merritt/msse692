@@ -6,7 +6,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 from sqlmodel import select
 
-from normative_conformance.errors import EnqueueFailed
 from normative_conformance.errors import ObservationExists
 from normative_conformance.errors import StorageUnavailable
 from normative_conformance.models.case import CaseLog
@@ -17,8 +16,6 @@ from normative_conformance.schemas.observation import ObservationRecord
 from normative_conformance.services.case.selection import speaker_labels
 from normative_conformance.services.case.target import refresh_target
 from normative_conformance.services.observation.records import to_record
-from normative_conformance.services.scheduler.request_assessment import request_assessment
-from normative_conformance.services.scheduler.state import SchedulerState
 from normative_conformance.timestamps import to_microseconds
 
 logger = logging.getLogger(__name__)
@@ -66,10 +63,10 @@ def stage_observation(
     session: Session,
     now: Clock,
 ) -> ObservationRecord:
-    """Insert without committing, rolling back, or enqueueing.
+    """Insert without committing or rolling back.
 
     Use a write_session. The caller must commit all related changes together or
-    roll back on any failure, and schedule follow-up work only after committing.
+    roll back on any failure.
     """
     session.connection()
     received_at_us = to_microseconds(value=now().astimezone(timezone.utc))
@@ -105,9 +102,8 @@ def ingest(
     input: ObservationInput,
     session: Session,
     now: Clock,
-    scheduler: SchedulerState,
 ) -> ObservationRecord:
-    """Commit an observation, then request assessment of its case."""
+    """Commit an observation for database polling."""
     try:
         record = stage_observation(input=input, session=session, now=now)
         session.commit()
@@ -136,11 +132,4 @@ def ingest(
         },
     )
 
-    try:
-        request_assessment(case_id=record.case_id, scheduler=scheduler)
-    except EnqueueFailed as error:
-        raise EnqueueFailed(
-            message="The observation was stored but its assessment could not be requested",
-            committed_observation=record,
-        ) from error
     return record

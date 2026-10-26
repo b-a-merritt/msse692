@@ -25,6 +25,9 @@ CREATE TABLE case_log (
         CHECK (length(trim(target_speaker_id)) > 0 AND target_speaker_id <> 'PENDING'),
     target_speaker_manual INTEGER NOT NULL DEFAULT 0 CHECK (target_speaker_manual IN (0, 1)),
     target_revision INTEGER NOT NULL DEFAULT 0 CHECK (target_revision >= 0),
+    last_handled_sequence INTEGER NOT NULL DEFAULT 0 CHECK (last_handled_sequence >= 0),
+    last_handled_target_revision INTEGER NOT NULL DEFAULT 0
+        CHECK (last_handled_target_revision >= 0),
     CHECK (target_speaker_manual = 0 OR target_speaker_id IS NOT NULL)
 ) STRICT
 """)

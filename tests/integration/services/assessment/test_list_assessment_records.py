@@ -5,13 +5,13 @@ from uuid import uuid4
 
 from normative_conformance import models
 from normative_conformance.database import read_session
+from normative_conformance.database import write_session
 from normative_conformance.services.assessment.check_repairs import check_repairs
 from normative_conformance.services.assessment.evaluate_case import evaluate_case
 from normative_conformance.services.assessment.list_assessment_records import (
     list_assessment_records,
 )
 from normative_conformance.services.model.list_models import list_models
-from normative_conformance.services.scheduler.state import SchedulerState
 
 from ...storage import persist
 
@@ -20,15 +20,12 @@ def test_no_assessments_returns_empty_records_without_target_configuration(*, se
     assert list_assessment_records(case_id="missing", session=session) == []
 
 
-def test_records_preserve_each_assessments_prefix_explanation_and_deadline(
-    *, session, engine, assessment_queue
-):
+def test_records_preserve_each_assessments_prefix_explanation_and_deadline(*, session, engine):
     session.add(
         models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=0)
     )
     session.commit()
     observation_sequences = count(1)
-    scheduler = SchedulerState(queue=assessment_queue)
 
     first = persist(
         session=session,
@@ -49,14 +46,15 @@ def test_records_preserve_each_assessments_prefix_explanation_and_deadline(
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    pending = evaluate_case(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(100, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
+    with write_session(engine=engine) as assessment_session:
+        pending = evaluate_case(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(100, timezone.utc),
+            models=evaluation_models,
+        )[0]
+        assessment_session.commit()
     second = persist(
         session=session,
         record=models.Observation(
@@ -76,14 +74,15 @@ def test_records_preserve_each_assessments_prefix_explanation_and_deadline(
     )
     with read_session(engine=engine) as catalog_session:
         evaluation_models = list_models(session=catalog_session)
-    resolution = check_repairs(
-        case_id="case",
-        evaluation_id=uuid4(),
-        engine=engine,
-        now=lambda: datetime.fromtimestamp(110, timezone.utc),
-        scheduler=scheduler,
-        models=evaluation_models,
-    )[0]
+    with write_session(engine=engine) as assessment_session:
+        resolution = check_repairs(
+            case_id="case",
+            evaluation_id=uuid4(),
+            session=assessment_session,
+            now=lambda: datetime.fromtimestamp(110, timezone.utc),
+            models=evaluation_models,
+        )[0]
+        assessment_session.commit()
     persist(
         session=session,
         record=models.Observation(
