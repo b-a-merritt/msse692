@@ -64,7 +64,7 @@ async def browser(*messages):
         yield message
 
 
-async def run(*, messages, transcriber):
+async def run(*, case_id, messages, transcriber):
     sent = []
 
     async def send(message):
@@ -72,7 +72,10 @@ async def run(*, messages, transcriber):
 
     await asyncio.wait_for(
         module.run_capture(
-            messages=messages, send=send, connect_transcriber=connecting(transcriber)
+            case_id=case_id,
+            messages=messages,
+            send=send,
+            connect_transcriber=connecting(transcriber),
         ),
         1,
     )
@@ -116,11 +119,16 @@ def test_streams_levels_and_transcripts_until_stopped(caplog):
     audio = b"\x00\x00" * 1600 + b"\x00\x80" * 80
 
     sent = asyncio.run(
-        run(messages=browser(audio[:3200], audio[3200:], "stop"), transcriber=transcriber)
+        run(
+            case_id="capture-case",
+            messages=browser(audio[:3200], audio[3200:], "stop"),
+            transcriber=transcriber,
+        )
     )
 
     assert sent[0] == {
         "type": "ready",
+        "case_id": "capture-case",
         "sample_rate": 16000,
         "encoding": "pcm_s16le",
         "channels": 1,
@@ -178,7 +186,7 @@ def test_streams_levels_and_transcripts_until_stopped(caplog):
 def test_invalid_browser_input_is_rejected(message):
     transcriber = FakeTranscriber()
     with pytest.raises(CaptureFailure) as caught:
-        asyncio.run(run(messages=browser(message), transcriber=transcriber))
+        asyncio.run(run(case_id="capture-case", messages=browser(message), transcriber=transcriber))
     assert caught.value.code == "invalidAudio"
     assert transcriber.finished == 0
 
@@ -186,7 +194,13 @@ def test_invalid_browser_input_is_rejected(message):
 def test_input_after_stop_is_rejected():
     transcriber = FakeTranscriber(end_on_finish=False)
     with pytest.raises(CaptureFailure) as caught:
-        asyncio.run(run(messages=browser("stop", b"\x00\x00" * 1600), transcriber=transcriber))
+        asyncio.run(
+            run(
+                case_id="capture-case",
+                messages=browser("stop", b"\x00\x00" * 1600),
+                transcriber=transcriber,
+            )
+        )
     assert caught.value.code == "invalidAudio"
 
 
@@ -199,6 +213,7 @@ def test_browser_leaving_before_stop_is_a_disconnect_without_stopped():
     with pytest.raises(CaptureDisconnected):
         asyncio.run(
             module.run_capture(
+                case_id="capture-case",
                 messages=browser(b"\x00\x00" * 1600),
                 send=send,
                 connect_transcriber=connecting(FakeTranscriber()),
@@ -229,7 +244,7 @@ def test_provider_failure_cancels_waiting_browser_input(event, expected):
         transcriber = FakeTranscriber()
         transcriber.emit(event)
         with pytest.raises(CaptureFailure) as caught:
-            await run(messages=waiting_browser(), transcriber=transcriber)
+            await run(case_id="capture-case", messages=waiting_browser(), transcriber=transcriber)
         assert caught.value.code == expected
         assert cancelled.is_set()
 
@@ -248,7 +263,11 @@ def test_connection_failure_sends_nothing():
         sent.append(message)
 
     with pytest.raises(CaptureFailure) as caught:
-        asyncio.run(module.run_capture(messages=browser(), send=send, connect_transcriber=connect))
+        asyncio.run(
+            module.run_capture(
+                case_id="capture-case", messages=browser(), send=send, connect_transcriber=connect
+            )
+        )
     assert caught.value.code == "notConfigured"
     assert sent == []
 

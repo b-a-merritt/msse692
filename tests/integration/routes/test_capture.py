@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from datetime import timezone
 from threading import Thread
+from unittest.mock import Mock
 
 import pytest
 from starlette.websockets import WebSocketDisconnect
@@ -101,9 +102,14 @@ def test_pcm_and_final_revisions_cross_both_websockets(open_client, monkeypatch)
     ):
         monkeypatch.setattr(module, "PROVIDER_URL", url)
         client.app.state.settings.assembly_api_key = "integration-key"
-        with client.websocket_connect("/api/v1/capture/audio") as websocket:
+        configured = client.put(
+            "/api/v1/cases/capture-case/target", json={"target_speaker_order": 2}
+        )
+        assert configured.status_code == 200
+        with client.websocket_connect("/api/v1/capture/audio?case_id=capture-case") as websocket:
             assert websocket.receive_json() == {
                 "type": "ready",
+                "case_id": "capture-case",
                 "sample_rate": 16000,
                 "encoding": "pcm_s16le",
                 "channels": 1,
@@ -136,6 +142,9 @@ def test_pcm_and_final_revisions_cross_both_websockets(open_client, monkeypatch)
             with pytest.raises(WebSocketDisconnect) as closed:
                 websocket.receive_json()
             assert closed.value.code == 1000
+        stored = client.get("/api/v1/cases/capture-case").json()
+        assert stored["target_speaker_order"] == 2
+        assert stored["target_speaker_id"] is None
         assert client.app.state.assessment_queue.queue() == []
     assert credentials == ["integration-key"]
     assert b"".join(packet for packet in received if isinstance(packet, bytes)) == audio
@@ -155,7 +164,11 @@ def test_malformed_pcm_closes_both_connections(open_client, monkeypatch):
     ):
         monkeypatch.setattr(module, "PROVIDER_URL", url)
         client.app.state.settings.assembly_api_key = "integration-key"
-        with client.websocket_connect("/api/v1/capture/audio") as websocket:
+        configured = client.put(
+            "/api/v1/cases/capture-case/target", json={"target_speaker_order": 2}
+        )
+        assert configured.status_code == 200
+        with client.websocket_connect("/api/v1/capture/audio?case_id=capture-case") as websocket:
             websocket.receive_json()
             websocket.send_bytes(b"\x00")
             assert websocket.receive_json()["code"] == "invalidAudio"
@@ -176,7 +189,11 @@ def test_provider_disconnect_does_not_report_success(open_client, monkeypatch):
     ):
         monkeypatch.setattr(module, "PROVIDER_URL", url)
         client.app.state.settings.assembly_api_key = "integration-key"
-        with client.websocket_connect("/api/v1/capture/audio") as websocket:
+        configured = client.put(
+            "/api/v1/cases/capture-case/target", json={"target_speaker_order": 2}
+        )
+        assert configured.status_code == 200
+        with client.websocket_connect("/api/v1/capture/audio?case_id=capture-case") as websocket:
             assert websocket.receive_json()["type"] == "ready"
             assert websocket.receive_json()["code"] == "providerUnavailable"
             with pytest.raises(WebSocketDisconnect) as closed:
@@ -188,8 +205,26 @@ def test_missing_key_is_reported_on_capture_without_breaking_http(open_client):
     with open_client(now=lambda: datetime(2026, 10, 24, tzinfo=timezone.utc)) as client:
         client.app.state.settings.assembly_api_key = ""
         assert client.get("/health/live").status_code == 200
-        with client.websocket_connect("/api/v1/capture/audio") as websocket:
+        configured = client.put(
+            "/api/v1/cases/capture-case/target", json={"target_speaker_order": 2}
+        )
+        assert configured.status_code == 200
+        with client.websocket_connect("/api/v1/capture/audio?case_id=capture-case") as websocket:
             assert websocket.receive_json()["code"] == "notConfigured"
             with pytest.raises(WebSocketDisconnect) as closed:
                 websocket.receive_json()
             assert closed.value.code == 1011
+
+
+@pytest.mark.parametrize("query", ["", "?case_id=", "?case_id=missing", "?case_id=bad/name"])
+def test_capture_requires_an_existing_case_before_opening_provider(open_client, monkeypatch, query):
+    connect = Mock(side_effect=AssertionError("Provider must not be opened"))
+    monkeypatch.setattr(module, "connect_transcriber", connect)
+    with open_client(now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc)) as client:
+        with (
+            pytest.raises(WebSocketDisconnect) as closed,
+            client.websocket_connect(f"/api/v1/capture/audio{query}"),
+        ):
+            pass
+        assert closed.value.code == 1008
+    connect.assert_not_called()

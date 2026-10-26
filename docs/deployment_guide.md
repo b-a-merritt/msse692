@@ -57,7 +57,7 @@ Expect `live`, `ready`, and a catalog with the undesired and repair models. Exec
 
 Structured logs go to stdout and `$LOG_DIR/<UTC start time>.jsonl`. Use `event` and the case, observation, evaluation, or request IDs to correlate operations. Exception fields contain type names rather than exception messages. Transcripts are not included in application logs. Inspect API records to verify outcomes. Use the [error reference](api.md#errors) when readiness fails or an expected result is missing.
 
-Live capture writes INFO events to the same terminal and JSONL file. Filter by `capture_id` to follow one browser connection. `capture.provider_ready` associates it with the AssemblyAI `provider_session_id` shown on the page.
+Live capture writes INFO events to the same terminal and JSONL file. Filter by `capture_id` to follow one browser connection. `capture.connected` includes the saved `case_id`; `capture.provider_ready` associates both IDs with the AssemblyAI `provider_session_id` shown on the page.
 
 | Event | Meaning |
 |---|---|

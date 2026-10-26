@@ -93,7 +93,9 @@ Execute **POST /api/v1/cases/{case_id}/interventions/deliver** with `case_id` se
 
 ## Live microphone transcription
 
-Set `ASSEMBLY_API_KEY` in the server environment or repository `.env`, then start the server. Open [live capture](http://127.0.0.1:8000/capture), select **Start microphone**, allow microphone access, and speak. The page shows partial and final transcripts, speaker labels, and recent signal levels. The API key stays on the server; audio is sent to AssemblyAI for transcription.
+Set `ASSEMBLY_API_KEY` in the server environment or repository `.env`, then start the server. Open [live capture](http://127.0.0.1:8000/capture), choose whether the person to assess will speak **First** or **Second**, then select **Start microphone** and allow microphone access. Have that person speak in the selected order. The page shows the saved case ID, partial and final transcripts, speaker labels, and recent signal levels. The API key stays on the server; audio is sent to AssemblyAI for transcription.
+
+The speaking-order selector is locked during capture. Each Start creates a fresh case with the selected order and no resolved target label. Capture does not store observations, so its speech does not resolve the case's target. A created case remains stored even if transcription fails to connect.
 
 A turn can contain several speakers. Labels such as **Speaker A** refer only to the current session. **Unassigned** means the provider has not attributed those words. Speaker revisions update the existing transcript and mark the affected turn; they do not add duplicate rows.
 

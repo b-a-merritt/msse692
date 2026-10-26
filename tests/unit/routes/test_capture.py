@@ -1,6 +1,8 @@
 import asyncio
+from contextlib import nullcontext
 from typing import get_args
 from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
 from unittest.mock import Mock
 
 import pytest
@@ -36,14 +38,16 @@ def test_route_relays_browser_frames_and_closes_after_success(monkeypatch):
     )
     calls = {}
 
-    async def run_capture(*, messages, send, connect_transcriber):
+    async def run_capture(*, case_id, messages, send, connect_transcriber):
+        calls["case_id"] = case_id
         calls["messages"] = [await anext(messages), await anext(messages)]
         calls["connect"] = connect_transcriber
         await send({"type": "stopped"})
 
     monkeypatch.setattr(capture, "run_capture", run_capture)
-    asyncio.run(capture.capture_audio(websocket))
+    asyncio.run(capture.capture_audio(websocket, case=Mock(case_id="capture-case")))
     websocket.accept.assert_awaited_once()
+    assert calls["case_id"] == "capture-case"
     assert calls["messages"] == [b"\x00\x00", "stop"]
     assert calls["connect"].func is assemblyai.connect_transcriber
     assert calls["connect"].keywords == {"api_key": "unit-key"}
@@ -59,7 +63,7 @@ def test_failure_sends_fixed_text_and_closes(monkeypatch, code, close_code):
         raise CaptureFailure(code)
 
     monkeypatch.setattr(capture, "run_capture", run_capture)
-    asyncio.run(capture.capture_audio(websocket))
+    asyncio.run(capture.capture_audio(websocket, case=Mock(case_id="capture-case")))
     websocket.send_json.assert_awaited_once_with(
         {"type": "error", "code": code, "message": capture.ERROR_MESSAGES[code]}
     )
@@ -74,11 +78,11 @@ def test_every_failure_code_has_fixed_text():
 def test_browser_disconnect_ends_quietly(monkeypatch, received):
     websocket = socket(received)
 
-    async def run_capture(*, messages, send, connect_transcriber):
+    async def run_capture(*, case_id, messages, send, connect_transcriber):
         await anext(messages)
 
     monkeypatch.setattr(capture, "run_capture", run_capture)
-    asyncio.run(capture.capture_audio(websocket))
+    asyncio.run(capture.capture_audio(websocket, case=Mock(case_id="capture-case")))
     websocket.send_json.assert_not_awaited()
     websocket.close.assert_not_awaited()
 
@@ -87,9 +91,46 @@ def test_disconnect_while_sending_ends_quietly(monkeypatch):
     websocket = socket()
     websocket.send_json.side_effect = WebSocketDisconnect(1006)
 
-    async def run_capture(*, messages, send, connect_transcriber):
+    async def run_capture(*, case_id, messages, send, connect_transcriber):
         await send({"type": "stopped"})
 
     monkeypatch.setattr(capture, "run_capture", run_capture)
-    asyncio.run(capture.capture_audio(websocket))
+    asyncio.run(capture.capture_audio(websocket, case=Mock(case_id="capture-case")))
     websocket.close.assert_not_awaited()
+
+
+def test_capture_case_lookup_closes_its_session(monkeypatch):
+    websocket = socket()
+    session = Mock()
+    context = MagicMock()
+    context.__enter__.return_value = session
+    monkeypatch.setattr(capture, "read_session", Mock(return_value=context))
+    record = Mock(case_id="configured-case")
+    lookup = Mock(return_value=record)
+    monkeypatch.setattr(capture, "get_case", lookup)
+
+    assert capture.get_capture_case(websocket, case_id="configured-case") is record
+    lookup.assert_called_once_with(case_id="configured-case", session=session)
+    context.__exit__.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "failure,code",
+    [(capture.NotFound("missing"), 1008), (capture.SQLAlchemyError("private details"), 1011)],
+)
+def test_capture_case_lookup_rejects_missing_or_unavailable_storage(monkeypatch, failure, code):
+    websocket = socket()
+    monkeypatch.setattr(capture, "read_session", lambda **kwargs: nullcontext(Mock()))
+    monkeypatch.setattr(capture, "get_case", Mock(side_effect=failure))
+    with pytest.raises(capture.WebSocketException) as caught:
+        capture.get_capture_case(websocket, case_id="requested-case")
+    assert caught.value.code == code
+    assert "private details" not in caught.value.reason
+
+
+def test_capture_case_lookup_rejects_uninitialized_storage():
+    websocket = socket()
+    websocket.app.state.engine = None
+    with pytest.raises(capture.WebSocketException) as caught:
+        capture.get_capture_case(websocket, case_id="requested-case")
+    assert caught.value.code == 1011

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, test } from "node:test";
+import { afterEach, beforeEach, mock, test } from "node:test";
 
 import { browser, resetBrowser } from "./browser.mjs";
 
@@ -17,10 +17,11 @@ globalThis.window = { addEventListener: (_, listener) => { pagehide = listener; 
 await import("../../../src/normative_conformance/static/capture.js");
 const element = (id) => elements.get(id);
 
-beforeEach(resetBrowser);
-afterEach(() => pagehide());
+beforeEach(() => { resetBrowser(); element("target-order").value = "1"; });
+afterEach(() => { pagehide(); mock.restoreAll(); });
 
 test("start resets readouts and shows fixed status text until the server is ready", async () => {
+  mock.method(globalThis, "fetch", async () => ({ ok: true, json: async () => ({ case_id: "capture-test" }) }));
   element("minimum").textContent = "-10.0 dBFS";
   const starting = element("start").click();
   assert.equal(element("start").disabled, true);
@@ -36,6 +37,7 @@ test("start resets readouts and shows fixed status text until the server is read
 });
 
 test("renders the latest level summary", async () => {
+  mock.method(globalThis, "fetch", async () => ({ ok: true, json: async () => ({ case_id: "capture-test" }) }));
   await element("start").click();
   browser.socket.receive({ type: "ready", session_id: "test-session", speech_model: "test-model" });
   browser.socket.receive({ type: "levels", frames: [
@@ -49,6 +51,7 @@ test("renders the latest level summary", async () => {
 });
 
 test("stop waits for acknowledgment, then allows a new check", async () => {
+  mock.method(globalThis, "fetch", async () => ({ ok: true, json: async () => ({ case_id: "capture-test" }) }));
   await element("start").click();
   browser.socket.receive({ type: "ready", session_id: "test-session", speech_model: "test-model" });
   element("stop").click();
@@ -60,6 +63,7 @@ test("stop waits for acknowledgment, then allows a new check", async () => {
 });
 
 test("a failure shows fixed text rather than the server's message and resets the controls", async () => {
+  mock.method(globalThis, "fetch", async () => ({ ok: true, json: async () => ({ case_id: "capture-test" }) }));
   await element("start").click();
   browser.socket.receive({ type: "ready", session_id: "test-session", speech_model: "test-model" });
   browser.socket.receive({ type: "error", message: "Expected PCM audio or stop" });
@@ -73,9 +77,36 @@ test("a failure shows fixed text rather than the server's message and resets the
 });
 
 test("leaving the page releases an active check", async () => {
+  mock.method(globalThis, "fetch", async () => ({ ok: true, json: async () => ({ case_id: "capture-test" }) }));
   await element("start").click();
   browser.socket.receive({ type: "ready", session_id: "test-session", speech_model: "test-model" });
   pagehide();
   assert.equal(browser.track.stopped, true);
   assert.equal(element("start").disabled, false);
+});
+
+test("uses the selected speaker order, shows the case, and locks selection during capture", async () => {
+  let selectedOrder;
+  mock.method(globalThis, "fetch", async (_, options) => {
+    selectedOrder = JSON.parse(options.body).target_speaker_order;
+    return { ok: true, json: async () => ({ case_id: "selected-case" }) };
+  });
+  element("target-order").value = "2";
+  await element("start").click();
+  assert.equal(selectedOrder, 2);
+  assert.equal(element("capture-case").textContent, "Case selected-case");
+  assert.equal(element("target-order").disabled, true);
+  browser.socket.receive({ type: "stopped" });
+  assert.equal(element("target-order").disabled, false);
+});
+
+test("case setup failure restores controls and shows fixed text", async () => {
+  mock.method(globalThis, "fetch", async () => ({ ok: false }));
+  await element("start").click();
+  assert.equal(element("status").textContent, "Could not create the capture case. Try starting again.");
+  assert.equal(element("capture-case").textContent, "No case created.");
+  assert.equal(element("start").disabled, false);
+  assert.equal(element("target-order").disabled, false);
+  assert.equal(element("stop").disabled, true);
+  assert.equal(browser.socket, undefined);
 });

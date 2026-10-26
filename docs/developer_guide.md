@@ -106,7 +106,7 @@ The page scripts are ES modules under `static/`:
 | File | Responsibility |
 |---|---|
 | `capture.js` | Binds buttons, readouts, and the transcript view |
-| `capture/session.js` | `CaptureSession` owns the microphone, audio graph, and WebSocket, and releases them once. It reports status keys, not text |
+| `capture/session.js` | `CaptureSession` creates a case with the selected speaker order, owns the microphone, audio graph, and WebSocket, and releases resources once. It reports status keys, not text |
 | `capture/status.js` | Fixed page text for each status key |
 | `capture/levels.js` | Summarizes one `levels` message |
 | `capture/transcript.js` | Groups word labels and updates transcript rows by turn order |
@@ -114,7 +114,9 @@ The page scripts are ES modules under `static/`:
 
 The capture page uses an [AudioWorklet](https://developer.mozilla.org/en-US/docs/Web/API/AudioWorkletProcessor) in a 16 kHz audio context to emit mono PCM16. The worklet leaves its output silent to avoid microphone playback. It flushes its final packet before sending the stop command. Browser and server buffers are bounded; a browser send backlog above one second stops capture with a gap message.
 
-`routes/capture.py` owns the browser WebSocket: it reads binary PCM and the `stop` text, sends JSON messages, and maps failures to fixed error text and close codes. `services/capture/run_capture.py` contains the capture logic and does not see the socket. It receives browser messages as an async iterator and a send function. It measures levels, buffers and forwards audio, converts transcript events to browser messages, and waits for the transcriber to finish on Stop. It does not write to the database.
+After microphone access succeeds, the page uses `PUT /api/v1/cases/{case_id}/target` to create a case with a fresh UUID and the selected speaking order. It passes that ID in the capture WebSocket's `case_id` query parameter. Setup failures release microphone resources and allow another Start.
+
+`routes/capture.py` verifies the case in a short read session before accepting the browser WebSocket. It reads binary PCM and the `stop` text, sends JSON messages, and maps failures to fixed error text and close codes. `services/capture/run_capture.py` contains the capture logic and does not see the socket. It receives the case ID, browser messages as an async iterator, and a send function. It measures levels, buffers and forwards audio, converts transcript events to browser messages, and waits for the transcriber to finish on Stop. It does not write to the database.
 
 `LevelMeter` carries incomplete 20 ms frames between messages and discards audio after measurement. `PCMBuffer` keeps a short audio tail so the final provider packet meets the 50 ms minimum without modifying samples.
 

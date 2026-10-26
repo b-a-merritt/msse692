@@ -14,11 +14,11 @@ export class CaptureSession {
   #socket;
   #timer;
 
-  constructor({ onStatus, onReady, onLevels, onTranscript, onEnd }) {
-    this.#callbacks = { onStatus, onReady, onLevels, onTranscript, onEnd };
+  constructor({ onStatus, onCase, onReady, onLevels, onTranscript, onEnd }) {
+    this.#callbacks = { onStatus, onCase, onReady, onLevels, onTranscript, onEnd };
   }
 
-  async start() {
+  async start(targetSpeakerOrder) {
     if (!navigator.mediaDevices?.getUserMedia || !globalThis.AudioWorkletNode) {
       return this.#fail("unsupported");
     }
@@ -44,8 +44,22 @@ export class CaptureSession {
       this.#source = this.#context.createMediaStreamSource(this.#stream);
       track.onended = () => this.#fail("ended");
       this.#node.port.onmessage = ({ data }) => this.#onAudio(data);
+      let captureCase;
+      try {
+        const response = await fetch(`/api/v1/cases/${crypto.randomUUID()}/target`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target_speaker_order: targetSpeakerOrder }),
+        });
+        if (!response.ok) return this.#fail("caseSetupFailed");
+        captureCase = await response.json();
+      } catch {
+        return this.#fail("caseSetupFailed");
+      }
+      if (this.#closed) return this.release();
+      this.#callbacks.onCase(captureCase);
       const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-      this.#socket = new WebSocket(`${protocol}//${location.host}/api/v1/capture/audio`);
+      this.#socket = new WebSocket(`${protocol}//${location.host}/api/v1/capture/audio?case_id=${encodeURIComponent(captureCase.case_id)}`);
       this.#socket.onmessage = ({ data }) => this.#onServerMessage(JSON.parse(data));
       this.#socket.onerror = () => this.#fail("connectionFailed");
       this.#socket.onclose = () => this.#fail("closed");

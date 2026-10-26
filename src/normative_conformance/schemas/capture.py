@@ -4,6 +4,7 @@ from typing import TypedDict
 
 class ReadyMessage(TypedDict):
     type: Literal["ready"]
+    case_id: str
     sample_rate: int
     encoding: Literal["pcm_s16le"]
     channels: Literal[1]

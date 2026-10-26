@@ -70,12 +70,14 @@ The server assigns `sequence`, `received_at`, and `updated_at`; POST observation
 
 ## Live capture stream
 
-`GET /capture` serves live transcription. `WS /api/v1/capture/audio` a session with the provider.
+`GET /capture` serves live transcription. Before opening the stream, create a case with `PUT /api/v1/cases/{case_id}/target` and a body such as `{"target_speaker_order":2}`. The page generates a fresh case ID for each Start and displays it after creation succeeds.
+
+`WS /api/v1/capture/audio?case_id={case_id}` opens a session with the provider for an existing case. The required case ID is a nonempty string without `/`. Missing, invalid, or unknown IDs are rejected during the WebSocket handshake, before opening a provider connection. The case lookup finishes before streaming begins.
 
 After the provider confirms its session, the server sends:
 
 ```json
-{"type":"ready","sample_rate":16000,"encoding":"pcm_s16le","channels":1,"session_id":"provider-session-id","speech_model":"universal-3-6-pro"}
+{"type":"ready","case_id":"capture-case-id","sample_rate":16000,"encoding":"pcm_s16le","channels":1,"session_id":"provider-session-id","speech_model":"universal-3-6-pro"}
 ```
 
 Binary messages contain 1–1600 complete little-endian signed samples (2–3200 bytes). The page sends 100 ms packets and a shorter final packet. The server retains a small tail to keep upstream packets at least 50 ms long, forwarding every sample unchanged without silence padding. A nonempty capture must contain at least 50 ms of audio.

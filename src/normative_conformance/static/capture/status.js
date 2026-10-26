@@ -1,5 +1,6 @@
 // Fixed page text keyed by the status keys a capture session reports.
 export const STATUS = Object.freeze({
+  caseSetupFailed: "Could not create the capture case. Try starting again.",
   opening: "Opening microphone and connecting to transcription…",
   active: "Microphone active. Transcribing live.",
   finishing: "Finishing transcription and speaker corrections…",

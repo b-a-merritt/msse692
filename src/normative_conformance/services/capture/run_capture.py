@@ -33,6 +33,7 @@ Send = Callable[[OutgoingMessage], Awaitable[None]]
 
 async def run_capture(
     *,
+    case_id: str,
     messages: AsyncIterator[BrowserMessage],
     send: Send,
     connect_transcriber: ConnectTranscriber,
@@ -44,7 +45,7 @@ async def run_capture(
     capture_id = uuid4().hex
     logger.info(
         "Capture connected; opening transcription session",
-        extra={"event": "capture.connected", "capture_id": capture_id},
+        extra={"event": "capture.connected", "capture_id": capture_id, "case_id": case_id},
     )
     try:
         async with connect_transcriber() as transcriber:
@@ -54,6 +55,7 @@ async def run_capture(
                     "event": "capture.provider_ready",
                     "capture_id": capture_id,
                     "provider_session_id": transcriber.session_id,
+                    "case_id": case_id,
                     "speech_model": transcriber.speech_model,
                     "sample_rate": SAMPLE_RATE,
                 },
@@ -61,6 +63,7 @@ async def run_capture(
             await send(
                 ReadyMessage(
                     type="ready",
+                    case_id=case_id,
                     sample_rate=SAMPLE_RATE,
                     encoding="pcm_s16le",
                     channels=1,

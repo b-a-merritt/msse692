@@ -15,6 +15,8 @@ const readouts = {
 const meter = document.getElementById("level");
 const transcript = new Transcript(document.getElementById("transcript"));
 const providerSession = document.getElementById("provider-session");
+const targetOrder = document.getElementById("target-order");
+const caseLabel = document.getElementById("capture-case");
 let session = null;
 
 function resetLevels() {
@@ -38,9 +40,12 @@ startButton.addEventListener("click", async () => {
   resetLevels();
   transcript.clear();
   providerSession.textContent = "Connecting…";
+  caseLabel.textContent = "No case created.";
   startButton.disabled = true;
+  targetOrder.disabled = true;
   session = new CaptureSession({
     onStatus: (key) => { statusLine.textContent = STATUS[key] ?? STATUS.rejected; },
+    onCase: (record) => { caseLabel.textContent = `Case ${record.case_id}`; },
     onReady: (message) => {
       stopButton.disabled = false;
       providerSession.textContent = `Session ${message.session_id} · ${message.speech_model}`;
@@ -50,10 +55,11 @@ startButton.addEventListener("click", async () => {
     onEnd: () => {
       session = null;
       startButton.disabled = false;
+      targetOrder.disabled = false;
       stopButton.disabled = true;
     },
   });
-  await session.start();
+  await session.start(Number(targetOrder.value));
 });
 
 stopButton.addEventListener("click", () => {
