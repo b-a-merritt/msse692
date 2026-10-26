@@ -1,5 +1,3 @@
-"""AssemblyAI streaming transcription behind the capture `Transcriber` interface."""
-
 import asyncio
 from collections.abc import AsyncIterator
 from collections.abc import Iterator
@@ -112,13 +110,18 @@ def _provider_errors() -> Iterator[None]:
         raise CaptureFailure("providerUnavailable") from error
 
 
+def _speaker(label: str | None) -> str | None:
+    """AssemblyAI marks unattributed speech `PENDING` or `UNKNOWN`; the interface uses None."""
+    return label if label and label.strip() and label not in {"PENDING", "UNKNOWN"} else None
+
+
 def _words(words: list[ProviderWord]) -> tuple[Word, ...]:
     return tuple(
         Word(
             text=w.text,
             start_ms=w.start,
             end_ms=w.end,
-            speaker_id=w.speaker,
+            speaker_id=_speaker(w.speaker),
         )
         for w in words
     )
@@ -156,7 +159,7 @@ class AssemblyAITranscriber:
                 yield TurnUpdate(
                     turn_order=event.turn_order,
                     final=event.end_of_turn,
-                    speaker_id=event.speaker_label,
+                    speaker_id=_speaker(event.speaker_label),
                     transcript=event.transcript,
                     words=_words(event.words),
                 )
@@ -165,7 +168,7 @@ class AssemblyAITranscriber:
                     turns=tuple(
                         TurnRevision(
                             turn_order=revision.turn_order,
-                            speaker_id=revision.speaker_label,
+                            speaker_id=_speaker(revision.speaker_label),
                             words=_words(revision.words),
                         )
                         for revision in event.revisions

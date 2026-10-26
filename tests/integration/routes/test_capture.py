@@ -145,6 +145,11 @@ def test_pcm_and_final_revisions_cross_both_websockets(open_client, monkeypatch)
         stored = client.get("/api/v1/cases/capture-case").json()
         assert stored["target_speaker_order"] == 2
         assert stored["target_speaker_id"] is None
+        observations = client.get("/api/v1/cases/capture-case/observations").json()["items"]
+        assert len(observations) == 1
+        assert observations[0]["transcript"] == "Hello."
+        assert observations[0]["speaker_id"] == "A"
+        assert observations[0]["signal_level_avg"] == -120
         assert client.app.state.assessment_queue.queue() == []
     assert credentials == ["integration-key"]
     assert b"".join(packet for packet in received if isinstance(packet, bytes)) == audio
@@ -228,3 +233,68 @@ def test_capture_requires_an_existing_case_before_opening_provider(open_client, 
             pass
         assert closed.value.code == 1008
     connect.assert_not_called()
+
+
+def test_live_final_turn_is_stored_once_and_resolves_target_before_stop(open_client, monkeypatch):
+    def provider(socket):
+        socket.send('{"type":"Begin","id":"live-storage-session"}')
+        assert isinstance(socket.recv(timeout=5), bytes)
+        final = {
+            "type": "Turn",
+            "turn_order": 0,
+            "end_of_turn": True,
+            "speaker_label": "A",
+            "transcript": "Hmm hello yes",
+            "words": [
+                {"text": "Hmm", "start": 0, "end": 20},
+                {"text": "hello", "start": 20, "end": 40, "speaker": "A"},
+                {"text": "yes", "start": 40, "end": 100, "speaker": "B"},
+            ],
+        }
+        socket.send(json.dumps(final))
+        socket.send(json.dumps(final))
+        while isinstance(packet := socket.recv(timeout=5), bytes):
+            pass
+        assert json.loads(packet) == {"type": "Terminate"}
+        socket.send('{"type":"Termination"}')
+
+    with (
+        provider_server(provider) as url,
+        open_client(now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc)) as client,
+    ):
+        monkeypatch.setattr(module, "PROVIDER_URL", url)
+        client.app.state.settings.assembly_api_key = "integration-key"
+        assert (
+            client.put("/api/v1/cases/live/target", json={"target_speaker_order": 2}).status_code
+            == 200
+        )
+        with client.websocket_connect("/api/v1/capture/audio?case_id=live") as socket:
+            assert socket.receive_json()["type"] == "ready"
+            socket.send_bytes(b"\x00\x00" * 320 + b"\x00\x40" * 320 + b"\x00\x00" * 960)
+            socket.send_bytes(b"\x00\x00" * 1600)
+            final_count = 0
+            while final_count < 2:
+                message = socket.receive_json()
+                assert message["type"] != "error"
+                if message["type"] == "transcript" and message["final"]:
+                    final_count += 1
+            rows = client.get("/api/v1/cases/live/observations").json()["items"]
+            rows.sort(key=lambda row: row["sequence"])
+            assert [row["speaker_id"] for row in rows] == ["PENDING", "A", "B"]
+            assert [row["transcript"] for row in rows] == ["Hmm", "hello", "yes"]
+            assert [row["sequence"] for row in rows] == [1, 2, 3]
+            assert [row["signal_level_avg"] for row in rows] == pytest.approx(
+                [-120, -6.020599913279624, -120]
+            )
+            assert rows[0]["start_at"] == "2026-10-26T00:00:00Z"
+            assert rows[-1]["end_at"] == "2026-10-26T00:00:00.100000Z"
+            assert all(row["received_at"] == row["updated_at"] for row in rows)
+            assert client.get("/api/v1/cases/live").json()["target_speaker_id"] == "B"
+            queue = client.app.state.assessment_queue
+            assert queue.qsize() == 1
+            assert queue.get()["case_id"] == "live"
+            socket.send_text("stop")
+            while (message := socket.receive_json())["type"] != "stopped":
+                assert message["type"] != "error"
+    with open_client(now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc)) as client:
+        assert len(client.get("/api/v1/cases/live/observations").json()["items"]) == 3

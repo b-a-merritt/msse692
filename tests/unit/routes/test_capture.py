@@ -38,7 +38,7 @@ def test_route_relays_browser_frames_and_closes_after_success(monkeypatch):
     )
     calls = {}
 
-    async def run_capture(*, case_id, messages, send, connect_transcriber):
+    async def run_capture(*, case_id, messages, send, connect_transcriber, now, store_observations):
         calls["case_id"] = case_id
         calls["messages"] = [await anext(messages), await anext(messages)]
         calls["connect"] = connect_transcriber
@@ -78,7 +78,7 @@ def test_every_failure_code_has_fixed_text():
 def test_browser_disconnect_ends_quietly(monkeypatch, received):
     websocket = socket(received)
 
-    async def run_capture(*, case_id, messages, send, connect_transcriber):
+    async def run_capture(*, case_id, messages, send, connect_transcriber, now, store_observations):
         await anext(messages)
 
     monkeypatch.setattr(capture, "run_capture", run_capture)
@@ -91,7 +91,7 @@ def test_disconnect_while_sending_ends_quietly(monkeypatch):
     websocket = socket()
     websocket.send_json.side_effect = WebSocketDisconnect(1006)
 
-    async def run_capture(*, case_id, messages, send, connect_transcriber):
+    async def run_capture(*, case_id, messages, send, connect_transcriber, now, store_observations):
         await send({"type": "stopped"})
 
     monkeypatch.setattr(capture, "run_capture", run_capture)
@@ -134,3 +134,24 @@ def test_capture_case_lookup_rejects_uninitialized_storage():
     with pytest.raises(capture.WebSocketException) as caught:
         capture.get_capture_case(websocket, case_id="requested-case")
     assert caught.value.code == 1011
+
+
+def test_capture_passes_storage_work_to_threadpool(monkeypatch):
+    websocket = socket()
+    rows = []
+    threadpool = AsyncMock()
+    monkeypatch.setattr(capture, "run_in_threadpool", threadpool)
+
+    async def run_capture(*, store_observations, **kwargs):
+        await store_observations(rows)
+
+    monkeypatch.setattr(capture, "run_capture", run_capture)
+    asyncio.run(capture.capture_audio(websocket, case=Mock(case_id="capture-case")))
+    threadpool.assert_awaited_once_with(
+        capture.store_observations,
+        case_id="capture-case",
+        observations=rows,
+        engine=websocket.app.state.engine,
+        now=websocket.app.state.clock,
+        scheduler=websocket.app.state.scheduler,
+    )

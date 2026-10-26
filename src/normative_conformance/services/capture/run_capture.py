@@ -3,6 +3,7 @@ import logging
 from collections.abc import AsyncIterator
 from collections.abc import Awaitable
 from collections.abc import Callable
+from datetime import datetime
 from uuid import uuid4
 
 from normative_conformance.errors import CaptureDisconnected
@@ -14,9 +15,12 @@ from normative_conformance.schemas.capture import ReadyMessage
 from normative_conformance.schemas.capture import StoppedMessage
 from normative_conformance.schemas.capture import TranscriptMessage
 from normative_conformance.schemas.capture import WordPayload
+from normative_conformance.schemas.internal import Clock
+from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.services.capture.levels import SAMPLE_RATE
 from normative_conformance.services.capture.levels import FrameLevel
 from normative_conformance.services.capture.levels import LevelMeter
+from normative_conformance.services.capture.observations import build_observations
 from normative_conformance.services.capture.pcm import PCMBuffer
 from normative_conformance.services.capture.transcriber import ConnectTranscriber
 from normative_conformance.services.capture.transcriber import SpeakerRevised
@@ -29,6 +33,7 @@ logger = logging.getLogger(__name__)
 DRAIN_TIMEOUT = 10
 BrowserMessage = bytes | str
 Send = Callable[[OutgoingMessage], Awaitable[None]]
+StoreObservations = Callable[[list[ObservationInput]], Awaitable[None]]
 
 
 async def run_capture(
@@ -37,6 +42,8 @@ async def run_capture(
     messages: AsyncIterator[BrowserMessage],
     send: Send,
     connect_transcriber: ConnectTranscriber,
+    now: Clock,
+    store_observations: StoreObservations,
 ) -> None:
     """Stream browser PCM to a transcriber and report levels and transcripts until `stopped`.
 
@@ -49,6 +56,7 @@ async def run_capture(
     )
     try:
         async with connect_transcriber() as transcriber:
+            started_at = now()
             logger.info(
                 "Transcription session ready",
                 extra={
@@ -72,7 +80,13 @@ async def run_capture(
                 )
             )
             await _stream(
-                messages=messages, send=send, transcriber=transcriber, capture_id=capture_id
+                messages=messages,
+                send=send,
+                transcriber=transcriber,
+                capture_id=capture_id,
+                case_id=case_id,
+                started_at=started_at,
+                store_observations=store_observations,
             )
         await send(StoppedMessage(type="stopped"))
     except CaptureDisconnected:
@@ -131,11 +145,24 @@ async def _stream(
     send: Send,
     transcriber: Transcriber,
     capture_id: str,
+    case_id: str,
+    started_at: datetime,
+    store_observations: StoreObservations,
 ) -> None:
     """Finish when the transcriber's events end; any task's failure ends capture."""
     stopping = asyncio.Event()
+    frames: list[FrameLevel] = []
     events = asyncio.create_task(
-        _events(transcriber=transcriber, send=send, stopping=stopping, capture_id=capture_id)
+        _events(
+            transcriber=transcriber,
+            send=send,
+            stopping=stopping,
+            capture_id=capture_id,
+            case_id=case_id,
+            started_at=started_at,
+            frames=frames,
+            store_observations=store_observations,
+        )
     )
     tasks = {
         events,
@@ -146,6 +173,7 @@ async def _stream(
                 transcriber=transcriber,
                 stopping=stopping,
                 capture_id=capture_id,
+                frames=frames,
             )
         ),
         asyncio.create_task(_drain_timeout(stopping)),
@@ -169,6 +197,7 @@ async def _audio(
     transcriber: Transcriber,
     stopping: asyncio.Event,
     capture_id: str,
+    frames: list[FrameLevel],
 ) -> None:
     meter = LevelMeter()
     buffer = PCMBuffer()
@@ -181,16 +210,17 @@ async def _audio(
         try:
             if isinstance(message, bytes):
                 packet = buffer.feed(message)
-                frames = meter.feed(pcm=message)
+                measured = meter.feed(pcm=message)
             elif message == "stop":
                 packet = buffer.finish()
-                frames = meter.finish()
+                measured = meter.finish()
             else:
                 raise ValueError("Expected PCM or stop")
         except ValueError as error:
             raise CaptureFailure("invalidAudio") from error
-        if frames:
-            await send(_levels_message(frames))
+        frames.extend(measured)
+        if measured:
+            await send(_levels_message(measured))
         if packet:
             await transcriber.send_audio(packet)
             bytes_sent += len(packet)
@@ -229,10 +259,29 @@ async def _events(
     send: Send,
     stopping: asyncio.Event,
     capture_id: str,
+    case_id: str,
+    started_at: datetime,
+    frames: list[FrameLevel],
+    store_observations: StoreObservations,
 ) -> None:
     last_partial_turn: int | None = None
+    finalized_words: dict[int, tuple[Word, ...]] = {}
     async for event in transcriber.events():
         if isinstance(event, TurnUpdate):
+            if event.final and event.turn_order in finalized_words:
+                if finalized_words[event.turn_order] != event.words:
+                    raise CaptureFailure("providerProtocol")
+            elif event.final:
+                observations = build_observations(
+                    case_id=case_id,
+                    session_id=transcriber.session_id,
+                    started_at=started_at,
+                    frames=frames,
+                    turn=event,
+                )
+                if observations:
+                    await store_observations(observations)
+                    finalized_words[event.turn_order] = event.words
             if event.final or event.turn_order != last_partial_turn:
                 logger.info(
                     "Final transcript received" if event.final else "Partial transcript received",

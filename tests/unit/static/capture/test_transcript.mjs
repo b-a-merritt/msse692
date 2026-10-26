@@ -14,7 +14,7 @@ test("groups adjacent attributed words without assigning missing words to the do
     words: [
       { text: "Hi", speaker_id: "A" }, { text: "yes", speaker_id: "A" },
       { text: "sure", speaker_id: "B" }, { text: "hmm", speaker_id: null },
-      { text: "okay", speaker_id: "PENDING" },
+      { text: "okay", speaker_id: null },
     ] }), [
     { speaker: "A", text: "Hi yes" }, { speaker: "B", text: "sure" },
     { speaker: null, text: "hmm okay" },
@@ -22,7 +22,7 @@ test("groups adjacent attributed words without assigning missing words to the do
 });
 
 test("partials use the current transcript and preserve unresolved attribution", () => {
-  assert.deepEqual(segments({ final: false, transcript: "Hello", speaker_id: "UNKNOWN", words: [] }),
+  assert.deepEqual(segments({ final: false, transcript: "Hello", speaker_id: null, words: [] }),
     [{ speaker: null, text: "Hello" }]);
 });
 

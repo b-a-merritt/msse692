@@ -9,6 +9,11 @@ from typing import Protocol
 
 @dataclass(frozen=True)
 class Word:
+    """Offsets are milliseconds from the first audio sample sent to the session.
+
+    `speaker_id` is None when the provider has not attributed the word.
+    """
+
     text: str
     start_ms: int
     end_ms: int
@@ -17,7 +22,7 @@ class Word:
 
 @dataclass(frozen=True)
 class TurnUpdate:
-    """A partial or final transcript for one provider turn."""
+    """A partial or final transcript for one provider turn; `speaker_id` is None if unattributed."""
 
     turn_order: int
     final: bool

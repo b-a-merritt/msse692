@@ -1,15 +1,11 @@
-function speaker(label) {
-  return !label || ["PENDING", "UNKNOWN"].includes(label) ? null : label;
-}
-
 // Word labels take precedence; missing attribution stays unresolved.
 export function segments(turn) {
   if (!turn.final || !turn.words.length) {
-    return [{ speaker: speaker(turn.speaker_id), text: turn.transcript }];
+    return [{ speaker: turn.speaker_id ?? null, text: turn.transcript }];
   }
   const groups = [];
   for (const word of turn.words) {
-    const label = speaker(word.speaker_id);
+    const label = word.speaker_id ?? null;
     const last = groups.at(-1);
     if (last && last.speaker === label) last.text += ` ${word.text}`;
     else groups.push({ speaker: label, text: word.text });

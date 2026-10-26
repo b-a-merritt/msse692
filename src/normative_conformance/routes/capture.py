@@ -15,6 +15,7 @@ from fastapi import WebSocketException
 from fastapi.responses import FileResponse
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.concurrency import run_in_threadpool
 
 from normative_conformance.clients import assemblyai
 from normative_conformance.config import Settings
@@ -26,9 +27,13 @@ from normative_conformance.schemas.capture import CaptureErrorCode
 from normative_conformance.schemas.capture import ErrorMessage
 from normative_conformance.schemas.capture import OutgoingMessage
 from normative_conformance.schemas.case import CaseRecord
+from normative_conformance.schemas.internal import Clock
+from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.services.capture.run_capture import BrowserMessage
 from normative_conformance.services.capture.run_capture import run_capture
+from normative_conformance.services.capture.store_observations import store_observations
 from normative_conformance.services.case.selection import get_case
+from normative_conformance.services.scheduler.state import SchedulerState
 
 router = APIRouter()
 STATIC = Path(__file__).parent.parent / "static"
@@ -40,6 +45,8 @@ ERROR_MESSAGES: dict[CaptureErrorCode, str] = {
     "providerTimeout": "The transcription service did not respond in time. Capture is incomplete.",
     "invalidAudio": "Send PCM16 packets of 1-1600 samples and record at least 50 ms.",
     "incomplete": "The transcription session ended before capture finished.",
+    "storageUnavailable": "Finalized speech could not be stored. Capture is incomplete.",
+    "assessmentUnavailable": "Speech was stored but assessment could not be requested.",
 }
 
 
@@ -103,6 +110,16 @@ async def capture_audio(
         except WebSocketDisconnect as error:
             raise CaptureDisconnected() from error
 
+    async def store(observations: list[ObservationInput]) -> None:
+        await run_in_threadpool(
+            store_observations,
+            case_id=case.case_id,
+            observations=observations,
+            engine=cast(Engine, websocket.app.state.engine),
+            now=cast(Clock, websocket.app.state.clock),
+            scheduler=cast(SchedulerState, websocket.app.state.scheduler),
+        )
+
     try:
         await run_capture(
             case_id=case.case_id,
@@ -111,6 +128,8 @@ async def capture_audio(
             connect_transcriber=partial(
                 assemblyai.connect_transcriber, api_key=settings.assembly_api_key
             ),
+            now=cast(Clock, websocket.app.state.clock),
+            store_observations=store,
         )
     except CaptureDisconnected:
         return

@@ -170,7 +170,7 @@ def test_events_convert_provider_messages_until_termination(monkeypatch):
             return [event async for event in transcriber.events()]
 
     assert asyncio.run(scenario()) == [
-        TurnUpdate(turn_order=0, final=False, speaker_id="PENDING", transcript="Hello", words=()),
+        TurnUpdate(turn_order=0, final=False, speaker_id=None, transcript="Hello", words=()),
         SpeechStarted(),
         TurnUpdate(
             turn_order=0,
@@ -191,6 +191,45 @@ def test_events_convert_provider_messages_until_termination(monkeypatch):
                 ),
             )
         ),
+    ]
+
+
+@pytest.mark.parametrize("label", [None, "", " ", "PENDING", "UNKNOWN"])
+def test_unattributed_provider_labels_become_none(monkeypatch, label):
+    word = {"text": "Hmm", "start": 0, "end": 20, "speaker": label}
+    provider = AsyncMock()
+    provider.recv.side_effect = [
+        BEGIN,
+        json.dumps(
+            {
+                "type": "Turn",
+                "turn_order": 0,
+                "end_of_turn": True,
+                "transcript": "Hmm",
+                "speaker_label": label,
+                "words": [word],
+            }
+        ),
+        json.dumps(
+            {
+                "type": "SpeakerRevision",
+                "revisions": [{"turn_order": 0, "speaker_label": label, "words": [word]}],
+            }
+        ),
+        '{"type":"Termination"}',
+    ]
+    connect_double(monkeypatch, provider)
+
+    async def scenario():
+        async with module.connect_transcriber(api_key="test-key") as transcriber:
+            return [event async for event in transcriber.events()]
+
+    unattributed = Word(text="Hmm", start_ms=0, end_ms=20, speaker_id=None)
+    assert asyncio.run(scenario()) == [
+        TurnUpdate(
+            turn_order=0, final=True, speaker_id=None, transcript="Hmm", words=(unattributed,)
+        ),
+        SpeakerRevised(turns=(TurnRevision(turn_order=0, speaker_id=None, words=(unattributed,)),)),
     ]
 
 

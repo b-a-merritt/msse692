@@ -35,6 +35,8 @@ CaptureErrorCode = Literal[
     "providerTimeout",
     "invalidAudio",
     "incomplete",
+    "storageUnavailable",
+    "assessmentUnavailable",
 ]
 
 
