@@ -6,12 +6,14 @@ import pytest
 
 from normative_conformance.database import read_session
 from normative_conformance.database import write_session
+from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.services.assessment.evaluate_case import evaluate_case
 from normative_conformance.services.intervention.create_intervention import create_intervention
 from normative_conformance.services.intervention.list_intervention_records import (
     list_intervention_records,
 )
 from normative_conformance.services.model.list_models import list_models
+from normative_conformance.services.observation.get_case_sequence import get_case_sequence
 from normative_conformance.timestamps import to_microseconds
 
 THREAT = "You said something that could be heard as a threat. Take a moment before you continue."
@@ -60,10 +62,14 @@ def test_delivery_marks_listed_interventions_sent_once(*, open_client):
         assert response.status_code == 201
         with write_session(engine=client.app.state.engine) as assessment_session:
             rows = evaluate_case(
-                case_id="case",
-                evaluation_id=uuid4(),
+                snapshot=CaseSnapshot(
+                    case_id="case",
+                    evaluation_id=str(uuid4()),
+                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                    evaluated_at_us=to_microseconds(value=client.app.state.clock()),
+                ),
+                subject_speaker_id="speaker-2",
                 session=assessment_session,
-                now=client.app.state.clock,
                 models=model_catalog,
             )
             assessment_session.commit()
@@ -161,10 +167,14 @@ def test_delivery_storage_error_returns_safe_message_and_stays_pending(*, open_c
         assert response.status_code == 201
         with write_session(engine=client.app.state.engine) as assessment_session:
             rows = evaluate_case(
-                case_id="case",
-                evaluation_id=uuid4(),
+                snapshot=CaseSnapshot(
+                    case_id="case",
+                    evaluation_id=str(uuid4()),
+                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                    evaluated_at_us=to_microseconds(value=client.app.state.clock()),
+                ),
+                subject_speaker_id="speaker-2",
                 session=assessment_session,
-                now=client.app.state.clock,
                 models=model_catalog,
             )
             assessment_session.commit()

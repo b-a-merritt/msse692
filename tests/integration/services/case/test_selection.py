@@ -1,15 +1,17 @@
 from datetime import datetime
 from datetime import timezone
-from uuid import UUID
+
+from sqlmodel import col
+from sqlmodel import select
 
 from normative_conformance.database import read_session
 from normative_conformance.database import write_session
+from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.case import CaseLog
 from normative_conformance.models.normative_model import NormativeModelVersion
 from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.case import TargetSelection
 from normative_conformance.schemas.model import ModelVersion
-from normative_conformance.services.assessment.evaluate_case import evaluate_case
 from normative_conformance.services.assessment.list_assessment_records import (
     list_assessment_records,
 )
@@ -19,6 +21,7 @@ from normative_conformance.services.intervention.deliver_pending import deliver_
 from normative_conformance.services.intervention.list_intervention_records import (
     list_intervention_records,
 )
+from normative_conformance.services.scheduler.run_worker.process_case import process_case
 
 
 def test_target_changes_invalidate_stored_work_without_relabeling_history(engine):
@@ -75,18 +78,9 @@ def test_target_changes_invalidate_stored_work_without_relabeling_history(engine
             )
         )
         session.commit()
-    with write_session(engine=engine) as assessment_session:
-        assert (
-            evaluate_case(
-                case_id="case",
-                evaluation_id=UUID(int=1),
-                session=assessment_session,
-                now=now,
-                models=[model],
-            )
-            == []
-        )
-        assessment_session.commit()
+    assert process_case(case_id="case", engine=engine, now=now, models=[model]) is None
+    with read_session(engine=engine) as session:
+        assert _assessments(session=session) == []
     with write_session(engine=engine) as session:
         select_target(
             case_id="case",
@@ -94,15 +88,9 @@ def test_target_changes_invalidate_stored_work_without_relabeling_history(engine
             session=session,
             now=now,
         )
-    with write_session(engine=engine) as assessment_session:
-        first = evaluate_case(
-            case_id="case",
-            evaluation_id=UUID(int=2),
-            session=assessment_session,
-            now=now,
-            models=[model],
-        )
-        assessment_session.commit()
+    process_case(case_id="case", engine=engine, now=now, models=[model])
+    with read_session(engine=engine) as session:
+        first = _assessments(session=session)
     assert len(first) == 1
     assert first[0].target_revision == 1
     with write_session(engine=engine) as session:
@@ -126,19 +114,10 @@ def test_target_changes_invalidate_stored_work_without_relabeling_history(engine
             row.subject_speaker_id
             for row in list_intervention_records(case_id="case", session=session)
         ] == ["A"]
-    with write_session(engine=engine) as assessment_session:
-        assert (
-            evaluate_case(
-                case_id="case",
-                evaluation_id=UUID(int=3),
-                session=assessment_session,
-                now=now,
-                models=[model],
-            )
-            == []
-        )
-        assessment_session.commit()
-    # Returning to A must not revive revision 1, even if an evaluation ID is reused.
+    process_case(case_id="case", engine=engine, now=now, models=[model])
+    with read_session(engine=engine) as session:
+        assert _assessments(session=session) == first
+    # Returning to A must not revive revision 1.
     with write_session(engine=engine) as session:
         select_target(
             case_id="case",
@@ -146,15 +125,9 @@ def test_target_changes_invalidate_stored_work_without_relabeling_history(engine
             session=session,
             now=now,
         )
-    with write_session(engine=engine) as assessment_session:
-        second = evaluate_case(
-            case_id="case",
-            evaluation_id=UUID(int=2),
-            session=assessment_session,
-            now=now,
-            models=[model],
-        )
-        assessment_session.commit()
+    process_case(case_id="case", engine=engine, now=now, models=[model])
+    with read_session(engine=engine) as session:
+        second = _assessments(session=session)[1:]
     assert len(second) == 1
     assert second[0].assessment_id != first[0].assessment_id
     assert second[0].target_revision == 3
@@ -165,3 +138,7 @@ def test_target_changes_invalidate_stored_work_without_relabeling_history(engine
         assert len(delivered) == 1
         assert delivered[0].assessment_ids == [second[0].assessment_id]
         assert deliver_pending(case_id="case", session=session, now=now) == []
+
+
+def _assessments(*, session):
+    return list(session.exec(select(Assessment).order_by(col(Assessment.assessment_id))).all())

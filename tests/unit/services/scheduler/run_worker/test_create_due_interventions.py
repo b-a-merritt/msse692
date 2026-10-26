@@ -24,7 +24,7 @@ def test_due_windows_are_consumed_once_and_one_failure_does_not_block_other_case
             raise RuntimeError("Decision failed")
 
     create_mock = Mock(side_effect=create)
-    monkeypatch.setattr(module.intervention, "create_intervention", create_mock)
+    monkeypatch.setattr(module, "create_intervention", create_mock)
 
     def clock():
         return datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=timezone.utc)

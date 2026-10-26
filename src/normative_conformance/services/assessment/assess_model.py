@@ -5,11 +5,11 @@ from sqlmodel import col
 from sqlmodel import select
 
 from normative_conformance.models.assessment import Assessment
-from normative_conformance.models.case import CaseLog
 from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.schemas.model import ModelVersion
 from normative_conformance.services.assessment.create_assessment import create_assessment
+from normative_conformance.services.case.target import for_current_target
 from normative_conformance.services.model.evaluate_model import evaluate_model
 
 logger = logging.getLogger(__name__)
@@ -129,10 +129,8 @@ def _get_previous_assessment(
     """Prefer the newest unresolved pending match, otherwise the latest result."""
     query = (
         select(Assessment)
-        .join(CaseLog, col(CaseLog.case_id) == Assessment.case_id)
         .where(
-            Assessment.target_revision == CaseLog.target_revision,
-            Assessment.subject_speaker_id == CaseLog.target_speaker_id,
+            for_current_target(Assessment),
             Assessment.case_id == case_id,
             Assessment.model_id == model.model_id,
             Assessment.model_version == model.version,

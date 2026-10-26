@@ -1,8 +1,6 @@
-from typing import Annotated
-
 from fastapi import APIRouter
-from fastapi import Path
 
+from normative_conformance.routes.dependencies import PathId
 from normative_conformance.routes.dependencies import ReadSession
 from normative_conformance.routes.dependencies import ServerClock
 from normative_conformance.routes.dependencies import WriteSession
@@ -11,7 +9,8 @@ from normative_conformance.schemas.common import ListResponse
 from normative_conformance.schemas.errors import ErrorEnvelope
 from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.schemas.observation import ObservationRecord
-from normative_conformance.services import observation
+from normative_conformance.services.observation.ingest import ingest
+from normative_conformance.services.observation.list_observations import list_observations
 
 router = APIRouter(responses=ERROR_RESPONSES)
 
@@ -29,7 +28,7 @@ def submit_observation(
     now: ServerClock,
 ) -> ObservationRecord:
     """Store an observation."""
-    return observation.ingest(
+    return ingest(
         input=input,
         session=session,
         now=now,
@@ -40,13 +39,13 @@ def submit_observation(
     "/api/v1/cases/{case_id}/observations",
     operation_id="listObservations",
 )
-def list_observations(
+def list_case_observations(
     *,
-    case_id: Annotated[str, Path(strict=True, min_length=1, pattern=r"^[^/]+$")],
+    case_id: PathId,
     session: ReadSession,
 ) -> ListResponse[ObservationRecord]:
     return ListResponse[ObservationRecord](
-        items=observation.list_observations(
+        items=list_observations(
             case_id=case_id,
             session=session,
         )

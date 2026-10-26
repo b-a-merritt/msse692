@@ -1,11 +1,10 @@
-from typing import Literal
-
 from sqlmodel import Session
 from sqlmodel import col
 from sqlmodel import select
 
 from normative_conformance.models.assessment import Assessment
-from normative_conformance.models.case import CaseLog
+from normative_conformance.schemas.assessment import AssessmentStatus
+from normative_conformance.services.case.target import for_current_target
 
 
 def list_assessments(
@@ -13,7 +12,7 @@ def list_assessments(
     session: Session,
     case_id: str | None = None,
     evaluation_id: str | None = None,
-    status: Literal["conformant", "non-conformant", "pending", "conflicted"] | None = None,
+    status: AssessmentStatus | None = None,
     unresolved: bool = False,
     current_target: bool = False,
 ) -> list[Assessment]:
@@ -21,10 +20,7 @@ def list_assessments(
     query = select(Assessment)
 
     if current_target:
-        query = query.join(CaseLog, col(CaseLog.case_id) == Assessment.case_id).where(
-            Assessment.target_revision == CaseLog.target_revision,
-            Assessment.subject_speaker_id == CaseLog.target_speaker_id,
-        )
+        query = query.where(for_current_target(Assessment))
     if case_id is not None:
         query = query.where(Assessment.case_id == case_id)
     if evaluation_id is not None:

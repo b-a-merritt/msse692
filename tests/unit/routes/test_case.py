@@ -13,7 +13,7 @@ def test_get_case_passes_requested_identity_to_service(monkeypatch):
 
 
 def test_select_target_passes_validated_input_and_resources(monkeypatch):
-    session, clock, _scheduler = object(), object(), object()
+    session, clock = object(), object()
     input = TargetSelection(target_speaker_order=2)
     select = Mock()
     monkeypatch.setattr(case.selection, "select_target", select)

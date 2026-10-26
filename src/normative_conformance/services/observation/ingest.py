@@ -1,10 +1,7 @@
 import logging
-from datetime import timezone
 
-from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
-from sqlmodel import select
 
 from normative_conformance.errors import ObservationExists
 from normative_conformance.errors import StorageUnavailable
@@ -15,6 +12,7 @@ from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.schemas.observation import ObservationRecord
 from normative_conformance.services.case.selection import speaker_labels
 from normative_conformance.services.case.target import refresh_target
+from normative_conformance.services.observation.get_case_sequence import get_case_sequence
 from normative_conformance.services.observation.records import to_record
 from normative_conformance.timestamps import to_microseconds
 
@@ -45,18 +43,6 @@ def _create_case_if_missing(
     return case
 
 
-def _next_sequence_num(
-    *,
-    case_id: str,
-    session: Session,
-) -> int:
-    last_sequence = session.exec(
-        select(func.max(Observation.sequence)).where(Observation.case_id == case_id)
-    ).one()
-
-    return (last_sequence or 0) + 1
-
-
 def stage_observation(
     *,
     input: ObservationInput,
@@ -69,7 +55,7 @@ def stage_observation(
     roll back on any failure.
     """
     session.connection()
-    received_at_us = to_microseconds(value=now().astimezone(timezone.utc))
+    received_at_us = to_microseconds(value=now())
     _check_uniqueness(case_id=input.case_id, observation_id=input.observation_id, session=session)
     case = _create_case_if_missing(
         case_id=input.case_id,
@@ -79,7 +65,7 @@ def stage_observation(
     observation = Observation(
         case_id=input.case_id,
         observation_id=input.observation_id,
-        sequence=_next_sequence_num(case_id=input.case_id, session=session),
+        sequence=get_case_sequence(case_id=input.case_id, session=session) + 1,
         received_at_us=received_at_us,
         updated_at_us=received_at_us,
         speaker_id=input.speaker_id,

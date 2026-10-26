@@ -1,5 +1,5 @@
-# The first entry whose models were all detected supplies the messages, so
-# Combinations come first. This is tech debt because it couples db and code.
+# The first entry whose models were all detected supplies the message, so
+# combinations come first. This is tech debt because it couples db and code.
 # TODO: move these messages to the database and figure a way to COALESCE multiple matches
 INTERVENTION_MESSAGES: tuple[tuple[frozenset[str], str], ...] = (
     (

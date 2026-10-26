@@ -2,11 +2,11 @@ from fastapi import APIRouter
 
 from normative_conformance.routes.dependencies import AssessmentWorker
 from normative_conformance.routes.dependencies import ReadSession
-from normative_conformance.routes.dependencies import Scheduler
+from normative_conformance.routes.dependencies import WorkerStopped
 from normative_conformance.routes.errors import ERROR_RESPONSES
 from normative_conformance.schemas.health import Liveness
 from normative_conformance.schemas.health import Readiness
-from normative_conformance.services import health
+from normative_conformance.services.health.readiness import readiness
 
 router = APIRouter(
     prefix="/health",
@@ -27,11 +27,11 @@ def liveness() -> Liveness:
     "/ready",
     operation_id="readiness",
 )
-def readiness(
+def check_readiness(
     *,
     session: ReadSession,
-    scheduler: Scheduler,
+    stopped: WorkerStopped,
     worker: AssessmentWorker,
 ) -> Readiness:
     """Report database and assessment-worker availability."""
-    return health.readiness(session=session, scheduler=scheduler, worker=worker)
+    return readiness(session=session, stopped=stopped, worker=worker)

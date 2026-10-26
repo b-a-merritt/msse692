@@ -1,11 +1,18 @@
 from typing import Literal
 
+from sqlalchemy import ColumnElement
+from sqlalchemy import and_
 from sqlmodel import Session
 from sqlmodel import col
 from sqlmodel import select
 
-from normative_conformance.models.case import CaseLog
 from normative_conformance.models.intervention import Intervention
+from normative_conformance.services.case.target import for_current_target
+
+
+def is_pending() -> ColumnElement[bool]:
+    """Match undelivered interventions whose target mapping is still current."""
+    return and_(col(Intervention.sent_at_us).is_(None), for_current_target(Intervention))
 
 
 def list_interventions(
@@ -21,16 +28,7 @@ def list_interventions(
     if case_id is not None:
         query = query.where(Intervention.case_id == case_id)
     if status == "pending":
-        query = query.where(
-            col(Intervention.sent_at_us).is_(None),
-            select(CaseLog.case_id)
-            .where(
-                CaseLog.case_id == Intervention.case_id,
-                CaseLog.target_revision == Intervention.target_revision,
-                CaseLog.target_speaker_id == Intervention.subject_speaker_id,
-            )
-            .exists(),
-        )
+        query = query.where(is_pending())
     elif status == "sent":
         query = query.where(col(Intervention.sent_at_us).is_not(None))
     if intervention_ids is not None:

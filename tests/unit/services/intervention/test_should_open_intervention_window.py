@@ -7,30 +7,28 @@ from normative_conformance.services.intervention.should_open_intervention_window
 
 
 @pytest.mark.parametrize(
-    ("task_kind", "changes", "expected"),
+    ("resolutions_only", "changes", "expected"),
     [
-        pytest.param("assess_case", {}, True, id="fresh-confirmation"),
-        pytest.param("assess_case", {"status": "pending"}, False, id="pending"),
-        pytest.param("assess_case", {"status": "non-conformant"}, False, id="non-conformant"),
+        pytest.param(False, {}, True, id="fresh-confirmation"),
+        pytest.param(False, {"status": "pending"}, False, id="pending"),
+        pytest.param(False, {"status": "non-conformant"}, False, id="non-conformant"),
         pytest.param(
-            "assess_case",
+            False,
             {"evaluation_id": "previous"},
             False,
             id="old-confirmation-cannot-reopen-window",
         ),
-        pytest.param("check_repairs", {}, False, id="successful-repair"),
+        pytest.param(True, {}, False, id="successful-repair"),
+        pytest.param(True, {"resolves_assessment_id": 1}, True, id="confirmed-after-deadline"),
         pytest.param(
-            "check_repairs", {"resolves_assessment_id": 1}, True, id="confirmed-after-deadline"
-        ),
-        pytest.param(
-            "check_repairs",
+            True,
             {"resolves_assessment_id": 1, "status": "non-conformant"},
             False,
             id="repaired-pending-match",
         ),
     ],
 )
-def test_only_new_undesired_confirmations_qualify(*, task_kind, changes, expected):
+def test_only_new_undesired_confirmations_qualify(*, resolutions_only, changes, expected):
     assessment = models.Assessment(
         **(
             {
@@ -53,7 +51,7 @@ def test_only_new_undesired_confirmations_qualify(*, task_kind, changes, expecte
     assert (
         should_open_intervention_window(
             assessments=[assessment],
-            task_kind=task_kind,
+            resolutions_only=resolutions_only,
             evaluation_id="evaluation",
         )
         is expected
@@ -91,7 +89,7 @@ def test_one_qualifying_result_is_enough():
                 explanation_json="{}",
             ),
         ],
-        task_kind="assess_case",
+        resolutions_only=False,
         evaluation_id="evaluation",
     )
 
@@ -99,6 +97,6 @@ def test_one_qualifying_result_is_enough():
 def test_no_results_cannot_open_a_window():
     assert not should_open_intervention_window(
         assessments=[],
-        task_kind="assess_case",
+        resolutions_only=False,
         evaluation_id="evaluation",
     )

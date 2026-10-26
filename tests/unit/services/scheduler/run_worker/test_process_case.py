@@ -42,7 +42,7 @@ def test_commits_progress_and_results_together(monkeypatch, repair_status, resol
                     model_id="repair",
                     model_version="1",
                     status=repair_status,
-                    evaluation_id=str(kwargs["evaluation_id"]),
+                    evaluation_id=kwargs["snapshot"].evaluation_id,
                     evaluated_at_us=100,
                     resolves_assessment_id=resolves,
                 )
@@ -67,6 +67,10 @@ def test_commits_progress_and_results_together(monkeypatch, repair_status, resol
     )
     session.commit.assert_called_once()
     clock.assert_called_once()
+    snapshots = [call.kwargs["snapshot"] for call in evaluate.call_args_list]
+    assert {(row.through_sequence, row.evaluated_at_us) for row in snapshots} == {(7, 100)}
+    assert all(call.kwargs["subject_speaker_id"] == "A" for call in evaluate.call_args_list)
+    assert len({row.evaluation_id for row in snapshots}) == len(snapshots)
 
 
 @pytest.mark.parametrize("case", [None, CaseLog(case_id="case", created_at_us=0)])

@@ -16,9 +16,9 @@ def test_submission_delegates_the_complete_workflow_to_ingestion(*, monkeypatch)
         signal_level_avg=-30,
         signal_level_max=-10,
     )
-    session, clock, _scheduler = object(), Mock(), object()
+    session, clock = object(), Mock()
     service = Mock(return_value=object())
-    monkeypatch.setattr(observation.observation, "ingest", service)
+    monkeypatch.setattr(observation, "ingest", service)
     assert (
         observation.submit_observation(input=input, session=session, now=clock)
         is service.return_value
@@ -29,7 +29,7 @@ def test_submission_delegates_the_complete_workflow_to_ingestion(*, monkeypatch)
 
 def test_listing_scopes_results_to_the_requested_case(*, monkeypatch):
     service = Mock(return_value=[])
-    monkeypatch.setattr(observation.observation, "list_observations", service)
+    monkeypatch.setattr(observation, "list_observations", service)
     session = object()
-    assert observation.list_observations(case_id="requested", session=session).items == []
+    assert observation.list_case_observations(case_id="requested", session=session).items == []
     service.assert_called_once_with(case_id="requested", session=session)

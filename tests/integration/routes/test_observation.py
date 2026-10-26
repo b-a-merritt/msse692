@@ -189,7 +189,7 @@ def test_connection_failure_returns_service_unavailable(*, open_client, monkeypa
         }
 
 
-def test_uninitialized_scheduler_does_not_block_storage(*, open_client, monkeypatch):
+def test_uninitialized_worker_does_not_block_storage(*, open_client, monkeypatch):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
     with open_client(now=lambda: received_at) as client:
         observation_data = {
@@ -204,7 +204,7 @@ def test_uninitialized_scheduler_does_not_block_storage(*, open_client, monkeypa
             "signal_level_max": -10.0,
         }
 
-        monkeypatch.setattr(client.app.state, "scheduler", None)
+        monkeypatch.setattr(client.app.state, "worker_stopped", None)
         response = client.post("/api/v1/observations", json=observation_data)
 
         assert response.status_code == 201
@@ -240,7 +240,7 @@ def test_stopped_worker_does_not_block_storage(*, open_client):
             "signal_level_max": -10.0,
         }
 
-        client.app.state.scheduler.stopped.set()
+        client.app.state.worker_stopped.set()
         response = client.post("/api/v1/observations", json=observation_data)
 
         assert response.status_code == 201

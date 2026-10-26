@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from contextlib import contextmanager
 from pathlib import Path
+from threading import Event
 from threading import Thread
 from typing import cast
 
@@ -19,14 +20,13 @@ from normative_conformance.logging import start_logging
 from normative_conformance.logging import stop_logging
 from normative_conformance.schemas.model import ModelVersion
 from normative_conformance.services.model.validate_models import validate_models
-from normative_conformance.services.scheduler.run_worker import run_worker
-from normative_conformance.services.scheduler.state import SchedulerState
+from normative_conformance.services.scheduler.run_worker.run_worker import run_worker
 
 logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def _scheduler_lifespan(
+def _worker_lifespan(
     *,
     app: FastAPI,
     engine: Engine,
@@ -34,11 +34,11 @@ def _scheduler_lifespan(
     models: list[ModelVersion],
 ) -> Iterator[None]:
     """Keep the database available until the worker has stopped."""
-    scheduler = SchedulerState()
+    stopped = Event()
     worker = Thread(
         target=run_worker,
         kwargs={
-            "scheduler": scheduler,
+            "stopped": stopped,
             "engine": engine,
             "now": app.state.clock,
             "intervention_window_us": intervention_window_us,
@@ -47,14 +47,14 @@ def _scheduler_lifespan(
         name="assessment-worker",
     )
 
-    app.state.scheduler = scheduler
+    app.state.worker_stopped = stopped
     app.state.assessment_worker = worker
 
     worker.start()
     try:
         yield
     finally:
-        scheduler.stopped.set()
+        stopped.set()
         worker.join()
 
 
@@ -99,7 +99,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             app.state.engine = engine
 
             stage = "worker"
-            with _scheduler_lifespan(
+            with _worker_lifespan(
                 app=app,
                 engine=engine,
                 intervention_window_us=settings.intervention_window_us,
@@ -115,7 +115,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 yield
         finally:
             app.state.engine = None
-            app.state.scheduler = None
+            app.state.worker_stopped = None
             app.state.assessment_worker = None
             engine.dispose()
     except Exception:

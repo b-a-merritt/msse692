@@ -12,10 +12,13 @@ from normative_conformance.database import read_session
 from normative_conformance.database import write_session
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.normative_model import NormativeModelVersion
+from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.schemas.assessment import Explanation
 from normative_conformance.services.assessment.check_repairs import check_repairs
 from normative_conformance.services.assessment.evaluate_case import evaluate_case
 from normative_conformance.services.model.list_models import list_models
+from normative_conformance.services.observation.get_case_sequence import get_case_sequence
+from normative_conformance.timestamps import to_microseconds
 
 from ...storage import persist
 
@@ -48,10 +51,14 @@ def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(*, ses
         evaluation_models = list_models(session=catalog_session)
     with write_session(engine=engine) as assessment_session:
         first = evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
+            snapshot=CaseSnapshot(
+                case_id="case",
+                evaluation_id=str(uuid4()),
+                through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                evaluated_at_us=100_000_000,
+            ),
+            subject_speaker_id="configured-subject",
             session=assessment_session,
-            now=lambda: datetime.fromtimestamp(100, timezone.utc),
             models=evaluation_models,
         )
         assessment_session.commit()
@@ -85,10 +92,14 @@ def test_detection_time_starts_deadline_and_new_matches_do_not_restart_it(*, ses
         evaluation_models = list_models(session=catalog_session)
     with write_session(engine=engine) as assessment_session:
         again = evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
+            snapshot=CaseSnapshot(
+                case_id="case",
+                evaluation_id=str(uuid4()),
+                through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                evaluated_at_us=109_000_000,
+            ),
+            subject_speaker_id="configured-subject",
             session=assessment_session,
-            now=lambda: datetime.fromtimestamp(109, timezone.utc),
             models=evaluation_models,
         )
         assessment_session.commit()
@@ -126,10 +137,14 @@ def test_no_match_creates_no_pending_assessment(*, session, engine):
     with write_session(engine=engine) as assessment_session:
         assert (
             evaluate_case(
-                case_id="case",
-                evaluation_id=uuid4(),
+                snapshot=CaseSnapshot(
+                    case_id="case",
+                    evaluation_id=str(uuid4()),
+                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                    evaluated_at_us=100_000_000,
+                ),
+                subject_speaker_id="configured-subject",
                 session=assessment_session,
-                now=lambda: datetime.fromtimestamp(100, timezone.utc),
                 models=evaluation_models,
             )
             == []
@@ -177,10 +192,14 @@ def test_no_repair_allowance_confirms_immediately(*, session, engine):
         evaluation_models = list_models(session=catalog_session)
     with write_session(engine=engine) as assessment_session:
         result = evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
+            snapshot=CaseSnapshot(
+                case_id="case",
+                evaluation_id=str(uuid4()),
+                through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                evaluated_at_us=100_000_000,
+            ),
+            subject_speaker_id="configured-subject",
             session=assessment_session,
-            now=lambda: datetime.fromtimestamp(100, timezone.utc),
             models=evaluation_models,
         )
         assessment_session.commit()
@@ -197,10 +216,14 @@ def test_no_repair_allowance_confirms_immediately(*, session, engine):
         evaluation_models = list_models(session=catalog_session)
     with write_session(engine=engine) as assessment_session:
         repeated = evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
+            snapshot=CaseSnapshot(
+                case_id="case",
+                evaluation_id=str(uuid4()),
+                through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                evaluated_at_us=101_000_000,
+            ),
+            subject_speaker_id="configured-subject",
             session=assessment_session,
-            now=lambda: datetime.fromtimestamp(101, timezone.utc),
             models=evaluation_models,
         )
         assessment_session.commit()
@@ -253,10 +276,14 @@ def test_models_use_their_own_allowance_and_keep_existing_deadlines(*, session, 
         originals = {
             row.model_id: row
             for row in evaluate_case(
-                case_id="case",
-                evaluation_id=uuid4(),
+                snapshot=CaseSnapshot(
+                    case_id="case",
+                    evaluation_id=str(uuid4()),
+                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                    evaluated_at_us=100_000_000,
+                ),
+                subject_speaker_id="configured-subject",
                 session=assessment_session,
-                now=lambda: datetime.fromtimestamp(100, timezone.utc),
                 models=evaluation_models,
             )
         }
@@ -274,10 +301,14 @@ def test_models_use_their_own_allowance_and_keep_existing_deadlines(*, session, 
         assert [
             row.model_dump()
             for row in evaluate_case(
-                case_id="case",
-                evaluation_id=uuid4(),
+                snapshot=CaseSnapshot(
+                    case_id="case",
+                    evaluation_id=str(uuid4()),
+                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                    evaluated_at_us=101_000_000,
+                ),
+                subject_speaker_id="configured-subject",
                 session=assessment_session,
-                now=lambda: datetime.fromtimestamp(101, timezone.utc),
                 models=evaluation_models,
             )
         ] == [row.model_dump() for row in originals.values()]
@@ -289,10 +320,14 @@ def test_models_use_their_own_allowance_and_keep_existing_deadlines(*, session, 
         checked = {
             row.model_id: row
             for row in check_repairs(
-                case_id="case",
-                evaluation_id=uuid4(),
+                snapshot=CaseSnapshot(
+                    case_id="case",
+                    evaluation_id=str(uuid4()),
+                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                    evaluated_at_us=102_000_000,
+                ),
+                subject_speaker_id="configured-subject",
                 session=assessment_session,
-                now=lambda: datetime.fromtimestamp(102, timezone.utc),
                 models=evaluation_models,
             )
         }
@@ -356,10 +391,14 @@ def test_failed_assessment_rolls_back_all_models(*, session, engine):
             evaluation_models = list_models(session=catalog_session)
         with write_session(engine=engine) as assessment_session:
             evaluate_case(
-                case_id="case",
-                evaluation_id=uuid4(),
+                snapshot=CaseSnapshot(
+                    case_id="case",
+                    evaluation_id=str(uuid4()),
+                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                    evaluated_at_us=100_000_000,
+                ),
+                subject_speaker_id="configured-subject",
                 session=assessment_session,
-                now=lambda: datetime.fromtimestamp(100, timezone.utc),
                 models=evaluation_models,
             )
             assessment_session.commit()
@@ -416,10 +455,16 @@ def test_new_matches_share_the_case_evaluation_time(*, session, engine):
 
     with write_session(engine=engine) as assessment_session:
         results = evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
+            snapshot=CaseSnapshot(
+                case_id="case",
+                evaluation_id=str(uuid4()),
+                through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                evaluated_at_us=to_microseconds(
+                    value=datetime.fromtimestamp(next(times), timezone.utc)
+                ),
+            ),
+            subject_speaker_id="configured-subject",
             session=assessment_session,
-            now=lambda: datetime.fromtimestamp(next(times), timezone.utc),
             models=model_catalog,
         )
         assessment_session.commit()
@@ -477,10 +522,14 @@ def test_models_record_the_same_case_target(*, session, engine):
         evaluation_models = list_models(session=catalog_session)
     with write_session(engine=engine) as assessment_session:
         results = evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
+            snapshot=CaseSnapshot(
+                case_id="case",
+                evaluation_id=str(uuid4()),
+                through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                evaluated_at_us=100_000_000,
+            ),
+            subject_speaker_id="configured-subject",
             session=assessment_session,
-            now=lambda: datetime.fromtimestamp(100, timezone.utc),
             models=evaluation_models,
         )
         assessment_session.commit()
@@ -532,10 +581,14 @@ def test_model_added_after_the_catalog_was_loaded_is_not_assessed(*, session, en
 
     with write_session(engine=engine) as assessment_session:
         results = evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
+            snapshot=CaseSnapshot(
+                case_id="case",
+                evaluation_id=str(uuid4()),
+                through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                evaluated_at_us=to_microseconds(value=received_at),
+            ),
+            subject_speaker_id="configured-subject",
             session=assessment_session,
-            now=lambda: received_at,
             models=model_catalog,
         )
         assessment_session.commit()

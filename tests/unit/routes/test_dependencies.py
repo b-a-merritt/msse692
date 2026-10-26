@@ -1,5 +1,4 @@
 from contextlib import nullcontext
-from threading import Event
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -16,7 +15,11 @@ from normative_conformance.routes import dependencies
     "name,operation,message",
     [
         ("engine", dependencies.get_engine, "The application database is not initialized"),
-        ("scheduler", dependencies.get_scheduler, "The assessment worker is not running"),
+        (
+            "worker_stopped",
+            dependencies.get_worker_stopped,
+            "The assessment worker is not initialized",
+        ),
         (
             "assessment_worker",
             dependencies.get_assessment_worker,
@@ -26,7 +29,7 @@ from normative_conformance.routes import dependencies
 )
 @pytest.mark.parametrize("available", [False, True])
 def test_dependency_requires_an_initialized_resource(*, name, operation, message, available):
-    value = SimpleNamespace(stopped=Event()) if name == "scheduler" else object()
+    value = object()
     state = SimpleNamespace(**({name: value} if available else {}))
     request = Request({"type": "http", "app": SimpleNamespace(state=state)})
     if available:
@@ -35,21 +38,6 @@ def test_dependency_requires_an_initialized_resource(*, name, operation, message
         with pytest.raises(NotReady) as caught:
             operation(request=request)
         assert str(caught.value) == message
-
-
-def test_stopped_scheduler_is_not_available():
-    stopped = Event()
-    stopped.set()
-    request = Request(
-        {
-            "type": "http",
-            "app": SimpleNamespace(
-                state=SimpleNamespace(scheduler=SimpleNamespace(stopped=stopped))
-            ),
-        }
-    )
-    with pytest.raises(NotReady, match=r"^The assessment worker is not running$"):
-        dependencies.get_scheduler(request=request)
 
 
 def test_clock_is_supplied_without_reading_it():

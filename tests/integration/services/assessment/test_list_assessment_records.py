@@ -6,12 +6,14 @@ from uuid import uuid4
 from normative_conformance import models
 from normative_conformance.database import read_session
 from normative_conformance.database import write_session
+from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.services.assessment.check_repairs import check_repairs
 from normative_conformance.services.assessment.evaluate_case import evaluate_case
 from normative_conformance.services.assessment.list_assessment_records import (
     list_assessment_records,
 )
 from normative_conformance.services.model.list_models import list_models
+from normative_conformance.services.observation.get_case_sequence import get_case_sequence
 
 from ...storage import persist
 
@@ -48,10 +50,14 @@ def test_records_preserve_each_assessments_prefix_explanation_and_deadline(*, se
         evaluation_models = list_models(session=catalog_session)
     with write_session(engine=engine) as assessment_session:
         pending = evaluate_case(
-            case_id="case",
-            evaluation_id=uuid4(),
+            snapshot=CaseSnapshot(
+                case_id="case",
+                evaluation_id=str(uuid4()),
+                through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                evaluated_at_us=100_000_000,
+            ),
+            subject_speaker_id="configured-subject",
             session=assessment_session,
-            now=lambda: datetime.fromtimestamp(100, timezone.utc),
             models=evaluation_models,
         )[0]
         assessment_session.commit()
@@ -76,10 +82,14 @@ def test_records_preserve_each_assessments_prefix_explanation_and_deadline(*, se
         evaluation_models = list_models(session=catalog_session)
     with write_session(engine=engine) as assessment_session:
         resolution = check_repairs(
-            case_id="case",
-            evaluation_id=uuid4(),
+            snapshot=CaseSnapshot(
+                case_id="case",
+                evaluation_id=str(uuid4()),
+                through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                evaluated_at_us=110_000_000,
+            ),
+            subject_speaker_id="configured-subject",
             session=assessment_session,
-            now=lambda: datetime.fromtimestamp(110, timezone.utc),
             models=evaluation_models,
         )[0]
         assessment_session.commit()

@@ -1,17 +1,16 @@
 from datetime import datetime
 from datetime import timezone
 from importlib import import_module
+from threading import Event
 from unittest.mock import Mock
 
 import pytest
-
-from normative_conformance.services.scheduler.state import SchedulerState
 
 module = import_module("normative_conformance.services.scheduler.run_worker.run_worker")
 
 
 def test_polls_each_ready_case_once_and_keeps_the_first_window(monkeypatch):
-    scheduler = SchedulerState()
+    stopped = Event()
     polls = []
     visited = []
     windows = []
@@ -20,7 +19,7 @@ def test_polls_each_ready_case_once_and_keeps_the_first_window(monkeypatch):
         assert seconds == 0.1
         polls.append(seconds)
         if len(polls) == 2:
-            scheduler.stopped.set()
+            stopped.set()
 
     def process(**kwargs):
         visited.append(kwargs["case_id"])
@@ -29,15 +28,13 @@ def test_polls_each_ready_case_once_and_keeps_the_first_window(monkeypatch):
     def interventions(**kwargs):
         windows.append(dict(kwargs["intervention_windows"]))
 
-    monkeypatch.setattr(scheduler.stopped, "wait", wait)
-    monkeypatch.setattr(module, "pending_cases", Mock(return_value=["new", "due"]))
-    monkeypatch.setattr(
-        module, "load_repair_deadlines", Mock(return_value={"due": 1, "later": 999})
-    )
+    monkeypatch.setattr(stopped, "wait", wait)
+    pending = Mock(return_value=["due", "new"])
+    monkeypatch.setattr(module, "pending_cases", pending)
     monkeypatch.setattr(module, "process_case", process)
     monkeypatch.setattr(module, "create_due_interventions", interventions)
     module.run_worker(
-        scheduler=scheduler,
+        stopped=stopped,
         engine=object(),
         models=[],
         intervention_window_us=30,
@@ -45,11 +42,12 @@ def test_polls_each_ready_case_once_and_keeps_the_first_window(monkeypatch):
     )
     assert visited == ["due", "new", "due", "new"]
     assert windows[-1] == {"due": 10, "new": 10}
+    assert pending.call_args.kwargs["now_us"] == 100
 
 
 @pytest.mark.parametrize("failure", ["poll", "case", None])
 def test_failure_does_not_lose_work_and_idle_ticks_service_timers(monkeypatch, failure):
-    scheduler = SchedulerState()
+    stopped = Event()
     visited = []
     waits = []
 
@@ -67,16 +65,15 @@ def test_failure_does_not_lose_work_and_idle_ticks_service_timers(monkeypatch, f
     def wait(seconds):
         waits.append(seconds)
         if len(waits) == 2:
-            scheduler.stopped.set()
+            stopped.set()
 
     timers = Mock()
-    monkeypatch.setattr(scheduler.stopped, "wait", wait)
+    monkeypatch.setattr(stopped, "wait", wait)
     monkeypatch.setattr(module, "pending_cases", pending)
-    monkeypatch.setattr(module, "load_repair_deadlines", Mock(return_value={}))
     monkeypatch.setattr(module, "process_case", process)
     monkeypatch.setattr(module, "create_due_interventions", timers)
     module.run_worker(
-        scheduler=scheduler,
+        stopped=stopped,
         engine=object(),
         models=[],
         intervention_window_us=30,
@@ -88,14 +85,13 @@ def test_failure_does_not_lose_work_and_idle_ticks_service_timers(monkeypatch, f
 
 
 def test_shutdown_finishes_current_case_without_starting_next(monkeypatch):
-    scheduler = SchedulerState()
-    process = Mock(side_effect=lambda **kwargs: scheduler.stopped.set())
+    stopped = Event()
+    process = Mock(side_effect=lambda **kwargs: stopped.set())
     monkeypatch.setattr(module, "pending_cases", Mock(return_value=["one", "two"]))
-    monkeypatch.setattr(module, "load_repair_deadlines", Mock(return_value={}))
     monkeypatch.setattr(module, "process_case", process)
     monkeypatch.setattr(module, "create_due_interventions", Mock())
     module.run_worker(
-        scheduler=scheduler,
+        stopped=stopped,
         engine=object(),
         models=[],
         intervention_window_us=30,

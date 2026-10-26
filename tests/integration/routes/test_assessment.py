@@ -7,9 +7,12 @@ import pytest
 
 from normative_conformance.database import read_session
 from normative_conformance.database import write_session
+from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.services.assessment.check_repairs import check_repairs
 from normative_conformance.services.assessment.evaluate_case import evaluate_case
 from normative_conformance.services.model.list_models import list_models
+from normative_conformance.services.observation.get_case_sequence import get_case_sequence
+from normative_conformance.timestamps import to_microseconds
 
 
 def test_returns_api_records_with_original_extents_and_resolution_links(*, open_client):
@@ -54,10 +57,14 @@ def test_returns_api_records_with_original_extents_and_resolution_links(*, open_
         assert response.status_code == 201
         with write_session(engine=client.app.state.engine) as assessment_session:
             rows = evaluate_case(
-                case_id="case",
-                evaluation_id=uuid4(),
+                snapshot=CaseSnapshot(
+                    case_id="case",
+                    evaluation_id=str(uuid4()),
+                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                    evaluated_at_us=to_microseconds(value=client.app.state.clock()),
+                ),
+                subject_speaker_id="speaker-2",
                 session=assessment_session,
-                now=client.app.state.clock,
                 models=model_catalog,
             )
             assessment_session.commit()
@@ -76,10 +83,14 @@ def test_returns_api_records_with_original_extents_and_resolution_links(*, open_
         assert response.status_code == 201
         with write_session(engine=client.app.state.engine) as assessment_session:
             rows = evaluate_case(
-                case_id="other",
-                evaluation_id=uuid4(),
+                snapshot=CaseSnapshot(
+                    case_id="other",
+                    evaluation_id=str(uuid4()),
+                    through_sequence=get_case_sequence(case_id="other", session=assessment_session),
+                    evaluated_at_us=to_microseconds(value=client.app.state.clock()),
+                ),
+                subject_speaker_id="speaker-2",
                 session=assessment_session,
-                now=client.app.state.clock,
                 models=model_catalog,
             )
             assessment_session.commit()
@@ -130,10 +141,14 @@ def test_returns_api_records_with_original_extents_and_resolution_links(*, open_
 
         with write_session(engine=client.app.state.engine) as assessment_session:
             resolution = check_repairs(
-                case_id="case",
-                evaluation_id=uuid4(),
+                snapshot=CaseSnapshot(
+                    case_id="case",
+                    evaluation_id=str(uuid4()),
+                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                    evaluated_at_us=to_microseconds(value=received_at + timedelta(seconds=10)),
+                ),
+                subject_speaker_id="speaker-2",
                 session=assessment_session,
-                now=lambda: received_at + timedelta(seconds=10),
                 models=model_catalog,
             )[0]
             assessment_session.commit()
@@ -210,10 +225,14 @@ def test_preserves_repair_evidence_in_the_explanation(*, open_client):
         assert response.status_code == 201
         with write_session(engine=client.app.state.engine) as assessment_session:
             rows = evaluate_case(
-                case_id="case",
-                evaluation_id=uuid4(),
+                snapshot=CaseSnapshot(
+                    case_id="case",
+                    evaluation_id=str(uuid4()),
+                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                    evaluated_at_us=to_microseconds(value=client.app.state.clock()),
+                ),
+                subject_speaker_id="speaker-2",
                 session=assessment_session,
-                now=client.app.state.clock,
                 models=model_catalog,
             )
             assessment_session.commit()
@@ -235,10 +254,14 @@ def test_preserves_repair_evidence_in_the_explanation(*, open_client):
         )
         with write_session(engine=client.app.state.engine) as assessment_session:
             check_repairs(
-                case_id="case",
-                evaluation_id=uuid4(),
+                snapshot=CaseSnapshot(
+                    case_id="case",
+                    evaluation_id=str(uuid4()),
+                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
+                    evaluated_at_us=to_microseconds(value=received_at + timedelta(seconds=5)),
+                ),
+                subject_speaker_id="speaker-2",
                 session=assessment_session,
-                now=lambda: received_at + timedelta(seconds=5),
                 models=model_catalog,
             )
             assessment_session.commit()

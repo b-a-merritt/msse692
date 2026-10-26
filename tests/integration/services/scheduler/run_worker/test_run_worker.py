@@ -16,7 +16,6 @@ from normative_conformance.models.normative_model import NormativeModelVersion
 from normative_conformance.models.observation import Observation
 from normative_conformance.services.model.list_models import list_models
 from normative_conformance.services.scheduler.run_worker.process_case import process_case
-from normative_conformance.services.scheduler.state import SchedulerState
 
 module = import_module("normative_conformance.services.scheduler.run_worker.run_worker")
 
@@ -74,7 +73,7 @@ def test_worker_polls_stored_speech_and_recovers_deadlines_without_new_input(
     if restart:
         process_case(case_id="case", engine=engine, now=now, models=models)
         clock_us = 110
-    scheduler = SchedulerState()
+    stopped = Event()
     delivered = Event()
     original_process = module.process_case
     original_interventions = module.create_due_interventions
@@ -89,7 +88,7 @@ def test_worker_polls_stored_speech_and_recovers_deadlines_without_new_input(
         original_interventions(**kwargs)
         with read_session(engine=engine) as check:
             if check.exec(select(Intervention)).first() is not None:
-                scheduler.stopped.set()
+                stopped.set()
                 delivered.set()
 
     monkeypatch.setattr(module, "process_case", process)
@@ -97,7 +96,7 @@ def test_worker_polls_stored_speech_and_recovers_deadlines_without_new_input(
     worker = Thread(
         target=module.run_worker,
         kwargs={
-            "scheduler": scheduler,
+            "stopped": stopped,
             "engine": engine,
             "now": now,
             "intervention_window_us": 5,
@@ -108,7 +107,7 @@ def test_worker_polls_stored_speech_and_recovers_deadlines_without_new_input(
     try:
         assert delivered.wait(5)
     finally:
-        scheduler.stopped.set()
+        stopped.set()
         worker.join(5)
     assert not worker.is_alive()
     with read_session(engine=engine) as check:

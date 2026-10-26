@@ -2,16 +2,19 @@ from typing import Annotated
 from typing import Literal
 
 from fastapi import APIRouter
-from fastapi import Path
 from fastapi import Query
 
+from normative_conformance.routes.dependencies import PathId
 from normative_conformance.routes.dependencies import ReadSession
 from normative_conformance.routes.dependencies import ServerClock
 from normative_conformance.routes.dependencies import WriteSession
 from normative_conformance.routes.errors import ERROR_RESPONSES
 from normative_conformance.schemas.common import ListResponse
 from normative_conformance.schemas.intervention import Intervention
-from normative_conformance.services import intervention
+from normative_conformance.services.intervention.deliver_pending import deliver_pending
+from normative_conformance.services.intervention.list_intervention_records import (
+    list_intervention_records,
+)
 
 router = APIRouter(responses=ERROR_RESPONSES)
 
@@ -28,7 +31,7 @@ def list_interventions(
 ) -> ListResponse[Intervention]:
     """Read all matching interventions without changing their delivery state."""
     return ListResponse[Intervention](
-        items=intervention.list_intervention_records(
+        items=list_intervention_records(
             case_id=case_id,
             status=status,
             session=session,
@@ -42,13 +45,13 @@ def list_interventions(
 )
 def deliver_interventions(
     *,
-    case_id: Annotated[str, Path(strict=True, min_length=1, pattern=r"^[^/]+$")],
+    case_id: PathId,
     session: WriteSession,
     now: ServerClock,
 ) -> ListResponse[Intervention]:
     """Mark the case's pending interventions as sent and return them."""
     return ListResponse[Intervention](
-        items=intervention.deliver_pending(
+        items=deliver_pending(
             case_id=case_id,
             session=session,
             now=now,

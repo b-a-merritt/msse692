@@ -1,10 +1,9 @@
-import json
-
 from sqlmodel import Session
 from sqlmodel import select
 
 from normative_conformance.models.normative_model import NormativeModelVersion
 from normative_conformance.schemas.model import ModelVersion
+from normative_conformance.services.model.records import to_model
 
 
 def list_models(
@@ -18,16 +17,4 @@ def list_models(
             NormativeModelVersion.version,
         )
     ).all()
-
-    items = [
-        ModelVersion.model_validate(
-            {
-                **row.model_dump(exclude={"rules_json", "parameters_json"}),
-                "rules": json.loads(row.rules_json),
-                "parameters": json.loads(row.parameters_json),
-            },
-        )
-        for row in rows
-    ]
-
-    return items
+    return [to_model(row=row) for row in rows]

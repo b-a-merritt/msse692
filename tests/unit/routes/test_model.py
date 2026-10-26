@@ -17,18 +17,18 @@ def test_listing_wraps_service_results_in_the_list_contract(*, monkeypatch):
         parameters={},
     )
     service = Mock(return_value=[record])
-    monkeypatch.setattr(model.model, "list_models", service)
+    monkeypatch.setattr(model, "list_models", service)
     session = object()
-    assert model.list_models(session=session).items == [record]
+    assert model.list_model_versions(session=session).items == [record]
     service.assert_called_once_with(session=session)
 
 
 def test_version_lookup_forwards_identity_and_propagates_not_found(*, monkeypatch):
     error = NotFound("The model was not found")
     service = Mock(side_effect=error)
-    monkeypatch.setattr(model.model, "get_model", service)
+    monkeypatch.setattr(model, "get_model", service)
     session = object()
     with pytest.raises(NotFound) as caught:
-        model.get_model(model_id="requested", version="2", session=session)
+        model.get_model_version(model_id="requested", version="2", session=session)
     assert caught.value is error
     service.assert_called_once_with(model_id="requested", version="2", session=session)

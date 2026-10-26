@@ -1,3 +1,4 @@
+from threading import Event
 from threading import Thread
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -6,17 +7,16 @@ from sqlmodel import select
 
 from normative_conformance.errors import NotReady
 from normative_conformance.schemas.health import Readiness
-from normative_conformance.services.scheduler.state import SchedulerState
 
 
 def readiness(
     *,
     session: Session,
-    scheduler: SchedulerState,
+    stopped: Event,
     worker: Thread,
 ) -> Readiness:
     """Check the ingestion runtime without changing records."""
-    if scheduler.stopped.is_set() or not worker.is_alive():
+    if stopped.is_set() or not worker.is_alive():
         raise NotReady("The assessment worker is not running")
 
     try:

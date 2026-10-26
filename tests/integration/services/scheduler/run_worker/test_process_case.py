@@ -86,12 +86,12 @@ def test_results_and_cursor_commit_or_roll_back_together(engine, session, transc
         rows = check.exec(select(Assessment)).all()
         assert len(rows) == (1 if transcript == "trigger" and not fail else 0)
     engine.dispose()
-    assert pending_cases(engine=engine) == (["case"] if fail else [])
+    assert pending_cases(engine=engine, now_us=0) == (["case"] if fail else [])
     if fail:
         with engine.begin() as connection:
             connection.exec_driver_sql("DROP TRIGGER reject_progress")
         process_case(case_id="case", engine=engine, now=now, models=models)
-        assert pending_cases(engine=engine) == []
+        assert pending_cases(engine=engine, now_us=0) == []
 
 
 def test_unresolved_input_is_processed_after_target_selection_and_on_target_change(engine, session):
@@ -118,7 +118,7 @@ def test_unresolved_input_is_processed_after_target_selection_and_on_target_chan
     def now():
         return datetime(1970, 1, 1, tzinfo=timezone.utc)
 
-    assert pending_cases(engine=engine) == []
+    assert pending_cases(engine=engine, now_us=0) == []
     assert process_case(case_id="case", engine=engine, now=now, models=[]) is None
     for label, revision in [("A", 1), ("B", 2)]:
         select_target(
@@ -127,14 +127,14 @@ def test_unresolved_input_is_processed_after_target_selection_and_on_target_chan
             session=session,
             now=now,
         )
-        assert pending_cases(engine=engine) == ["case"]
+        assert pending_cases(engine=engine, now_us=0) == ["case"]
         process_case(case_id="case", engine=engine, now=now, models=[])
         session.expire_all()
         case = session.get(CaseLog, "case")
         assert case.last_handled_sequence == 1
         assert case.last_handled_target_revision == revision
         session.rollback()
-        assert pending_cases(engine=engine) == []
+        assert pending_cases(engine=engine, now_us=0) == []
 
 
 def test_arrival_during_evaluation_remains_ready_after_commit(engine, session, monkeypatch):
@@ -196,6 +196,6 @@ def test_arrival_during_evaluation_remains_ready_after_commit(engine, session, m
         assert arrival.result(timeout=5).sequence == 2
     with read_session(engine=engine) as check:
         assert check.get(CaseLog, "case").last_handled_sequence == 1
-    assert pending_cases(engine=engine) == ["case"]
+    assert pending_cases(engine=engine, now_us=0) == ["case"]
     process_case(case_id="case", engine=engine, now=now, models=[])
-    assert pending_cases(engine=engine) == []
+    assert pending_cases(engine=engine, now_us=0) == []

@@ -7,12 +7,13 @@ from pydantic import field_validator
 from pydantic import model_validator
 
 from normative_conformance.schemas.common import ContractModel
+from normative_conformance.schemas.common import Identifier
 
 
 class ObservationInput(ContractModel):
-    case_id: str = Field(strict=True, min_length=1, pattern=r"^[^/]+$")
-    observation_id: str = Field(strict=True, min_length=1, pattern=r"^[^/]+$")
-    speaker_id: str = Field(strict=True, min_length=1, pattern=r"^[^/]+$")
+    case_id: Identifier
+    observation_id: Identifier
+    speaker_id: Identifier
     start_at: AwareDatetime
     end_at: AwareDatetime
     transcript: str = Field(strict=True, pattern=r"\S")

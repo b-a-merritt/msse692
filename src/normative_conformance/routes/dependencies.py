@@ -1,9 +1,11 @@
 from collections.abc import Iterator
+from threading import Event
 from threading import Thread
 from typing import Annotated
 from typing import cast
 
 from fastapi import Depends
+from fastapi import Path
 from fastapi import Request
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -14,7 +16,6 @@ from normative_conformance.database import write_session
 from normative_conformance.errors import NotReady
 from normative_conformance.errors import StorageUnavailable
 from normative_conformance.schemas.internal import Clock
-from normative_conformance.services.scheduler.state import SchedulerState
 
 
 def get_engine(
@@ -55,11 +56,11 @@ def get_clock(
     return cast(Clock, request.app.state.clock)
 
 
-def get_scheduler(*, request: Request) -> SchedulerState:
-    scheduler = cast(SchedulerState | None, getattr(request.app.state, "scheduler", None))
-    if scheduler is None or scheduler.stopped.is_set():
-        raise NotReady("The assessment worker is not running")
-    return scheduler
+def get_worker_stopped(*, request: Request) -> Event:
+    stopped = cast(Event | None, getattr(request.app.state, "worker_stopped", None))
+    if stopped is None:
+        raise NotReady("The assessment worker is not initialized")
+    return stopped
 
 
 def get_assessment_worker(*, request: Request) -> Thread:
@@ -69,8 +70,11 @@ def get_assessment_worker(*, request: Request) -> Thread:
     return worker
 
 
+# A nonempty identity path segment.
+PathId = Annotated[str, Path(strict=True, min_length=1, pattern=r"^[^/]+$")]
+
 ReadSession = Annotated[Session, Depends(get_read_session)]
 WriteSession = Annotated[Session, Depends(get_write_session)]
 ServerClock = Annotated[Clock, Depends(get_clock)]
-Scheduler = Annotated[SchedulerState, Depends(get_scheduler)]
+WorkerStopped = Annotated[Event, Depends(get_worker_stopped)]
 AssessmentWorker = Annotated[Thread, Depends(get_assessment_worker)]

@@ -4,7 +4,7 @@ from sqlalchemy import Engine
 
 from normative_conformance.database import write_session
 from normative_conformance.schemas.internal import Clock
-from normative_conformance.services import intervention
+from normative_conformance.services.intervention.create_intervention import create_intervention
 from normative_conformance.timestamps import to_microseconds
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ def create_due_interventions(
         del intervention_windows[case_id]
         try:
             with write_session(engine=engine) as session:
-                intervention.create_intervention(
+                create_intervention(
                     case_id=case_id, since_us=opened_at_us, session=session, now=now
                 )
         except Exception:

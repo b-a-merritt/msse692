@@ -18,6 +18,7 @@ from normative_conformance.errors import InvalidModel
 from normative_conformance.models.normative_model import NormativeModelVersion
 from normative_conformance.models.observation import Observation
 from normative_conformance.services.scheduler.run_worker import process_case as processing
+from normative_conformance.timestamps import to_microseconds
 
 # Default ASGI construction must not load a developer's local dotenv file.
 with patch.dict(Settings.model_config, {"env_file": None}):
@@ -42,9 +43,9 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(*, tmp_path, mo
     handled = Event()
     calls = []
 
-    def evaluate_case(*, case_id, evaluation_id, session, now, models):
-        assert session.get(Observation, (case_id, "chunk")) is not None
-        calls.append((case_id, evaluation_id, now()))
+    def evaluate_case(*, snapshot, subject_speaker_id, session, models):
+        assert session.get(Observation, (snapshot.case_id, "chunk")) is not None
+        calls.append((snapshot, subject_speaker_id))
         handled.set()
         return []
 
@@ -71,11 +72,13 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(*, tmp_path, mo
         assert handled.wait(timeout=5)
 
     assert not worker.is_alive()
-    assert calls[0][0] == "case"
-    assert isinstance(calls[0][1], UUID)
-    assert calls[0][2] == received_at
+    snapshot, subject_speaker_id = calls[0]
+    assert snapshot.case_id == "case"
+    assert UUID(snapshot.evaluation_id).version == 4
+    assert snapshot.evaluated_at_us == to_microseconds(value=received_at)
+    assert subject_speaker_id == "subject"
     assert application.state.engine is None
-    assert application.state.scheduler is None
+    assert application.state.worker_stopped is None
     assert application.state.assessment_worker is None
 
 

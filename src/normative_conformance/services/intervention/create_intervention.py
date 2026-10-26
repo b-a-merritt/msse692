@@ -9,6 +9,7 @@ from normative_conformance import models
 from normative_conformance.errors import StorageUnavailable
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.schemas.internal import Clock
+from normative_conformance.services.case.target import for_current_target
 from normative_conformance.services.intervention.constants import INTERVENTION_MESSAGES
 from normative_conformance.timestamps import to_microseconds
 
@@ -94,10 +95,8 @@ def _get_sources(
                 (col(models.NormativeModelVersion.model_id) == models.Assessment.model_id)
                 & (col(models.NormativeModelVersion.version) == models.Assessment.model_version),
             )
-            .join(models.CaseLog, col(models.CaseLog.case_id) == models.Assessment.case_id)
             .where(
-                models.Assessment.target_revision == models.CaseLog.target_revision,
-                models.Assessment.subject_speaker_id == models.CaseLog.target_speaker_id,
+                for_current_target(models.Assessment),
                 models.Assessment.case_id == case_id,
                 models.Assessment.status == "conformant",
                 models.NormativeModelVersion.type == "undesired",

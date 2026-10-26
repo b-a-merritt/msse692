@@ -5,7 +5,6 @@ import pytest
 from normative_conformance import models
 from normative_conformance.services.model.evaluate_model import evaluate_model
 from normative_conformance.services.model.get_model import get_model
-from normative_conformance.services.model.get_subject_speaker_id import get_subject_speaker_id
 from normative_conformance.services.observation.get_case_sequence import get_case_sequence
 
 from ...storage import persist
@@ -73,7 +72,7 @@ def test_interruption_counts_distinct_entries_in_captured_prefix(*, session):
     assert not evaluate_model(
         model=get_model(model_id="repeated_interruption", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+        subject_speaker_id="configured-subject",
         through_sequence=3,
         session=session,
         after_observation=None,
@@ -82,7 +81,7 @@ def test_interruption_counts_distinct_entries_in_captured_prefix(*, session):
     assert evaluate_model(
         model=get_model(model_id="repeated_interruption", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+        subject_speaker_id="configured-subject",
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=None,
@@ -137,7 +136,7 @@ def test_interruption_requires_minimum_overlap(*, session, overlap, expected):
         evaluate_model(
             model=get_model(model_id="repeated_interruption", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+            subject_speaker_id="configured-subject",
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -192,7 +191,7 @@ def test_continuous_speech_does_not_manufacture_interruptions(*, session):
     assert not evaluate_model(
         model=get_model(model_id="repeated_interruption", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+        subject_speaker_id="configured-subject",
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=None,
@@ -237,7 +236,7 @@ def test_address_requires_loud_fast_speech(*, session, transcript, duration_us, 
         evaluate_model(
             model=get_model(model_id="high_intensity_address", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+            subject_speaker_id="configured-subject",
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -329,7 +328,7 @@ def test_address_film_case_lines(*, session, transcript, duration_us, level, exp
         evaluate_model(
             model=get_model(model_id="high_intensity_address", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+            subject_speaker_id="configured-subject",
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -396,7 +395,7 @@ def test_character_label_matches_quiet_slow_speech(*, session, transcript, expec
         evaluate_model(
             model=get_model(model_id="character_label", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+            subject_speaker_id="configured-subject",
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -446,7 +445,7 @@ def test_vulgar_language_matches_term_variants(*, session, transcript, expected)
         evaluate_model(
             model=get_model(model_id="vulgar_language", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+            subject_speaker_id="configured-subject",
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -492,7 +491,7 @@ def test_harm_phrase_matches_configured_phrases(*, session, transcript, expected
         evaluate_model(
             model=get_model(model_id="harm_phrase", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+            subject_speaker_id="configured-subject",
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -538,7 +537,7 @@ def test_absolutist_phrase_requires_second_person(*, session, transcript, expect
         evaluate_model(
             model=get_model(model_id="absolutist_phrase", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+            subject_speaker_id="configured-subject",
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=None,
@@ -575,7 +574,7 @@ def test_subject_comes_from_case_target(*, session):
     assert not evaluate_model(
         model=get_model(model_id="high_intensity_address", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+        subject_speaker_id="configured-subject",
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=None,
@@ -627,7 +626,7 @@ def test_extended_turn_threshold_and_gap(*, session):
     assert not evaluate_model(
         model=get_model(model_id="extended_turn", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+        subject_speaker_id="configured-subject",
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=None,
@@ -653,7 +652,7 @@ def test_extended_turn_threshold_and_gap(*, session):
     assert evaluate_model(
         model=get_model(model_id="extended_turn", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+        subject_speaker_id="configured-subject",
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=None,
@@ -722,7 +721,7 @@ def test_other_speaker_breaks_turn_in_gap(*, session):
     assert not evaluate_model(
         model=get_model(model_id="extended_turn", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+        subject_speaker_id="configured-subject",
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=None,
@@ -776,7 +775,7 @@ def test_repair_rule_uses_supplied_source_and_receipt_bounds(*, session, receive
         evaluate_model(
             model=get_model(model_id="apology", version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+            subject_speaker_id="configured-subject",
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=activation,
@@ -841,7 +840,7 @@ def test_repair_models_match_configured_phrases(*, session, model_id, transcript
         evaluate_model(
             model=get_model(model_id=model_id, version="1", session=session),
             case_id="case",
-            subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+            subject_speaker_id="configured-subject",
             through_sequence=get_case_sequence(case_id="case", session=session),
             session=session,
             after_observation=activation,
@@ -895,7 +894,7 @@ def test_earlier_spoken_apology_does_not_repair_later_behavior(*, session):
     assert not evaluate_model(
         model=get_model(model_id="apology", version="1", session=session),
         case_id="case",
-        subject_speaker_id=get_subject_speaker_id(case_id="case", session=session),
+        subject_speaker_id="configured-subject",
         through_sequence=get_case_sequence(case_id="case", session=session),
         session=session,
         after_observation=activation,

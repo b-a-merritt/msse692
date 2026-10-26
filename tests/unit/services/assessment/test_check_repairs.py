@@ -1,14 +1,12 @@
-from datetime import datetime
-from datetime import timezone
 from importlib import import_module
 from unittest.mock import Mock
-from uuid import UUID
 
 import pytest
 from sqlmodel import Session
 
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.observation import Observation
+from normative_conformance.schemas.assessment import CaseSnapshot
 from normative_conformance.schemas.model import ModelVersion
 
 module = import_module("normative_conformance.services.assessment.check_repairs")
@@ -64,8 +62,6 @@ def test_records_repairs_and_resolves_pending_without_committing(
         model_version="1",
         status="conformant",
     )
-    monkeypatch.setattr(module, "get_case_sequence", Mock(return_value=5))
-    monkeypatch.setattr(module, "get_subject_speaker_id", Mock(return_value="subject"))
     monkeypatch.setattr(module, "get_last_repair", Mock(return_value=None))
     find = Mock(return_value=(models[1], repair) if new_repair else None)
     create = Mock(return_value=repair_result)
@@ -80,10 +76,11 @@ def test_records_repairs_and_resolves_pending_without_committing(
         monkeypatch.setattr(module, name, value)
 
     results = module.check_repairs(
-        case_id="case",
-        evaluation_id=UUID(int=1),
+        snapshot=CaseSnapshot(
+            case_id="case", evaluation_id="evaluation", through_sequence=5, evaluated_at_us=100
+        ),
+        subject_speaker_id="subject",
         session=session,
-        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=timezone.utc),
         models=models,
     )
 
@@ -99,23 +96,4 @@ def test_records_repairs_and_resolves_pending_without_committing(
         assert create.call_args.kwargs["observation_ids"] == ["apology"]
     else:
         create.assert_not_called()
-    session.commit.assert_not_called()
-
-
-def test_unresolved_target_waits_without_assessing(monkeypatch):
-    session = Mock(spec=Session)
-    monkeypatch.setattr(module, "get_subject_speaker_id", Mock(return_value=None))
-    sequence = Mock()
-    monkeypatch.setattr(module, "get_case_sequence", sequence)
-    assert (
-        module.check_repairs(
-            case_id="case",
-            evaluation_id=UUID(int=1),
-            session=session,
-            now=Mock(),
-            models=[],
-        )
-        == []
-    )
-    sequence.assert_not_called()
     session.commit.assert_not_called()

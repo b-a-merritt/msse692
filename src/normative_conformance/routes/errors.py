@@ -1,6 +1,5 @@
 import logging
 from typing import Any
-from typing import Literal
 from typing import cast
 from uuid import UUID
 
@@ -16,6 +15,7 @@ from normative_conformance.errors import NotReady
 from normative_conformance.errors import ObservationExists
 from normative_conformance.errors import StorageUnavailable
 from normative_conformance.schemas.errors import ApiError
+from normative_conformance.schemas.errors import ErrorCode
 from normative_conformance.schemas.errors import ErrorEnvelope
 
 logger = logging.getLogger(__name__)
@@ -27,10 +27,7 @@ ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
 # Lookup is by exact type, so subclasses can fall through
 _TRANSLATIONS: dict[
     type[Exception],
-    tuple[
-        int,
-        Literal["NOT_FOUND", "OBSERVATION_EXISTS", "NOT_READY", "STORAGE_UNAVAILABLE"],
-    ],
+    tuple[int, ErrorCode],
 ] = {
     NotFound: (404, "NOT_FOUND"),
     ObservationExists: (409, "OBSERVATION_EXISTS"),
@@ -43,7 +40,7 @@ def _envelope(
     *,
     request: Request,
     status: int,
-    code: Literal["NOT_FOUND", "OBSERVATION_EXISTS", "NOT_READY", "STORAGE_UNAVAILABLE"],
+    code: ErrorCode,
     message: str,
 ) -> JSONResponse:
     """Render one error body carrying the request ID the middleware assigned."""
@@ -54,7 +51,7 @@ def _envelope(
             request_id=cast(UUID, request.state.request_id),
         )
     )
-    return JSONResponse(status_code=status, content=body.model_dump(mode="json", exclude_none=True))
+    return JSONResponse(status_code=status, content=body.model_dump(mode="json"))
 
 
 async def service_error(
@@ -110,7 +107,7 @@ def register_error_handlers(
     *,
     application: FastAPI,
 ) -> None:
-    """Attach the placeholder and domain failure handlers to the application."""
+    """Attach the validation and domain failure handlers to the application."""
     application.add_exception_handler(RequestValidationError, validation_error)
     for error in _TRANSLATIONS:
         application.add_exception_handler(error, service_error)

@@ -61,7 +61,7 @@ def test_resources_are_released_in_dependency_order_after_success_or_failure(
     worker.start.side_effect = lambda: order.append("start")
 
     def join():
-        assert app.state.scheduler.stopped.is_set()
+        assert app.state.worker_stopped.is_set()
         order.append("join")
 
     worker.join.side_effect = join
@@ -73,6 +73,7 @@ def test_resources_are_released_in_dependency_order_after_success_or_failure(
             assert app.state.assessment_worker is worker
             assert thread.call_args.kwargs["kwargs"]["models"] == [model]
             assert thread.call_args.kwargs["kwargs"]["now"] is clock
+            assert thread.call_args.kwargs["kwargs"]["stopped"] is app.state.worker_stopped
             if failure_stage == "running":
                 raise failure
 
@@ -88,7 +89,7 @@ def test_resources_are_released_in_dependency_order_after_success_or_failure(
         engine.dispose.assert_not_called()
     else:
         assert app.state.engine is None
-        assert app.state.scheduler is None
+        assert app.state.worker_stopped is None
         assert app.state.assessment_worker is None
         engine.dispose.assert_called_once()
         assert order == (

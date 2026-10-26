@@ -1,10 +1,9 @@
-import json
-
 from sqlmodel import Session
 
 from normative_conformance.errors import NotFound
 from normative_conformance.models.normative_model import NormativeModelVersion
 from normative_conformance.schemas.model import ModelVersion
+from normative_conformance.services.model.records import to_model
 
 
 def get_model(
@@ -18,10 +17,4 @@ def get_model(
     if row is None:
         raise NotFound("The model was not found")
 
-    return ModelVersion.model_validate(
-        {
-            **row.model_dump(exclude={"rules_json", "parameters_json"}),
-            "rules": json.loads(row.rules_json),
-            "parameters": json.loads(row.parameters_json),
-        },
-    )
+    return to_model(row=row)

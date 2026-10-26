@@ -9,9 +9,9 @@ def test_liveness_requires_no_dependencies():
 
 
 def test_readiness_passes_runtime_dependencies_to_service(*, monkeypatch):
-    session, scheduler, worker = object(), object(), object()
+    session, stopped, worker = object(), object(), object()
     result = Readiness(status="ready")
     operation = Mock(return_value=result)
-    monkeypatch.setattr(health.health, "readiness", operation)
-    assert health.readiness(session=session, scheduler=scheduler, worker=worker) is result
-    operation.assert_called_once_with(session=session, scheduler=scheduler, worker=worker)
+    monkeypatch.setattr(health, "readiness", operation)
+    assert health.check_readiness(session=session, stopped=stopped, worker=worker) is result
+    operation.assert_called_once_with(session=session, stopped=stopped, worker=worker)
