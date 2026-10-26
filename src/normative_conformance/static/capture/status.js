@@ -1,7 +1,7 @@
 // Fixed page text keyed by the status keys a capture session reports.
 export const STATUS = Object.freeze({
   caseSetupFailed: "Could not create the capture case. Try starting again.",
-  storageUnavailable: "Finalized speech could not be stored. Capture is incomplete.",
+  storageUnavailable: "Speech or speaker revisions could not be stored. Capture is incomplete.",
   assessmentUnavailable: "Speech was stored but assessment could not be requested.",
   opening: "Opening microphone and connecting to transcription…",
   active: "Microphone active. Transcribing live.",

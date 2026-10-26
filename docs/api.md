@@ -96,11 +96,13 @@ Partial turns, finalized turns, and speaker revisions share this outgoing shape:
 
 `turn_order` identifies a turn within the provider session. Repeated updates replace that turn. Corrections have `final: true` and `revised: true`; their word labels replace the prior labels. `speaker_id` is null when the provider has not attributed the speech. The page groups consecutive finalized words by their own labels and displays null attribution as **Unassigned**. A dominant turn label does not fill missing word attribution.
 
-The server saves each finalized turn as observations before sending its `final: true`, `revised: false` message, so receiving that message means the turn is stored. Speaker revisions change only the live messages; saved observations keep the original labels.
+The server saves the first finalized turn as observations before sending its `final: true`, `revised: false` message, so receiving that message means the turn is stored. Later final messages for that turn are ignored. It also commits each speaker-revision batch before sending its `revised: true` messages.
+
+Speaker revisions update the live transcript but do not change original observations, target selection, or existing assessments, and do not trigger reassessment. Revisions are not exposed over HTTP.
 
 Send the exact text `stop` to finish. The server flushes the remaining audio and partial level frame, sends provider `Terminate`, and continues receiving transcripts and revisions until provider `Termination`. Only then does it send `{"type":"stopped"}` and close with code 1000. The provider drain has a ten-second deadline. A connection ending without `stopped` is incomplete.
 
-Capture failures use `{"type":"error","code":"providerAuth","message":"..."}` with fixed application text. Codes are `notConfigured`, `providerAuth`, `providerUnavailable`, `providerProtocol`, `providerTimeout`, `invalidAudio`, `incomplete`, `storageUnavailable`, and `assessmentUnavailable`. A storage failure rolls back the current turn; previously committed turns remain saved. An assessment scheduling failure leaves the current turn saved. Both end capture without `stopped`. Invalid audio closes with code 1008; other capture failures use 1011. These WebSocket errors are separate from the HTTP domain envelope below. The key and raw provider exceptions are never sent to the browser.
+Capture failures use `{"type":"error","code":"providerAuth","message":"..."}` with fixed application text. Codes are `notConfigured`, `providerAuth`, `providerUnavailable`, `providerProtocol`, `providerTimeout`, `invalidAudio`, `incomplete`, `storageUnavailable`, and `assessmentUnavailable`. A storage failure rolls back the current turn or revision batch; previously committed data remains saved. An assessment scheduling failure leaves the current turn saved. Both end capture without `stopped`. Invalid audio closes with code 1008; other capture failures use 1011. These WebSocket errors are separate from the HTTP domain envelope below. The key and raw provider exceptions are never sent to the browser.
 
 ## Errors
 

@@ -67,7 +67,7 @@ Live capture writes INFO events to the same terminal and JSONL file. Filter by `
 | `capture.speech_started` | AssemblyAI detected speech |
 | `capture.transcript_received` | A partial or final transcript arrived; includes turn order, finality, speaker label, and word/character counts |
 | `capture.observations_stored` | Finalized speech committed; includes case ID and number of new observations |
-| `capture.speaker_revisions` | Speaker corrections arrived; lists affected turn orders |
+| `capture.speaker_revisions` | Speaker corrections were retained; lists affected turn orders |
 | `capture.stopping` | All buffered audio was sent; waiting for final provider events |
 | `capture.completed` | Provider termination was received and the browser was notified |
 | `capture.failed`, `capture.disconnected` | Capture ended unsuccessfully; failures include an application error code |

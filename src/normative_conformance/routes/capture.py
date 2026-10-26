@@ -29,9 +29,11 @@ from normative_conformance.schemas.capture import OutgoingMessage
 from normative_conformance.schemas.case import CaseRecord
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.schemas.observation import ObservationInput
+from normative_conformance.schemas.observation import ObservationReplacement
 from normative_conformance.services.capture.run_capture import BrowserMessage
 from normative_conformance.services.capture.run_capture import run_capture
 from normative_conformance.services.capture.store_observations import store_observations
+from normative_conformance.services.capture.store_revisions import store_revisions
 from normative_conformance.services.case.selection import get_case
 from normative_conformance.services.scheduler.state import SchedulerState
 
@@ -45,7 +47,7 @@ ERROR_MESSAGES: dict[CaptureErrorCode, str] = {
     "providerTimeout": "The transcription service did not respond in time. Capture is incomplete.",
     "invalidAudio": "Send PCM16 packets of 1-1600 samples and record at least 50 ms.",
     "incomplete": "The transcription session ended before capture finished.",
-    "storageUnavailable": "Finalized speech could not be stored. Capture is incomplete.",
+    "storageUnavailable": "Speech or speaker revisions could not be stored. Capture is incomplete.",
     "assessmentUnavailable": "Speech was stored but assessment could not be requested.",
 }
 
@@ -120,6 +122,15 @@ async def capture_audio(
             scheduler=cast(SchedulerState, websocket.app.state.scheduler),
         )
 
+    async def store_corrections(replacements: list[ObservationReplacement]) -> None:
+        await run_in_threadpool(
+            store_revisions,
+            case_id=case.case_id,
+            replacements=replacements,
+            engine=cast(Engine, websocket.app.state.engine),
+            now=cast(Clock, websocket.app.state.clock),
+        )
+
     try:
         await run_capture(
             case_id=case.case_id,
@@ -130,6 +141,7 @@ async def capture_audio(
             ),
             now=cast(Clock, websocket.app.state.clock),
             store_observations=store,
+            store_revisions=store_corrections,
         )
     except CaptureDisconnected:
         return

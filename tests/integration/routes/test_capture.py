@@ -6,10 +6,13 @@ from threading import Thread
 from unittest.mock import Mock
 
 import pytest
+from sqlmodel import select
 from starlette.websockets import WebSocketDisconnect
 from websockets.sync.server import serve
 
 from normative_conformance.clients import assemblyai as module
+from normative_conformance.database import read_session
+from normative_conformance.models.speaker_revision import SpeakerRevision
 
 
 @contextmanager
@@ -94,6 +97,8 @@ def test_pcm_and_final_revisions_cross_both_websockets(open_client, monkeypatch)
                     {"type": "Termination"},
                 ]:
                     socket.send(json.dumps(event))
+                    if event["type"] == "SpeakerRevision":
+                        socket.send(json.dumps(event))
                 return
 
     with (
@@ -124,6 +129,21 @@ def test_pcm_and_final_revisions_cross_both_websockets(open_client, monkeypatch)
             while True:
                 message = websocket.receive_json()
                 messages.append(message)
+                if message.get("revised"):
+                    with read_session(engine=client.app.state.engine) as session:
+                        revisions = session.exec(select(SpeakerRevision)).all()
+                        assert revisions
+                        for revision in revisions:
+                            assert revision.case_id == "capture-case"
+                            original_id = json.loads(revision.replaced_observation_ids_json)[0]
+                            replacement = json.loads(revision.observations_json)[0]
+                            assert replacement["observation_id"] != original_id
+                            assert replacement["case_id"] == "capture-case"
+                            assert replacement["speaker_id"] == "B"
+                            assert replacement["transcript"] == "Hello."
+                            assert replacement["start_at"] == "2026-10-24T00:00:00Z"
+                            assert replacement["end_at"] == "2026-10-24T00:00:00.200000Z"
+                            assert replacement["signal_level_avg"] == -120
                 if message["type"] == "stopped":
                     break
                 assert message["type"] != "error"
@@ -154,6 +174,16 @@ def test_pcm_and_final_revisions_cross_both_websockets(open_client, monkeypatch)
     assert credentials == ["integration-key"]
     assert b"".join(packet for packet in received if isinstance(packet, bytes)) == audio
     assert received[-1] == module.TERMINATE
+    with (
+        open_client(now=lambda: datetime(2026, 10, 24, tzinfo=timezone.utc)) as client,
+        read_session(engine=client.app.state.engine) as session,
+    ):
+        revisions = session.exec(select(SpeakerRevision)).all()
+        assert len(revisions) == 2
+        assert all(
+            json.loads(row.replaced_observation_ids_json) == [observations[0]["observation_id"]]
+            for row in revisions
+        )
 
 
 def test_malformed_pcm_closes_both_connections(open_client, monkeypatch):
@@ -273,7 +303,7 @@ def test_live_final_turn_is_stored_once_and_resolves_target_before_stop(open_cli
             socket.send_bytes(b"\x00\x00" * 320 + b"\x00\x40" * 320 + b"\x00\x00" * 960)
             socket.send_bytes(b"\x00\x00" * 1600)
             final_count = 0
-            while final_count < 2:
+            while final_count < 1:
                 message = socket.receive_json()
                 assert message["type"] != "error"
                 if message["type"] == "transcript" and message["final"]:

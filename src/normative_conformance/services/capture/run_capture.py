@@ -17,6 +17,7 @@ from normative_conformance.schemas.capture import TranscriptMessage
 from normative_conformance.schemas.capture import WordPayload
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.schemas.observation import ObservationInput
+from normative_conformance.schemas.observation import ObservationReplacement
 from normative_conformance.services.capture.levels import SAMPLE_RATE
 from normative_conformance.services.capture.levels import FrameLevel
 from normative_conformance.services.capture.levels import LevelMeter
@@ -34,6 +35,7 @@ DRAIN_TIMEOUT = 10
 BrowserMessage = bytes | str
 Send = Callable[[OutgoingMessage], Awaitable[None]]
 StoreObservations = Callable[[list[ObservationInput]], Awaitable[None]]
+StoreRevisions = Callable[[list[ObservationReplacement]], Awaitable[None]]
 
 
 async def run_capture(
@@ -44,6 +46,7 @@ async def run_capture(
     connect_transcriber: ConnectTranscriber,
     now: Clock,
     store_observations: StoreObservations,
+    store_revisions: StoreRevisions,
 ) -> None:
     """Stream browser PCM to a transcriber and report levels and transcripts until `stopped`.
 
@@ -87,6 +90,7 @@ async def run_capture(
                 case_id=case_id,
                 started_at=started_at,
                 store_observations=store_observations,
+                store_revisions=store_revisions,
             )
         await send(StoppedMessage(type="stopped"))
     except CaptureDisconnected:
@@ -148,6 +152,7 @@ async def _stream(
     case_id: str,
     started_at: datetime,
     store_observations: StoreObservations,
+    store_revisions: StoreRevisions,
 ) -> None:
     """Finish when the transcriber's events end; any task's failure ends capture."""
     stopping = asyncio.Event()
@@ -162,6 +167,7 @@ async def _stream(
             started_at=started_at,
             frames=frames,
             store_observations=store_observations,
+            store_revisions=store_revisions,
         )
     )
     tasks = {
@@ -263,15 +269,15 @@ async def _events(
     started_at: datetime,
     frames: list[FrameLevel],
     store_observations: StoreObservations,
+    store_revisions: StoreRevisions,
 ) -> None:
     last_partial_turn: int | None = None
-    finalized_words: dict[int, tuple[Word, ...]] = {}
+    observation_ids: dict[int, list[str]] = {}
     async for event in transcriber.events():
         if isinstance(event, TurnUpdate):
-            if event.final and event.turn_order in finalized_words:
-                if finalized_words[event.turn_order] != event.words:
-                    raise CaptureFailure("providerProtocol")
-            elif event.final:
+            if event.final:
+                if event.turn_order in observation_ids:
+                    continue
                 observations = build_observations(
                     case_id=case_id,
                     session_id=transcriber.session_id,
@@ -281,7 +287,7 @@ async def _events(
                 )
                 if observations:
                     await store_observations(observations)
-                    finalized_words[event.turn_order] = event.words
+                    observation_ids[event.turn_order] = [row.observation_id for row in observations]
             if event.final or event.turn_order != last_partial_turn:
                 logger.info(
                     "Final transcript received" if event.final else "Partial transcript received",
@@ -307,6 +313,30 @@ async def _events(
                 )
             )
         elif isinstance(event, SpeakerRevised):
+            replacements = []
+            for turn in event.turns:
+                original_ids = observation_ids.get(turn.turn_order)
+                if original_ids is None:
+                    raise CaptureFailure("providerProtocol")
+                observations = build_observations(
+                    case_id=case_id,
+                    session_id=transcriber.session_id,
+                    started_at=started_at,
+                    frames=frames,
+                    turn=TurnUpdate(
+                        turn_order=turn.turn_order,
+                        final=True,
+                        speaker_id=turn.speaker_id,
+                        transcript=" ".join(w.text for w in turn.words),
+                        words=turn.words,
+                    ),
+                )
+                replacements.append(
+                    ObservationReplacement(
+                        replaced_observation_ids=original_ids, observations=observations
+                    )
+                )
+            await store_revisions(replacements)
             logger.info(
                 "Speaker revisions received",
                 extra={

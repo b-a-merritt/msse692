@@ -40,7 +40,7 @@ def build_observations(
             levels = [f.dbfs for f in frames if f.start_ms < end and f.end_ms > start]
             if not levels or any(w.end_ms < w.start_ms for _, w in run):
                 raise CaptureFailure("providerProtocol")
-            identity = json.dumps([session_id, turn.turn_order, run[0][0], run[-1][0]])
+            identity = json.dumps([session_id, turn.turn_order, run[0][0], run[-1][0], label])
             observations.append(
                 ObservationInput(
                     case_id=case_id,

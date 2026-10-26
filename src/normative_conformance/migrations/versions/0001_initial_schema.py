@@ -4,6 +4,7 @@ revision: str = "0001"
 down_revision: str | None = None
 
 TABLES = (
+    "speaker_revision",
     "intervention_source",
     "intervention",
     "assessment",
@@ -45,6 +46,29 @@ CREATE TABLE observation (
     PRIMARY KEY (case_id, observation_id),
     UNIQUE (case_id, sequence)
 ) STRICT
+""")
+    op.execute("""
+CREATE TABLE speaker_revision (
+    revision_id INTEGER PRIMARY KEY CHECK (revision_id > 0),
+    case_id TEXT NOT NULL REFERENCES case_log(case_id),
+    received_at_us INTEGER NOT NULL,
+    replaced_observation_ids_json TEXT NOT NULL
+        CHECK (json_valid(replaced_observation_ids_json)
+               AND json_type(replaced_observation_ids_json) = 'array'),
+    observations_json TEXT NOT NULL
+        CHECK (json_valid(observations_json) AND json_type(observations_json) = 'array')
+) STRICT
+""")
+    op.execute("""
+CREATE INDEX speaker_revision_case ON speaker_revision (case_id, revision_id)
+""")
+    op.execute("""
+CREATE TRIGGER speaker_revision_no_update BEFORE UPDATE ON speaker_revision
+BEGIN SELECT RAISE(ABORT, 'speaker revision is append-only'); END
+""")
+    op.execute("""
+CREATE TRIGGER speaker_revision_no_delete BEFORE DELETE ON speaker_revision
+BEGIN SELECT RAISE(ABORT, 'speaker revision is append-only'); END
 """)
     op.execute("""
 CREATE TABLE normative_model_version (

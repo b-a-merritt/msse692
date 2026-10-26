@@ -45,3 +45,10 @@ class ObservationRecord(ObservationInput):
     received_at: AwareDatetime
     updated_at: AwareDatetime
     sequence: int = Field(strict=True, ge=1)
+
+
+class ObservationReplacement(ContractModel):
+    """Regrouped speech linked to the original observations for one turn."""
+
+    replaced_observation_ids: list[str]
+    observations: list[ObservationInput]

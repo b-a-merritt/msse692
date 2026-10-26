@@ -121,3 +121,39 @@ def test_timestamp_overflow_is_a_protocol_failure():
             **inputs, turn=TurnUpdate(0, True, "A", "Hello", (Word("Hello", 0, 20, "A"),))
         )
     assert caught.value.code == "providerProtocol"
+
+
+@pytest.mark.parametrize("original_label", [None, "A"])
+def test_relabeling_an_unchanged_span_has_a_distinct_stable_identity(original_label):
+    inputs = {
+        "case_id": "case",
+        "session_id": "session",
+        "started_at": datetime(2026, 10, 26, tzinfo=timezone.utc),
+        "frames": [FrameLevel(start_ms=0, end_ms=20, dbfs=-30)],
+    }
+    original_turn = TurnUpdate(
+        turn_order=1,
+        final=True,
+        speaker_id=original_label,
+        transcript="Hello there",
+        words=(Word("Hello", 0, 10, original_label), Word("there", 10, 20, original_label)),
+    )
+    revised_turn = TurnUpdate(
+        turn_order=1,
+        final=True,
+        speaker_id="B",
+        transcript="Hello there",
+        words=(Word("Hello", 0, 10, "B"), Word("there", 10, 20, "B")),
+    )
+
+    (original,) = build_observations(**inputs, turn=original_turn)
+    (revised,) = build_observations(**inputs, turn=revised_turn)
+
+    assert original.speaker_id == (original_label or "PENDING")
+    assert revised.speaker_id == "B"
+    assert revised.observation_id != original.observation_id
+    assert revised.model_dump(exclude={"observation_id", "speaker_id"}) == original.model_dump(
+        exclude={"observation_id", "speaker_id"}
+    )
+    assert build_observations(**inputs, turn=revised_turn) == [revised]
+    assert build_observations(**inputs, turn=original_turn) == [original]
