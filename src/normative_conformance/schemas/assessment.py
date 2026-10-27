@@ -19,9 +19,9 @@ class Assessment(ContractModel):
     prompt_version: str
     selection_threshold: float
     observations: list[ObservationDecision]
-    action: Action
+    action: Action | None
     action_probabilities: dict[str, float]
-    action_confidence: float
+    action_confidence: float | None
     assessment_id: int
     case_id: str
     target_speaker_id: str

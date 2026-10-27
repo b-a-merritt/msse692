@@ -105,3 +105,56 @@ def test_reads_raw_answers_for_only_the_questions_that_were_asked(monkeypatch):
         {"intervene": 0.7},
         0.6,
     )
+
+
+def test_reads_no_action_when_none_was_asked(monkeypatch):
+    monkeypatch.setattr(module, "TOPICS", ("chores",))
+    row = ObservationInput(
+        case_id="case",
+        observation_id="other",
+        speaker_id="B",
+        start_at="1970-01-01T00:00:00Z",
+        end_at="1970-01-01T00:00:01Z",
+        transcript="Hello",
+        signal_level_min=-40,
+        signal_level_avg=-30,
+        signal_level_max=-20,
+    )
+    snapshot = DecisionSnapshot(
+        case_id="case",
+        target_speaker_id="A",
+        target_revision=1,
+        after_sequence=1,
+        through_sequence=2,
+        captured_at="1970-01-01T00:01:00Z",
+        observations=[row],
+        new_observation_ids=["other"],
+    )
+    questions = {
+        "0.topic.chores": Noul(instructions="Topic?"),
+        "0.primary": Choice(instructions="Primary?", criteria={"chores": "Chores"}),
+    }
+    response = SystemOneResponse.model_validate(
+        {
+            "model": "jev-1.14.0",
+            "answers": {
+                "0.topic.chores": {"type": "noul", "noul": 0.9},
+                "0.primary": {
+                    "type": "choice",
+                    "choice": "chores",
+                    "confidence": 0.8,
+                    "probabilities": {"chores": 0.8},
+                },
+            },
+            "usage": {"input_tokens": 100, "output_tokens": 10},
+        }
+    )
+
+    result = module.read_answers(snapshot=snapshot, questions=questions, response=response)
+
+    assert [row.observation_id for row in result.observations] == ["other"]
+    assert (result.action, result.action_probabilities, result.action_confidence) == (
+        None,
+        {},
+        None,
+    )

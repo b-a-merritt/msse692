@@ -34,7 +34,7 @@ The script preserves recorded gaps unless `--delay` is supplied. Use fresh stora
 
 ## Results
 
-Read **GET /api/v1/cases/{case_id}/assessments**. Results contain topics, target behavior scores, intensity, and an action: `remain_silent`, `await_context`, `reflect_later`, or `intervene`. Results depend on the conversation and model; no phrase guarantees an action. Recommendations do not create interventions automatically.
+Read **GET /api/v1/cases/{case_id}/assessments**. Results contain topics, target behavior scores, intensity, and an action: `remain_silent`, `await_context`, `reflect_later`, or `intervene`. A batch without new target speech has no action. Results depend on the conversation and model; no phrase guarantees an action. Recommendations do not create interventions automatically.
 
 An empty list can mean inference is pending, the target is unresolved, or processing failed. Check **GET /api/v1/cases/{case_id}**, readiness, and server logs. Change the target through PUT using either `target_speaker_order` (1 or 2) or `target_speaker_id`; selecting a label clears the order.
 

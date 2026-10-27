@@ -24,7 +24,7 @@ Inference runs outside database transactions. On success, decisions and progress
 
 The decision-model adapter calls a pinned model version through the provider SDK with a 30-second HTTP timeout and no SDK retries. `services/decision/` contains batching, context, question construction, answer conversion, and prompt wording. The adapter trusts typed SDK responses.
 
-Every new observation gets topic scores and a primary-topic choice. Only target speech gets the seven behavior scores and hostility intensity. One action question considers the surrounding conversation, including apologies and clarification.
+Every new observation gets topic scores and a primary-topic choice. Only target speech gets the seven behavior scores and hostility intensity. When the batch has new target speech, one action question considers the surrounding conversation, including apologies and clarification. Other batches get no action question.
 
 `store_assessment` retains raw answers in relational tables and the request as JSON. `report_observation` selects scores at the assessment's stored threshold (0.7), sorts labels, and reports an unselected primary topic as `unknown`. Actions are recommendations; there is no automatic intervention creation.
 

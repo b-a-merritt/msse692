@@ -35,6 +35,7 @@ class DecisionAnswers(ContractModel):
     model: str
     prompt_version: str
     observations: list[ObservationAnswers]
-    action: Action
+    # Batches without new target speech are not asked for an action.
+    action: Action | None
     action_probabilities: dict[str, float]
-    action_confidence: float
+    action_confidence: float | None

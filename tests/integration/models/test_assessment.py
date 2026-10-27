@@ -114,6 +114,8 @@ def test_retained_decisions_cannot_be_changed(session, statement):
     [
         pytest.param({"action": "invented"}, "CHECK", id="unknown-action"),
         pytest.param({"action_confidence": 1.1}, "CHECK", id="confidence-above-one"),
+        pytest.param({"action": None}, "CHECK", id="confidence-without-action"),
+        pytest.param({"action_confidence": None}, "CHECK", id="action-without-confidence"),
         pytest.param({"after_sequence": 1}, "CHECK", id="empty-range"),
         pytest.param({"through_sequence": 2}, "FOREIGN KEY", id="unstored-sequence"),
         pytest.param({"target_revision": 2}, "FOREIGN KEY", id="unassigned-target"),
@@ -217,3 +219,47 @@ def test_an_observation_is_classified_once_per_assessment(session):
     )
     with pytest.raises(IntegrityError, match="UNIQUE"):
         session.commit()
+
+
+def test_an_assessment_without_new_target_speech_stores_no_action(session):
+    session.add(models.ConversationCase(case_id="case", created_at_us=0))
+    session.flush()
+    session.add_all(
+        [
+            models.Observation(
+                case_id="case",
+                observation_id="one",
+                sequence=1,
+                received_at_us=1,
+                speaker_id="B",
+                start_at_us=0,
+                end_at_us=1,
+                transcript="Hello",
+                signal_level_min=-40,
+                signal_level_avg=-30,
+                signal_level_max=-20,
+            ),
+            models.TargetAssignment(
+                case_id="case", target_revision=1, assigned_at_us=0, speaker_id="A"
+            ),
+        ]
+    )
+    session.commit()
+    assessment = models.Assessment(
+        case_id="case",
+        target_revision=1,
+        model_id="jev-1.14.0",
+        prompt_version="conversation-1",
+        evaluated_at_us=2,
+        completed_at_us=3,
+        after_sequence=0,
+        through_sequence=1,
+        action=None,
+        action_confidence=None,
+        selection_threshold=0.7,
+        request_json="{}",
+    )
+    session.add(assessment)
+    session.commit()
+    stored = session.get(models.Assessment, assessment.assessment_id)
+    assert (stored.action, stored.action_confidence) == (None, None)

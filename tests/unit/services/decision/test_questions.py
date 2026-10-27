@@ -47,3 +47,32 @@ def test_questions_reference_explicit_rows_and_classify_only_new_speech():
         "intervene",
     }
     assert "apologies" in questions["action"].instructions
+
+
+def test_batches_without_new_target_speech_are_not_asked_for_an_action():
+    target = ObservationInput(
+        case_id="case",
+        observation_id="target",
+        speaker_id="A",
+        start_at="1970-01-01T00:00:00Z",
+        end_at="1970-01-01T00:00:01Z",
+        transcript="Hello",
+        signal_level_min=-40,
+        signal_level_avg=-30,
+        signal_level_max=-20,
+    )
+    other = target.model_copy(update={"observation_id": "other", "speaker_id": "B"})
+    snapshot = DecisionSnapshot(
+        case_id="case",
+        target_speaker_id="A",
+        target_revision=1,
+        after_sequence=1,
+        through_sequence=2,
+        captured_at="1970-01-01T00:01:00Z",
+        # Earlier target speech is context only, so it does not call for an action.
+        observations=[target, other],
+        new_observation_ids=["other"],
+    )
+    questions = build_questions(snapshot=snapshot)
+    assert isinstance(questions["1.primary"], Choice)
+    assert "action" not in questions

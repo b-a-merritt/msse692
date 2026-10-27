@@ -42,7 +42,7 @@ The response adds server-assigned `sequence` and `received_at`. **201 confirms s
 
 Assessments include the model and prompt version, target revision and `target_speaker_id`, sequence range `(after_sequence, through_sequence]`, evaluation/completion times, classifications, and action probabilities. Classifications contain observation IDs, topic/behavior scores, selected labels, primary topic, and target-only intensity (0–3).
 
-Scores meeting the stored `selection_threshold` are selected in name order. A primary topic outside that set is reported as `unknown`. Actions are `remain_silent`, `await_context`, `reflect_later`, or `intervene`; they do not create interventions automatically.
+Scores meeting the stored `selection_threshold` are selected in name order. A primary topic outside that set is reported as `unknown`. Actions are `remain_silent`, `await_context`, `reflect_later`, or `intervene`. They do not create interventions automatically. A batch without new target speech has a null `action` and `action_confidence` and empty `action_probabilities`.
 
 The intervention endpoints operate on existing records. Each has one source `assessment_id` and the `target_speaker_id` it addresses. Delivery requires the current target revision, sets `sent_at` once, and sends no external notification. An unfiltered listing retains unsent records for earlier targets; `status=pending` excludes them.
 

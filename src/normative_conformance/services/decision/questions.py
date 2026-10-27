@@ -30,7 +30,15 @@ def build_questions(*, snapshot: DecisionSnapshot) -> dict[str, Question]:
             questions |= _topic_questions(index=index)
             if row.speaker_id == snapshot.target_speaker_id:
                 questions |= _behavior_questions(index=index)
-    questions[ACTION_KEY] = Choice(instructions=PREAMBLE + ACTION_QUESTION, criteria=ACTIONS)
+
+    # Only new target speech can change what the target should be prompted about.
+    if any(
+        row.observation_id in snapshot.new_observation_ids
+        and row.speaker_id == snapshot.target_speaker_id
+        for row in snapshot.observations
+    ):
+        questions[ACTION_KEY] = Choice(instructions=PREAMBLE + ACTION_QUESTION, criteria=ACTIONS)
+
     return questions
 
 

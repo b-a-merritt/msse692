@@ -68,7 +68,7 @@ def _record(
         through_sequence=assessment.through_sequence,
         selection_threshold=assessment.selection_threshold,
         observations=decisions.get(assessment.assessment_id, []),
-        action=cast(Action, assessment.action),
+        action=cast(Action | None, assessment.action),
         action_confidence=assessment.action_confidence,
         action_probabilities=probabilities.get(assessment.assessment_id, {}),
     )

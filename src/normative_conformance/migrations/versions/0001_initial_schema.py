@@ -111,14 +111,15 @@ CREATE TABLE assessment (
     completed_at_us INTEGER NOT NULL,
     after_sequence INTEGER NOT NULL CHECK (after_sequence >= 0),
     through_sequence INTEGER NOT NULL CHECK (through_sequence > after_sequence),
-    action TEXT NOT NULL
+    action TEXT
         CHECK (action IN ('remain_silent', 'await_context', 'reflect_later', 'intervene')),
-    action_confidence REAL NOT NULL CHECK (action_confidence BETWEEN 0 AND 1),
+    action_confidence REAL CHECK (action_confidence BETWEEN 0 AND 1),
     selection_threshold REAL NOT NULL CHECK (selection_threshold BETWEEN 0 AND 1),
     request_json TEXT NOT NULL CHECK (json_valid(request_json)),
     FOREIGN KEY (case_id, target_revision)
         REFERENCES target_assignment(case_id, target_revision),
-    FOREIGN KEY (case_id, through_sequence) REFERENCES observation(case_id, sequence)
+    FOREIGN KEY (case_id, through_sequence) REFERENCES observation(case_id, sequence),
+    CHECK ((action IS NULL) = (action_confidence IS NULL))
 ) STRICT
 """)
     op.execute("""

@@ -28,8 +28,8 @@ class Assessment(SQLModel, table=True):
     completed_at_us: int
     after_sequence: int
     through_sequence: int
-    action: str = Field(sa_type=Text)
-    action_confidence: float
+    action: str | None = Field(default=None, sa_type=Text)
+    action_confidence: float | None = None
     selection_threshold: float
     request_json: str = Field(sa_type=Text)
 

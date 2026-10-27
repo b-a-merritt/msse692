@@ -20,8 +20,8 @@ def read_answers(
     questions: dict[str, Question],
     response: SystemOneResponse,
 ) -> DecisionAnswers:
-    """Read answers about each observation that was asked about, then the action."""
-    action = response.choices[ACTION_KEY]
+    """Read answers about each observation that was asked about, then any action."""
+    action = response.choices[ACTION_KEY] if ACTION_KEY in questions else None
     return DecisionAnswers(
         model=response.model,
         prompt_version=PROMPT_VERSION,
@@ -35,9 +35,9 @@ def read_answers(
             for index, row in enumerate(snapshot.observations)
             if question_key(index, "primary") in questions
         ],
-        action=cast(Action, action.choice),
-        action_probabilities=action.probabilities,
-        action_confidence=action.confidence,
+        action=cast(Action, action.choice) if action is not None else None,
+        action_probabilities=action.probabilities if action is not None else {},
+        action_confidence=action.confidence if action is not None else None,
     )
 
 
