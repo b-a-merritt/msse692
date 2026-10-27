@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 from datetime import timezone
 from unittest.mock import MagicMock
@@ -14,7 +13,7 @@ from normative_conformance.schemas.observation import ObservationReplacement
 from normative_conformance.services.capture import store_revisions as module
 
 
-def test_stores_replacement_ids_and_complete_observation_data(monkeypatch):
+def test_stores_each_replacement_as_a_revision_with_its_corrected_speech(monkeypatch):
     observation = ObservationInput(
         case_id="case",
         observation_id="regrouped",
@@ -29,7 +28,11 @@ def test_stores_replacement_ids_and_complete_observation_data(monkeypatch):
     replacement = ObservationReplacement(
         replaced_observation_ids=["original-a", "original-b"], observations=[observation]
     )
+    revisions = []
     session = Mock(spec=Session)
+    session.add.side_effect = revisions.append
+    # The database assigns the revision ID when the revision is flushed.
+    session.flush.side_effect = lambda: setattr(revisions[-1], "speaker_revision_id", 7)
     context = MagicMock()
     context.__enter__.return_value = session
     monkeypatch.setattr(module, "write_session", Mock(return_value=context))
@@ -41,11 +44,26 @@ def test_stores_replacement_ids_and_complete_observation_data(monkeypatch):
         now=lambda: datetime(1970, 1, 1, 0, 0, 5, tzinfo=timezone.utc),
     )
 
-    row = session.add.call_args.args[0]
-    assert row.case_id == "case"
-    assert row.received_at_us == 5_000_000
-    assert json.loads(row.replaced_observation_ids_json) == ["original-a", "original-b"]
-    assert json.loads(row.observations_json) == [observation.model_dump(mode="json")]
+    assert [row.model_dump() for row in revisions] == [
+        {"speaker_revision_id": 7, "case_id": "case", "received_at_us": 5_000_000}
+    ]
+    session.execute.assert_called_once()
+    [corrected] = session.add_all.call_args.args[0]
+    assert corrected.model_dump() == {
+        "observation_key": None,
+        "case_id": "case",
+        "observation_id": "regrouped",
+        "speaker_revision_id": 7,
+        "sequence": None,
+        "received_at_us": None,
+        "speaker_id": "B",
+        "start_at_us": 1_000_000,
+        "end_at_us": 1_100_000,
+        "transcript": "Hello",
+        "signal_level_min": -50,
+        "signal_level_avg": -30,
+        "signal_level_max": -10,
+    }
     session.commit.assert_called_once()
 
 

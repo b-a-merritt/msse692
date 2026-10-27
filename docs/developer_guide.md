@@ -1,137 +1,43 @@
 # Developer guide
 
-This guide describes the current implementation.
+Use the pinned Python and Node versions, `uv sync --locked`, and the [development commands](commands.md). Startup requires a decision-model credential; [deployment](deployment_guide.md) lists settings.
 
-## 1. Environment and architecture
-
-Install Git and [uv](https://docs.astral.sh/uv/getting-started/installation/), clone the repository, and run from its root:
-
-```bash
-uv sync --locked
-uv run pre-commit install
-uv run fastapi dev src/normative_conformance/main.py
-```
-
-`.python-version` pins Python 3.13. `uv.lock` pins dependencies. The development server reloads on changes. Each reload restarts the worker. Use separate storage for experiments, as shown in the [user guide](user_guide.md). Readiness is `GET /health/ready`. The interactive API is `/docs`.
+## Assessment flow
 
 ```mermaid
 flowchart LR
-    C[HTTP client] --> R[Routes and schemas]
-    subgraph Process[One application process]
-        R --> S[Service operations]
-        W[Worker thread] --> S
-        W --- T[Deadlines and windows]
-    end
-    S --> DB[(Application SQLite)]
-    W -->|Poll progress and deadlines| DB
+    C[Capture or HTTP ingest] --> D[(SQLite)]
+    D --> W[Polling worker]
+    W --> M[Decision model]
+    M --> W
+    W -->|Decisions and progress| D
+    D --> A[Assessment API]
 ```
 
-Routes validate input, supply dependencies, and return service results. Ingestion and target selection commit directly to SQLite. One worker polls resolved cases for new observation sequences or a target revision that differs from the last processed revision.
+One worker visits each ready case per pass, then waits 0.1 seconds. A resolved target and new ingested sequences or a changed target revision make a case ready. Calls are synchronous, so inference delays other cases.
 
-`stage_observation` inserts an observation within a caller-owned write transaction. It does not commit or roll back. `ingest` commits the transaction. Neither operation needs a running worker.
+`process_case` loads speech and the target in a read transaction. `batch_end` selects up to the configured batch size, extending the boundary to include a revised turn. `build_snapshot` overlays each turn's latest revision and includes recent context. Corrected rows overlapping unhandled originals are new; a merged row may also contain handled speech. If revisions remove all new speech, the worker advances progress without calling the decision model.
 
-Startup configures logging, migrates storage, validates every stored model, and starts the worker. Model validation checks the schema, rule execution against an empty case, and intervention-message coverage. The worker uses this validated catalog until restart.
+Inference runs outside database transactions. On success, decisions and progress commit together. A target change during inference preserves the decision under its original assignment and leaves the new target pending. Failures leave progress unchanged and retry on later polls. There is no persisted attempt budget or interrupted-request recovery.
 
-## 2. Assessment and intervention flow
+## Questions and results
 
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant A as API / services
-    participant D as Records
-    participant W as Worker
-    C->>A: POST observation
-    A->>D: Commit case + observation
-    A-->>C: 201 + stored observation
-    W->>D: Poll unprocessed cases and repair deadlines
-    W->>D: Capture prefix + time, evaluate models and repairs
-    W->>D: Commit results + case progress
-    Note over W,D: Match may wait for repair deadline
-    W->>D: Append repair / resolution
-    Note over W,D: New confirmation opens a grouping window
-    W->>D: Store intervention when window closes
-    C->>A: POST deliver
-    A->>D: Mark pending interventions sent and commit
-    A-->>C: Sent interventions
-```
+The decision-model adapter calls a pinned model version through the provider SDK with a 30-second HTTP timeout and no SDK retries. `services/decision/` contains batching, context, question construction, answer conversion, and prompt wording. The adapter trusts typed SDK responses.
 
-A **201** confirms observation storage. The worker visits each ready case once per pass, then waits 0.1 seconds before polling again. `last_handled_sequence` and `last_handled_target_revision` are committed with the case's assessment and repair results, including evaluations with no match. A failed transaction leaves progress unchanged for the next poll. Restart recovery reads progress and pending repair deadlines from SQLite.
+Every new observation gets topic scores and a primary-topic choice. Only target speech gets the seven behavior scores and hostility intensity. One action question considers the surrounding conversation, including apologies and clarification.
 
-SQL detection and repair checks share one write transaction and server timestamp. Incoming writes wait for that transaction and remain eligible for a later poll. Intervention timers run between cases and on idle passes. Grouping windows are held in memory and are discarded on shutdown; they are not reconstructed from confirmed assessments.
+`store_assessment` retains raw answers in relational tables and the request as JSON. `report_observation` selects scores at the assessment's stored threshold (0.7), sorts labels, and reports an unselected primary topic as `unknown`. Actions are recommendations; there is no automatic intervention creation.
 
-Cases start without a target. The worker skips unresolved cases. Ingestion recomputes order-based selections from speech start/end time and receipt sequence; missing and `PENDING` labels do not count. Manual selections persist until explicitly replaced. Configuring a resolved target makes existing speech eligible for polling. An explicit target change is detected even without new observations.
+## Storage and capture
 
-Each evaluation captures a case sequence and server time. Rules query that prefix. New arrivals belong to later evaluations. A matching undesired model creates `pending` with a deadline or `conformant` immediately when its allowance is null. No match creates no assessment. Reusing a pending match preserves its original deadline.
+See the [schema](schema.md). Times are UTC microseconds in storage and aware timestamps in responses. Append-only triggers protect observations, revisions, target assignments, assessments, and classifications.
 
-Repair timeliness uses server receipt time. A qualifying repair must arrive strictly before the deadline and remove the original match at its speech boundary. Resolution appends a linked `non-conformant` or `conformant` assessment. The original remains unchanged. A recognized repair also permits future detection after that boundary.
+Ingested observations have a sequence and receipt time. Corrected observations reference a speaker revision; `replaced_observation` links it to the ingested rows it replaces. Classifications reference exact observation keys. Revisions affect later snapshots without changing past decisions, target selection, or polling eligibility.
 
-New undesired confirmations open one grouping window per case. At window close, one message is selected by an ordered policy table, and the intervention links all eligible unlinked confirmations since the window opened. The window batches work. Slow evaluation can include confirmations after its nominal end. The policy currently always authorizes a message.
+`target_assignment` records speaker-label changes. Speaking order uses ingested speech; selecting a label clears that order. Assessments reference the assignment they used. Each stored intervention references one `intervene` assessment. Delivery marks it sent once, only while its target revision remains current.
 
-## 3. Code and stored data
+Capture stores each final turn and revision batch before notifying the browser. Finals and corrections share `build_observations`; IDs include session, turn, word span, and label. Storage runs in a thread pool. `LevelMeter` measures 20 ms frames; `PCMBuffer` preserves the provider's minimum packet size. The [API reference](api.md#live-capture-stream) defines the wire protocol.
 
-Paths below are relative to `src/normative_conformance/`.
+## Tests
 
-| Location | Responsibility |
-|---|---|
-| `main.py`, `lifespan.py`, `config.py` | ASGI app, startup/shutdown, environment settings |
-| `routes/`, `schemas/` | HTTP boundary and validated public contracts |
-| `static/`, `services/capture/` | Microphone streaming, transcripts, and RMS levels |
-| `clients/` | External service adapters; `assemblyai.py` implements the capture `Transcriber` |
-| `services/case/` | Configure case targets and resolve distinct speaker order |
-| `services/observation/` | Store and retrieve observations; stage inserts within caller-owned transactions |
-| `services/model/`, `services/assessment/` | Evaluate SQL models and append results |
-| `services/scheduler/` | Database polling, case progress, repair and intervention timers |
-| `services/intervention/`, `services/health/` | Create/deliver messages. Check readiness |
-| `models/`, `database.py` | SQLModel tables and transactions |
-| `migrations/` | Alembic environment and schema/catalog revisions |
-| `logging.py`, `timestamps.py` | Structured diagnostics and UTC/microsecond conversion |
-
-```mermaid
-flowchart LR
-    C[Case] --> O[Observations]
-    C --> A[Assessments]
-    M[Model version] --> A
-    A -->|resolves_assessment_id| P[Original pending assessment]
-    I[Intervention] --> S[Source links]
-    S --> A
-```
-
-An assessment records its model version and evaluated prefix (`through_sequence`). The API reconstructs that prefix as `extent`. It is the evaluated history, not a minimal set of causal observations. Rule explanations record status and any repair observation IDs. SQLModel tables and database triggers enforce the stored invariants. Times are integer UTC microseconds in storage and timezone-aware timestamps at API boundaries.
-
-## Microphone capture and tests
-
-The page scripts are ES modules under `static/`:
-
-| File | Responsibility |
-|---|---|
-| `capture.js` | Binds buttons, readouts, and the transcript view |
-| `capture/session.js` | `CaptureSession` creates a case with the selected speaker order, owns the microphone, audio graph, and WebSocket, and releases resources once. It reports status keys, not text |
-| `capture/status.js` | Fixed page text for each status key |
-| `capture/levels.js` | Summarizes one `levels` message |
-| `capture/transcript.js` | Groups word labels and updates transcript rows by turn order |
-| `pcm-worklet.js` | Converts audio to 100 ms PCM16 packets |
-
-The capture page uses an [AudioWorklet](https://developer.mozilla.org/en-US/docs/Web/API/AudioWorkletProcessor) in a 16 kHz audio context to emit mono PCM16. The worklet leaves its output silent to avoid microphone playback. It flushes its final packet before sending the stop command. Browser and server buffers are bounded; a browser send backlog above one second stops capture with a gap message.
-
-After microphone access succeeds, the page uses `PUT /api/v1/cases/{case_id}/target` to create a case with a fresh UUID and the selected speaking order. It passes that ID in the capture WebSocket's `case_id` query parameter. Setup failures release microphone resources and allow another Start.
-
-`routes/capture.py` verifies the case in a short read session before accepting the browser WebSocket. It reads binary PCM and the `stop` text, sends JSON messages, and maps failures to fixed error text and close codes. `services/capture/run_capture.py` contains the capture logic and does not see the socket. It receives the case ID, server clock, browser messages as an async iterator, and send/store functions. It measures levels, buffers and forwards audio, stores finalized speech before sending it to the page, and waits for the transcriber to finish on Stop.
-
-`services/capture/run_capture.py` retains signal frames and maps each finalized turn to its original observation IDs after storage succeeds. Later final messages for an already stored turn are ignored. The pure `build_observations` function in `services/capture/observations.py` groups consecutive word labels, builds stable observation IDs and UTC speech times, and summarizes overlapping frames. Observation IDs derive from the provider session, turn order, first and last word indices, and the run's speaker label. Relabeling an unchanged word span produces a distinct ID. Both original finals and speaker revisions use that function with the same capture time origin and signal frames. `services/capture/store_observations.py` uses `stage_observation` in a short write transaction per turn. The route runs storage in a thread pool, so database work does not block the event loop. No database session is held while waiting for provider events.
-
-`services/capture/store_revisions.py` appends each revision batch atomically before the revised transcript messages are sent. The `speaker_revision` table stores one row per revised turn: `case_id`, `received_at_us`, `replaced_observation_ids_json`, and `observations_json`. The latter contains regrouped `ObservationInput` rows, including UTC timestamps and signal summaries. `ObservationReplacement` types this storage input. Replacement IDs always refer to the original observations, even across successive splits and merges. A revision without a stored original turn ends capture with `providerProtocol`.
-
-Storage performs no revision lookup or payload comparison. Every received revision is appended, including repeats. Increasing `revision_id` determines the latest replacement for each original ID group, even when receipt times are equal. Database triggers reject updates and deletes. Existing assessment paths continue to use the original observations; revisions change neither targets nor assessments and do not make a case eligible for polling.
-
-`LevelMeter` carries incomplete 20 ms frames between messages and discards audio after measurement. `PCMBuffer` keeps a short audio tail so the final provider packet meets the 50 ms minimum without modifying samples.
-
-`services/capture/transcriber.py` defines the `Transcriber` interface and the transcript events capture consumes: turn updates, speaker revisions, and speech start. `clients/assemblyai.py` implements it over `websockets`. It holds the stream settings, validates the provider event fields it consumes, ignores the rest, converts unattributed speaker labels to None, and terminates the session on exit unless Stop already did. Unknown or malformed provider events end capture with a protocol error. Provider exceptions become fixed error codes without exposing credentials or response bodies. `schemas/capture.py` types the outgoing browser messages.
-
-Python unit tests cover level math, packet boundaries, capture orchestration with a fake transcriber, AssemblyAI event conversion with a connection double, and route transport with a socket double. Integration tests exercise both WebSocket connections against a local provider server, including final revisions and early disconnects. JavaScript unit tests use Node's built-in test runner and browser API doubles; they do not establish microphone or browser compatibility. Run them with the Node version pinned in `.nvmrc`:
-
-```bash
-nvm use
-node --test "tests/unit/static/**/test_*.mjs"
-```
-
-For a browser check, open `/capture` on localhost, grant microphone access, speak, stop, and confirm the microphone indicator switches off. Repeat after denying permission and after interrupting the connection. Run the Python checks listed in [Useful commands](commands.md).
+Follow [AGENTS.md](../AGENTS.md): explicit scenario data, isolated unit tests, integration tests for real storage and transport, and at least 95% unit-only branch coverage. Provider doubles test application behavior, not model accuracy. JavaScript tests use browser doubles; check microphone access and Stop separately in a browser.

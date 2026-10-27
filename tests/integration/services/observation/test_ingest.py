@@ -47,7 +47,11 @@ def test_commits_case_and_observation_with_exact_timestamps(*, engine):
     assert record.received_at == received_at
     with Session(bind=engine) as session:
         case = session.get(CaseLog, "case")
-        observation = session.get(Observation, ("case", "chunk"))
+        observation = session.exec(
+            select(Observation).where(
+                Observation.case_id == "case", Observation.observation_id == "chunk"
+            )
+        ).one_or_none()
         assert case is not None
         assert observation is not None
         assert case.created_at_us == observation.received_at_us == 1_790_413_323_456_789
@@ -146,7 +150,11 @@ def test_duplicates_leave_original_unchanged_and_do_not_consume_sequence(
         )
     assert next_record.sequence == 2
     with Session(bind=engine) as session:
-        original = session.get(Observation, ("case", "chunk"))
+        original = session.exec(
+            select(Observation).where(
+                Observation.case_id == "case", Observation.observation_id == "chunk"
+            )
+        ).one_or_none()
         assert original.transcript == observation_input.transcript
         assert original.received_at_us == 1_790_413_323_456_789
         assert len(session.exec(select(Observation)).all()) == 2
@@ -214,7 +222,11 @@ def test_stores_signed_microseconds_without_float_rounding(*, engine):
             now=lambda: datetime(2500, 1, 1, 0, 0, 0, 1, tzinfo=timezone.utc),
         )
     with Session(bind=engine) as session:
-        observation = session.get(Observation, ("case", "chunk"))
+        observation = session.exec(
+            select(Observation).where(
+                Observation.case_id == "case", Observation.observation_id == "chunk"
+            )
+        ).one_or_none()
         assert observation.start_at_us == -2
         assert observation.end_at_us == -1
         assert observation.received_at_us == 16_725_225_600_000_001
@@ -338,11 +350,19 @@ def test_staged_observations_and_case_share_one_transaction(engine, commit):
             session.commit()
     with read_session(engine=engine) as session:
         case = session.get(CaseLog, "capture")
-        row = session.get(Observation, ("capture", "one"))
-        other = session.get(Observation, ("capture", "two"))
+        row = session.exec(
+            select(Observation).where(
+                Observation.case_id == "capture", Observation.observation_id == "one"
+            )
+        ).one_or_none()
+        other = session.exec(
+            select(Observation).where(
+                Observation.case_id == "capture", Observation.observation_id == "two"
+            )
+        ).one_or_none()
         if commit:
             assert case.created_at_us == 3_000_000
-            assert row.received_at_us == row.updated_at_us == 3_000_000
+            assert row.received_at_us == 3_000_000
             assert other.sequence == 2
         else:
             assert case is row is other is None

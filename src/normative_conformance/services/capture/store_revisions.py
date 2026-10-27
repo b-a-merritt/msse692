@@ -1,12 +1,16 @@
 """Retain revised speaker attribution without changing observations or decisions."""
 
-import json
-
 from sqlalchemy import Engine
+from sqlalchemy import insert
+from sqlalchemy import literal
 from sqlalchemy.exc import SQLAlchemyError
+from sqlmodel import col
+from sqlmodel import select
 
 from normative_conformance.database import write_session
 from normative_conformance.errors import CaptureFailure
+from normative_conformance.models.observation import Observation
+from normative_conformance.models.speaker_revision import ReplacedObservation
 from normative_conformance.models.speaker_revision import SpeakerRevision
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.schemas.observation import ObservationReplacement
@@ -28,17 +32,39 @@ def store_revisions(
             session.connection()
             received_at_us = to_microseconds(value=now())
             for replacement in replacements:
-                session.add(
-                    SpeakerRevision(
-                        case_id=case_id,
-                        received_at_us=received_at_us,
-                        replaced_observation_ids_json=json.dumps(
-                            replacement.replaced_observation_ids
-                        ),
-                        observations_json=json.dumps(
-                            [row.model_dump(mode="json") for row in replacement.observations]
+                revision = SpeakerRevision(case_id=case_id, received_at_us=received_at_us)
+                session.add(revision)
+                session.flush()
+                session.execute(
+                    insert(ReplacedObservation).from_select(
+                        ["speaker_revision_id", "observation_key"],
+                        select(
+                            literal(revision.speaker_revision_id), Observation.observation_key
+                        ).where(
+                            Observation.case_id == case_id,
+                            col(Observation.observation_id).in_(
+                                replacement.replaced_observation_ids
+                            ),
+                            col(Observation.speaker_revision_id).is_(None),
                         ),
                     )
+                )
+                session.add_all(
+                    [
+                        Observation(
+                            case_id=case_id,
+                            observation_id=row.observation_id,
+                            speaker_revision_id=revision.speaker_revision_id,
+                            speaker_id=row.speaker_id,
+                            start_at_us=to_microseconds(value=row.start_at),
+                            end_at_us=to_microseconds(value=row.end_at),
+                            transcript=row.transcript,
+                            signal_level_min=row.signal_level_min,
+                            signal_level_avg=row.signal_level_avg,
+                            signal_level_max=row.signal_level_max,
+                        )
+                        for row in replacement.observations
+                    ]
                 )
             session.commit()
     except SQLAlchemyError as error:

@@ -10,28 +10,60 @@ from sqlmodel import SQLModel
 class Assessment(SQLModel, table=True):
     __tablename__: ClassVar[str] = "assessment"
     __table_args__ = (
-        UniqueConstraint("evaluation_id", "model_id", "model_version", "target_revision"),
         ForeignKeyConstraint(
-            ["case_id", "through_sequence"], ["observation.case_id", "observation.sequence"]
+            ["case_id", "target_revision"],
+            ["target_assignment.case_id", "target_assignment.target_revision"],
         ),
         ForeignKeyConstraint(
-            ["model_id", "model_version"],
-            ["normative_model_version.model_id", "normative_model_version.version"],
+            ["case_id", "through_sequence"], ["observation.case_id", "observation.sequence"]
         ),
     )
 
     assessment_id: int | None = Field(default=None, primary_key=True)
-    evaluation_id: str = Field(sa_type=Text)
     case_id: str = Field(sa_type=Text)
-    subject_speaker_id: str = Field(sa_type=Text)
-    target_revision: int = 0
+    target_revision: int
     model_id: str = Field(sa_type=Text)
-    model_version: str = Field(sa_type=Text)
+    prompt_version: str = Field(sa_type=Text)
     evaluated_at_us: int
+    completed_at_us: int
+    after_sequence: int
     through_sequence: int
-    status: str = Field(sa_type=Text)
-    explanation_json: str = Field(sa_type=Text)
-    next_due_at_us: int | None = None
-    resolves_assessment_id: int | None = Field(
-        default=None, foreign_key="assessment.assessment_id", unique=True
-    )
+    action: str = Field(sa_type=Text)
+    action_confidence: float
+    selection_threshold: float
+    request_json: str = Field(sa_type=Text)
+
+
+class AssessmentActionProbability(SQLModel, table=True):
+    __tablename__: ClassVar[str] = "assessment_action_probability"
+
+    assessment_id: int = Field(primary_key=True, foreign_key="assessment.assessment_id")
+    action: str = Field(primary_key=True, sa_type=Text)
+    probability: float
+
+
+class Classification(SQLModel, table=True):
+    __tablename__: ClassVar[str] = "classification"
+    __table_args__ = (UniqueConstraint("assessment_id", "observation_key"),)
+
+    classification_id: int | None = Field(default=None, primary_key=True)
+    assessment_id: int = Field(foreign_key="assessment.assessment_id")
+    observation_key: int = Field(foreign_key="observation.observation_key")
+    primary_topic: str = Field(sa_type=Text)
+    intensity: float | None
+
+
+class ClassificationTopicScore(SQLModel, table=True):
+    __tablename__: ClassVar[str] = "classification_topic_score"
+
+    classification_id: int = Field(primary_key=True, foreign_key="classification.classification_id")
+    topic: str = Field(primary_key=True, sa_type=Text)
+    score: float
+
+
+class ClassificationBehaviorScore(SQLModel, table=True):
+    __tablename__: ClassVar[str] = "classification_behavior_score"
+
+    classification_id: int = Field(primary_key=True, foreign_key="classification.classification_id")
+    behavior: str = Field(primary_key=True, sa_type=Text)
+    score: float

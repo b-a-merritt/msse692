@@ -75,7 +75,7 @@ def test_failed_migration_rolls_back_schema_and_data(
             from alembic import op
 
             revision = "0003"
-            down_revision = "0002"
+            down_revision = "0001"
 
             def upgrade():
                 op.execute("CREATE TABLE partial (id INTEGER PRIMARY KEY)")
@@ -99,7 +99,7 @@ def test_failed_migration_rolls_back_schema_and_data(
         with empty_engine.connect() as connection:
             assert (
                 connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
-                == "0002"
+                == "0001"
             )
             assert connection.exec_driver_sql(
                 "SELECT case_id, created_at_us FROM case_log"

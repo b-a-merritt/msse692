@@ -44,7 +44,11 @@ def test_ingestion_returns_committed_observation(*, open_client):
         assert response.headers["Cache-Control"] == "no-store"
         with Session(bind=client.app.state.engine) as session:
             assert session.get(CaseLog, "case") is not None
-            stored = session.get(Observation, ("case", "chunk"))
+            stored = session.exec(
+                select(Observation).where(
+                    Observation.case_id == "case", Observation.observation_id == "chunk"
+                )
+            ).one_or_none()
             assert stored is not None
             assert stored.transcript == observation_data["transcript"]
             assert stored.sequence == response.json()["sequence"]

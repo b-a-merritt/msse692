@@ -2,6 +2,8 @@ import logging
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
+from sqlmodel import col
+from sqlmodel import select
 
 from normative_conformance.errors import ObservationExists
 from normative_conformance.errors import StorageUnavailable
@@ -25,7 +27,14 @@ def _check_uniqueness(
     observation_id: str,
     session: Session,
 ) -> None:
-    if session.get(Observation, (case_id, observation_id)) is not None:
+    existing = session.exec(
+        select(Observation.observation_key).where(
+            Observation.case_id == case_id,
+            Observation.observation_id == observation_id,
+            col(Observation.speaker_revision_id).is_(None),
+        )
+    ).first()
+    if existing is not None:
         raise ObservationExists("An observation with this identity already exists")
 
 
@@ -67,7 +76,6 @@ def stage_observation(
         observation_id=input.observation_id,
         sequence=get_case_sequence(case_id=input.case_id, session=session) + 1,
         received_at_us=received_at_us,
-        updated_at_us=received_at_us,
         speaker_id=input.speaker_id,
         start_at_us=to_microseconds(value=input.start_at),
         end_at_us=to_microseconds(value=input.end_at),
@@ -77,8 +85,13 @@ def stage_observation(
         signal_level_max=input.signal_level_max,
     )
     session.add(observation)
-    if case.target_speaker_order is not None and not case.target_speaker_manual:
-        refresh_target(case=case, labels=speaker_labels(case_id=input.case_id, session=session))
+    if case.target_speaker_order is not None:
+        refresh_target(
+            case=case,
+            labels=speaker_labels(case_id=input.case_id, session=session),
+            session=session,
+            assigned_at_us=received_at_us,
+        )
     session.flush()
     return to_record(observation=observation)
 

@@ -10,16 +10,15 @@ from typing import cast
 
 from fastapi import FastAPI
 from sqlalchemy import Engine
+from typesafe_sdk import RetryPolicy
+from typesafe_sdk import TypeSafeClient
 
 from normative_conformance.config import Settings
 from normative_conformance.database import create_database_engine
 from normative_conformance.database import get_schema_revision
 from normative_conformance.database import initialize_database
-from normative_conformance.database import read_session
 from normative_conformance.logging import start_logging
 from normative_conformance.logging import stop_logging
-from normative_conformance.schemas.model import ModelVersion
-from normative_conformance.services.model.validate_models import validate_models
 from normative_conformance.services.scheduler.run_worker.run_worker import run_worker
 
 logger = logging.getLogger(__name__)
@@ -30,8 +29,9 @@ def _worker_lifespan(
     *,
     app: FastAPI,
     engine: Engine,
-    intervention_window_us: int,
-    models: list[ModelVersion],
+    client: TypeSafeClient,
+    batch_size: int,
+    context_seconds: int,
 ) -> Iterator[None]:
     """Keep the database available until the worker has stopped."""
     stopped = Event()
@@ -41,8 +41,9 @@ def _worker_lifespan(
             "stopped": stopped,
             "engine": engine,
             "now": app.state.clock,
-            "intervention_window_us": intervention_window_us,
-            "models": models,
+            "client": client,
+            "batch_size": batch_size,
+            "context_seconds": context_seconds,
         },
         name="assessment-worker",
     )
@@ -63,20 +64,16 @@ def _log_started(
     engine: Engine,
     settings: Settings,
     log_path: Path,
-    models: list[ModelVersion],
 ) -> None:
-    """Record the configuration that later decisions reference by model ID and version."""
+    """Record the configuration used for live assessments."""
     logger.info(
         "Application started",
         extra={
             "event": "app.started",
             "log_file": str(log_path),
             "schema_revision": get_schema_revision(engine=engine),
-            "intervention_window_us": settings.intervention_window_us,
-            "models": [
-                {"model_id": model.model_id, "version": model.version, "type": model.type}
-                for model in models
-            ],
+            "decision_batch_size": settings.decision_batch_size,
+            "decision_context_seconds": settings.decision_context_seconds,
         },
     )
 
@@ -93,26 +90,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             initialize_database(engine=engine)
 
-            stage = "models"
-            with read_session(engine=engine) as session:
-                models = validate_models(session=session)
             app.state.engine = engine
-
-            stage = "worker"
-            with _worker_lifespan(
-                app=app,
-                engine=engine,
-                intervention_window_us=settings.intervention_window_us,
-                models=models,
-            ):
-                _log_started(
+            stage = "jev"
+            with TypeSafeClient(
+                api_key=settings.type_safe_api_key,
+                timeout=30,
+                retry=RetryPolicy(max_retries=0),
+            ) as client:
+                stage = "worker"
+                with _worker_lifespan(
+                    app=app,
                     engine=engine,
-                    settings=settings,
-                    log_path=log_path,
-                    models=models,
-                )
-                stage = "running"
-                yield
+                    client=client,
+                    batch_size=settings.decision_batch_size,
+                    context_seconds=settings.decision_context_seconds,
+                ):
+                    _log_started(engine=engine, settings=settings, log_path=log_path)
+                    stage = "running"
+                    yield
         finally:
             app.state.engine = None
             app.state.worker_stopped = None

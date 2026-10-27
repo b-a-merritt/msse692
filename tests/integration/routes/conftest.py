@@ -17,7 +17,7 @@ get_settings.cache_clear()
 
 @pytest.fixture
 def open_client(*, tmp_path, monkeypatch):
-    def idle_worker(*, stopped, engine, now, intervention_window_us, models):
+    def idle_worker(*, stopped, engine, now, client, batch_size, context_seconds):
         stopped.wait()
 
     @contextmanager
@@ -26,6 +26,7 @@ def open_client(*, tmp_path, monkeypatch):
         application = create_app(
             settings=Settings(
                 _env_file=None,
+                type_safe_api_key="integration-key",
                 app_db_path=tmp_path / "api.sqlite3",
                 log_dir=tmp_path / "logs",
             ),

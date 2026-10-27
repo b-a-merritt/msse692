@@ -1,91 +1,92 @@
-import logging
-from dataclasses import replace
-from uuid import uuid4
-
 from sqlalchemy import Engine
+from sqlmodel import Session
+from typesafe_sdk import TypeSafeClient
 
+from normative_conformance.clients import jev
+from normative_conformance.database import read_session
 from normative_conformance.database import write_session
+from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.case import CaseLog
-from normative_conformance.schemas.assessment import CaseSnapshot
+from normative_conformance.schemas.decision import DecisionSnapshot
 from normative_conformance.schemas.internal import Clock
-from normative_conformance.schemas.model import ModelVersion
-from normative_conformance.services.assessment.check_repairs import check_repairs
-from normative_conformance.services.assessment.evaluate_case import evaluate_case
-from normative_conformance.services.intervention.should_open_intervention_window import (
-    should_open_intervention_window,
-)
-from normative_conformance.services.observation.get_case_sequence import get_case_sequence
+from normative_conformance.services.assessment.store_assessment import store_assessment
+from normative_conformance.services.case.target import current_assignment
+from normative_conformance.services.decision.batch import batch_end
+from normative_conformance.services.decision.context import build_snapshot
+from normative_conformance.services.observation.load_case_speech import load_case_speech
 from normative_conformance.timestamps import to_microseconds
-
-logger = logging.getLogger(__name__)
 
 
 def process_case(
-    *, case_id: str, engine: Engine, now: Clock, models: list[ModelVersion]
-) -> int | None:
-    """Commit detection, repairs and progress together; return a new window's start."""
-    with write_session(engine=engine) as session:
-        session.connection()
+    *,
+    case_id: str,
+    batch_size: int,
+    context_seconds: int,
+    engine: Engine,
+    now: Clock,
+    client: TypeSafeClient,
+) -> Assessment | None:
+    """Assess a fixed batch, then commit its decisions and progress atomically.
+
+    A batch whose new speech was entirely removed by revisions is marked handled unassessed.
+    """
+    with read_session(engine=engine) as session:
         case = session.get(CaseLog, case_id)
-        if case is None or case.target_speaker_id is None:
+        assignment = current_assignment(case_id=case_id, session=session)
+        if case is None or assignment is None or assignment.speaker_id is None:
             return None
-        subject_speaker_id = case.target_speaker_id
-        # These SQL evaluations share one locked snapshot and one server timestamp.
-        detection = CaseSnapshot(
+        after_sequence = (
+            case.last_handled_sequence
+            if case.last_handled_target_revision == assignment.target_revision
+            else 0
+        )
+        speech = load_case_speech(case_id=case_id, session=session)
+        through_sequence = batch_end(
+            observations=speech.observations,
+            revisions=speech.revisions,
+            after_sequence=after_sequence,
+            batch_size=batch_size,
+        )
+        if through_sequence is None:
+            return None
+        snapshot = build_snapshot(
             case_id=case_id,
-            evaluation_id=str(uuid4()),
-            through_sequence=get_case_sequence(case_id=case_id, session=session),
-            evaluated_at_us=to_microseconds(value=now()),
+            target_speaker_id=assignment.speaker_id,
+            target_revision=assignment.target_revision,
+            observations=speech.observations,
+            revisions=speech.revisions,
+            after_sequence=after_sequence,
+            through_sequence=through_sequence,
+            context_seconds=context_seconds,
+            captured_at=now(),
         )
-        detections = evaluate_case(
-            snapshot=detection,
-            subject_speaker_id=subject_speaker_id,
+    if not snapshot.new_observation_ids:
+        with write_session(engine=engine) as session:
+            _mark_handled(case_id=case_id, snapshot=snapshot, session=session)
+            session.commit()
+        return None
+    # The provider runs outside both database transactions; the input is already fixed.
+    answers, request_json = jev.evaluate(snapshot=snapshot, client=client)
+    with write_session(engine=engine) as session:
+        assessment = store_assessment(
             session=session,
-            models=models,
+            snapshot=snapshot,
+            answers=answers,
+            request_json=request_json,
+            observation_keys=speech.observation_keys,
+            completed_at_us=to_microseconds(value=now()),
         )
-        repair_check = replace(detection, evaluation_id=str(uuid4()))
-        repairs = check_repairs(
-            snapshot=repair_check,
-            subject_speaker_id=subject_speaker_id,
-            session=session,
-            models=models,
-        )
-        opened = should_open_intervention_window(
-            assessments=detections, evaluation_id=detection.evaluation_id, resolutions_only=False
-        ) or should_open_intervention_window(
-            assessments=repairs, evaluation_id=repair_check.evaluation_id, resolutions_only=True
-        )
-        # find_repair selects the latest repair, so one re-evaluation covers every
-        # reset in this snapshot. If that ordering changes, repeat detection and
-        # repair checks until no further reset occurs.
-        if any(
-            row.status == "non-conformant"
-            or (row.resolves_assessment_id is None and row.status == "conformant")
-            for row in repairs
-        ):
-            redetection = replace(detection, evaluation_id=str(uuid4()))
-            redetections = evaluate_case(
-                snapshot=redetection,
-                subject_speaker_id=subject_speaker_id,
-                session=session,
-                models=models,
-            )
-            opened |= should_open_intervention_window(
-                assessments=redetections,
-                evaluation_id=redetection.evaluation_id,
-                resolutions_only=False,
-            )
-        case.last_handled_sequence = detection.through_sequence
-        case.last_handled_target_revision = case.target_revision
-        session.add(case)
+        _mark_handled(case_id=case_id, snapshot=snapshot, session=session)
         session.commit()
-    logger.info(
-        "Case processing committed",
-        extra={
-            "event": "case.processed",
-            "case_id": case_id,
-            "through_sequence": detection.through_sequence,
-            "target_revision": case.target_revision,
-        },
-    )
-    return detection.evaluated_at_us if opened else None
+    return assessment
+
+
+def _mark_handled(*, case_id: str, snapshot: DecisionSnapshot, session: Session) -> None:
+    """Retain work for its original target, but leave a changed target pending."""
+    case = session.get(CaseLog, case_id)
+    current = current_assignment(case_id=case_id, session=session)
+    assert case is not None and current is not None
+    if current.target_revision == snapshot.target_revision:
+        case.last_handled_sequence = snapshot.through_sequence
+        case.last_handled_target_revision = snapshot.target_revision
+        session.add(case)

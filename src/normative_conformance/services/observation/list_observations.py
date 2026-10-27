@@ -16,6 +16,7 @@ def list_observations(
         select(Observation)
         .where(
             Observation.case_id == case_id,
+            col(Observation.speaker_revision_id).is_(None),
         )
         .order_by(
             col(Observation.sequence).desc(),

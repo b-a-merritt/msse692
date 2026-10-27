@@ -9,11 +9,10 @@ import pytest
 module = import_module("normative_conformance.services.scheduler.run_worker.run_worker")
 
 
-def test_polls_each_ready_case_once_and_keeps_the_first_window(monkeypatch):
+def test_polls_each_ready_case_once_per_pass(monkeypatch):
     stopped = Event()
     polls = []
-    visited = []
-    windows = []
+    client = object()
 
     def wait(seconds):
         assert seconds == 0.1
@@ -21,32 +20,31 @@ def test_polls_each_ready_case_once_and_keeps_the_first_window(monkeypatch):
         if len(polls) == 2:
             stopped.set()
 
-    def process(**kwargs):
-        visited.append(kwargs["case_id"])
-        return 10 if not polls else 20
-
-    def interventions(**kwargs):
-        windows.append(dict(kwargs["intervention_windows"]))
-
+    process = Mock()
     monkeypatch.setattr(stopped, "wait", wait)
-    pending = Mock(return_value=["due", "new"])
-    monkeypatch.setattr(module, "pending_cases", pending)
+    monkeypatch.setattr(module, "pending_cases", Mock(return_value=["due", "new"]))
     monkeypatch.setattr(module, "process_case", process)
-    monkeypatch.setattr(module, "create_due_interventions", interventions)
     module.run_worker(
         stopped=stopped,
         engine=object(),
-        models=[],
-        intervention_window_us=30,
-        now=lambda: datetime(1970, 1, 1, microsecond=100, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+        client=client,
+        batch_size=3,
+        context_seconds=20,
     )
-    assert visited == ["due", "new", "due", "new"]
-    assert windows[-1] == {"due": 10, "new": 10}
-    assert pending.call_args.kwargs["now_us"] == 100
+    assert [call.kwargs["case_id"] for call in process.call_args_list] == [
+        "due",
+        "new",
+        "due",
+        "new",
+    ]
+    assert process.call_args.kwargs["client"] is client
+    assert process.call_args.kwargs["batch_size"] == 3
+    assert process.call_args.kwargs["context_seconds"] == 20
 
 
-@pytest.mark.parametrize("failure", ["poll", "case", None])
-def test_failure_does_not_lose_work_and_idle_ticks_service_timers(monkeypatch, failure):
+@pytest.mark.parametrize("failure", ["poll", "case"])
+def test_failure_does_not_lose_work(monkeypatch, failure):
     stopped = Event()
     visited = []
     waits = []
@@ -54,33 +52,30 @@ def test_failure_does_not_lose_work_and_idle_ticks_service_timers(monkeypatch, f
     def pending(**kwargs):
         if failure == "poll" and not waits:
             raise RuntimeError("Unavailable")
-        return ["bad", "good"] if failure else []
+        return ["bad", "good"]
 
     def process(**kwargs):
         visited.append(kwargs["case_id"])
         if kwargs["case_id"] == "bad":
             raise RuntimeError("Failed evaluation")
-        return None
 
     def wait(seconds):
         waits.append(seconds)
         if len(waits) == 2:
             stopped.set()
 
-    timers = Mock()
     monkeypatch.setattr(stopped, "wait", wait)
     monkeypatch.setattr(module, "pending_cases", pending)
     monkeypatch.setattr(module, "process_case", process)
-    monkeypatch.setattr(module, "create_due_interventions", timers)
     module.run_worker(
         stopped=stopped,
         engine=object(),
-        models=[],
-        intervention_window_us=30,
         now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+        client=object(),
+        batch_size=4,
+        context_seconds=30,
     )
-    assert visited == (["bad", "good"] * (1 if failure == "poll" else 2) if failure else [])
-    assert timers.called
+    assert visited == ["bad", "good"] * (1 if failure == "poll" else 2)
     assert waits == [0.1, 0.1]
 
 
@@ -89,12 +84,12 @@ def test_shutdown_finishes_current_case_without_starting_next(monkeypatch):
     process = Mock(side_effect=lambda **kwargs: stopped.set())
     monkeypatch.setattr(module, "pending_cases", Mock(return_value=["one", "two"]))
     monkeypatch.setattr(module, "process_case", process)
-    monkeypatch.setattr(module, "create_due_interventions", Mock())
     module.run_worker(
         stopped=stopped,
         engine=object(),
-        models=[],
-        intervention_window_us=30,
         now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+        client=object(),
+        batch_size=4,
+        context_seconds=30,
     )
     assert [call.kwargs["case_id"] for call in process.call_args_list] == ["one"]

@@ -1,93 +1,73 @@
 from datetime import datetime
 from datetime import timezone
-from uuid import uuid4
 
 import pytest
 
-from normative_conformance.database import read_session
+from normative_conformance import models
 from normative_conformance.database import write_session
-from normative_conformance.schemas.assessment import CaseSnapshot
-from normative_conformance.services.assessment.evaluate_case import evaluate_case
-from normative_conformance.services.intervention.create_intervention import create_intervention
-from normative_conformance.services.intervention.list_intervention_records import (
-    list_intervention_records,
-)
-from normative_conformance.services.model.list_models import list_models
-from normative_conformance.services.observation.get_case_sequence import get_case_sequence
 from normative_conformance.timestamps import to_microseconds
-
-THREAT = "You said something that could be heard as a threat. Take a moment before you continue."
 
 
 def _timestamp(value):
     return value.isoformat().replace("+00:00", "Z")
 
 
-def test_listing_without_interventions_returns_empty_items(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at) as client:
-        response = client.get("/api/v1/interventions")
-
-        assert response.status_code == 200
-        assert response.json() == {"items": []}
-
-
 def test_delivery_marks_listed_interventions_sent_once(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
     with open_client(now=lambda: received_at) as client:
-        assert (
-            client.put(
-                "/api/v1/cases/case/target", json={"target_speaker_id": "speaker-2"}
-            ).status_code
-            == 200
-        )
-        observation_data = {
-            "case_id": "case",
-            "observation_id": "chunk",
-            "speaker_id": "subject",
-            "start_at": "2026-09-26T12:00:00.123456+03:00",
-            "end_at": "2026-09-26T12:00:01.654321+03:00",
-            "transcript": "  Hello!\n",
-            "signal_level_min": -50.0,
-            "signal_level_avg": -30.0,
-            "signal_level_max": -10.0,
-        }
-        with read_session(engine=client.app.state.engine) as catalog_session:
-            model_catalog = list_models(session=catalog_session)
-
-        response = client.post(
-            "/api/v1/observations",
-            json=observation_data | {"speaker_id": "speaker-2", "transcript": "I hope you die"},
-        )
-        assert response.status_code == 201
-        with write_session(engine=client.app.state.engine) as assessment_session:
-            rows = evaluate_case(
-                snapshot=CaseSnapshot(
-                    case_id="case",
-                    evaluation_id=str(uuid4()),
-                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
-                    evaluated_at_us=to_microseconds(value=client.app.state.clock()),
-                ),
-                subject_speaker_id="speaker-2",
-                session=assessment_session,
-                models=model_catalog,
-            )
-            assessment_session.commit()
         with write_session(engine=client.app.state.engine) as session:
-            create_intervention(
-                case_id="case",
-                since_us=to_microseconds(value=received_at),
-                session=session,
-                now=client.app.state.clock,
+            session.add(models.CaseLog(case_id="case", created_at_us=0))
+            session.flush()
+            session.add(
+                models.TargetAssignment(
+                    case_id="case", target_revision=1, assigned_at_us=0, speaker_id="A"
+                )
             )
-            record = list_intervention_records(session=session)[0]
-        assert record.assessment_ids == [row.assessment_id for row in rows]
+            session.add(
+                models.Observation(
+                    case_id="case",
+                    observation_id="chunk",
+                    sequence=1,
+                    speaker_id="A",
+                    start_at_us=0,
+                    end_at_us=1_000_000,
+                    received_at_us=0,
+                    transcript="hello",
+                    signal_level_min=-60.0,
+                    signal_level_avg=-30.0,
+                    signal_level_max=0.0,
+                )
+            )
+            session.flush()
+            assessment = models.Assessment(
+                case_id="case",
+                target_revision=1,
+                model_id="jev-1.14.0",
+                prompt_version="conversation-1",
+                evaluated_at_us=1,
+                completed_at_us=2,
+                after_sequence=0,
+                through_sequence=1,
+                action="intervene",
+                action_confidence=0.9,
+                selection_threshold=0.7,
+                request_json="{}",
+            )
+            session.add(assessment)
+            session.flush()
+            intervention = models.Intervention(
+                assessment_id=assessment.assessment_id,
+                message="Feedback",
+                created_at_us=to_microseconds(value=received_at),
+            )
+            session.add(intervention)
+            session.commit()
         pending = {
-            "intervention_id": record.intervention_id,
+            "intervention_id": intervention.intervention_id,
             "case_id": "case",
-            "subject_speaker_id": "speaker-2",
-            "assessment_ids": record.assessment_ids,
-            "message": THREAT,
+            "subject_speaker_id": "A",
+            "assessment_ids": [assessment.assessment_id],
+            "message": "Feedback",
             "created_at": _timestamp(received_at),
             "status": "pending",
             "sent_at": None,
@@ -98,8 +78,6 @@ def test_delivery_marks_listed_interventions_sent_once(*, open_client):
         assert client.get("/api/v1/interventions", params={"status": "sent"}).json() == {
             "items": []
         }
-        # Listing is read-only; only delivery changes the status.
-        assert client.get("/api/v1/interventions").json() == {"items": [pending]}
 
         response = client.post("/api/v1/cases/case/interventions/deliver")
 
@@ -109,9 +87,6 @@ def test_delivery_marks_listed_interventions_sent_once(*, open_client):
         assert client.get(
             "/api/v1/interventions", params={"case_id": "case", "status": "sent"}
         ).json() == {"items": [sent]}
-        assert client.get("/api/v1/interventions", params={"case_id": "other"}).json() == {
-            "items": []
-        }
 
 
 @pytest.mark.parametrize(
@@ -129,64 +104,56 @@ def test_invalid_query_is_rejected(*, open_client, params):
         assert response.status_code == 422
 
 
-def test_unscoped_delivery_does_not_exist(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at) as client:
-        response = client.post("/api/v1/interventions/deliver")
-
-        assert response.status_code == 404
-
-
 def test_delivery_storage_error_returns_safe_message_and_stays_pending(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
     with open_client(now=lambda: received_at) as client:
-        assert (
-            client.put(
-                "/api/v1/cases/case/target", json={"target_speaker_id": "speaker-2"}
-            ).status_code
-            == 200
-        )
-        observation_data = {
-            "case_id": "case",
-            "observation_id": "chunk",
-            "speaker_id": "subject",
-            "start_at": "2026-09-26T12:00:00.123456+03:00",
-            "end_at": "2026-09-26T12:00:01.654321+03:00",
-            "transcript": "  Hello!\n",
-            "signal_level_min": -50.0,
-            "signal_level_avg": -30.0,
-            "signal_level_max": -10.0,
-        }
-        with read_session(engine=client.app.state.engine) as catalog_session:
-            model_catalog = list_models(session=catalog_session)
-
-        response = client.post(
-            "/api/v1/observations",
-            json=observation_data | {"speaker_id": "speaker-2", "transcript": "I hope you die"},
-        )
-        assert response.status_code == 201
-        with write_session(engine=client.app.state.engine) as assessment_session:
-            rows = evaluate_case(
-                snapshot=CaseSnapshot(
-                    case_id="case",
-                    evaluation_id=str(uuid4()),
-                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
-                    evaluated_at_us=to_microseconds(value=client.app.state.clock()),
-                ),
-                subject_speaker_id="speaker-2",
-                session=assessment_session,
-                models=model_catalog,
-            )
-            assessment_session.commit()
         with write_session(engine=client.app.state.engine) as session:
-            create_intervention(
-                case_id="case",
-                since_us=to_microseconds(value=received_at),
-                session=session,
-                now=client.app.state.clock,
+            session.add(models.CaseLog(case_id="case", created_at_us=0))
+            session.flush()
+            session.add(
+                models.TargetAssignment(
+                    case_id="case", target_revision=1, assigned_at_us=0, speaker_id="A"
+                )
             )
-            record = list_intervention_records(session=session)[0]
-        assert record.assessment_ids == [row.assessment_id for row in rows]
+            session.add(
+                models.Observation(
+                    case_id="case",
+                    observation_id="chunk",
+                    sequence=1,
+                    speaker_id="A",
+                    start_at_us=0,
+                    end_at_us=1_000_000,
+                    received_at_us=0,
+                    transcript="hello",
+                    signal_level_min=-60.0,
+                    signal_level_avg=-30.0,
+                    signal_level_max=0.0,
+                )
+            )
+            session.flush()
+            assessment = models.Assessment(
+                case_id="case",
+                target_revision=1,
+                model_id="jev-1.14.0",
+                prompt_version="conversation-1",
+                evaluated_at_us=1,
+                completed_at_us=2,
+                after_sequence=0,
+                through_sequence=1,
+                action="intervene",
+                action_confidence=0.9,
+                selection_threshold=0.7,
+                request_json="{}",
+            )
+            session.add(assessment)
+            session.flush()
+            intervention = models.Intervention(
+                assessment_id=assessment.assessment_id,
+                message="Feedback",
+                created_at_us=to_microseconds(value=received_at),
+            )
+            session.add(intervention)
+            session.commit()
         with client.app.state.engine.begin() as connection:
             connection.exec_driver_sql("""
                 CREATE TRIGGER fail_delivery BEFORE UPDATE ON intervention

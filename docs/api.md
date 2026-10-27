@@ -1,130 +1,86 @@
 # API reference
 
-Default base URL: `http://127.0.0.1:8000`.
-
-The running application's [Swagger UI](http://127.0.0.1:8000/docs) and [OpenAPI JSON](http://127.0.0.1:8000/openapi.json) expose the field schemas. Download the schema from the version you are using:
-
-```bash
-curl --fail http://127.0.0.1:8000/openapi.json -o openapi.json
-```
+Base URL: `http://127.0.0.1:8000`. Full field schemas: [Swagger UI](http://127.0.0.1:8000/docs) and [OpenAPI JSON](http://127.0.0.1:8000/openapi.json).
 
 ## Endpoints
 
-| Method and path | Input | Success response |
-|---|---|---|
-| `GET /health/live` | None | 200: `{"status":"live"}` |
-| `GET /health/ready` | None | 200: `{"status":"ready"}`. Checks database and worker |
-| `PUT /api/v1/cases/{case_id}/target` | Exactly one target order or label | 200: `CaseRecord`; creates the case if absent |
-| `GET /api/v1/cases/{case_id}` | Case ID | 200: `CaseRecord`; 404 if absent |
-| `POST /api/v1/observations` | `ObservationInput` body | 201: `ObservationRecord` |
-| `GET /api/v1/cases/{case_id}/observations` | Case ID | 200: `items` of `ObservationRecord`, newest sequence first |
-| `GET /api/v1/cases/{case_id}/assessments` | Case ID | 200: `items` of `Assessment`, increasing assessment ID |
-| `GET /api/v1/models` | None | 200: `items` of `ModelVersion` |
-| `GET /api/v1/models/{model_id}/versions/{version}` | Model ID and version | 200: one `ModelVersion`. 404 if absent |
-| `GET /api/v1/interventions` | Optional `case_id`, `status=pending` or `sent` | 200: `items` of `Intervention`, increasing intervention ID |
-| `POST /api/v1/cases/{case_id}/interventions/deliver` | Case ID | 200: `items` of the case's interventions marked sent by this call |
+| Method and path | Result |
+|---|---|
+| `GET /health/live` | 200: `{"status":"live"}` |
+| `GET /health/ready` | 200: `{"status":"ready"}`; checks database and worker |
+| `PUT /api/v1/cases/{case_id}/target` | 200: `CaseRecord`; creates the case if absent |
+| `GET /api/v1/cases/{case_id}` | 200: `CaseRecord`; 404 if absent |
+| `POST /api/v1/observations` | 201: `ObservationRecord` |
+| `GET /api/v1/cases/{case_id}/observations` | Ingested observations, newest sequence first |
+| `GET /api/v1/cases/{case_id}/assessments` | Assessments, increasing assessment ID |
+| `GET /api/v1/interventions` | Interventions, increasing ID; optional `case_id` and `status=pending` or `sent` |
+| `POST /api/v1/cases/{case_id}/interventions/deliver` | Marks eligible interventions sent once and returns them |
 
-List responses have the form `{"items":[]}` when empty. Unknown case IDs return empty observation/assessment lists. Lists are unpaginated.
+List endpoints return 200 with `{"items":[...]}`; unknown cases have empty lists. Lists are unpaginated.
+
+## Targets
+
+PUT accepts exactly one of `{"target_speaker_order":1}` (1 or 2) or `{"target_speaker_id":"A"}`. Speaking order uses distinct resolved labels in ingested speech; `PENDING` does not count. A label selection clears the order. A changed target label increments `target_revision` and makes stored speech eligible for assessment.
+
+`CaseRecord` includes the resolved `target_speaker_id`, revision, and `target_speaker_manual`, which is true when a speaker is set without a speaking order.
 
 ## Observation input
 
-All fields are required. Unknown fields are rejected.
+All fields are required; unknown fields are rejected. See the [submission example](user_guide.md#http-input-and-replay).
 
-| Fields | Format and constraints |
+| Fields | Constraints |
 |---|---|
-| `case_id`, `observation_id` | Nonempty strings with no `/`. Observation identity is the case/observation pair |
-| `speaker_id` | String containing at least one non-whitespace character and no `/` |
-| `start_at`, `end_at` | Timezone-aware timestamps. End must follow start. Normalized to UTC |
-| `transcript` | String containing at least one non-whitespace character |
-| `signal_level_min`, `signal_level_avg`, `signal_level_max` | Finite JSON numbers in dBFS, each between −120 and 0. Min ≤ avg ≤ max |
+| `case_id`, `observation_id` | Nonempty strings without `/`; ingested identity is the case/observation pair |
+| `speaker_id` | Nonblank string without `/` |
+| `start_at`, `end_at` | Aware timestamps, normalized to UTC; end follows start |
+| `transcript` | Nonblank string |
+| `signal_level_min`, `signal_level_avg`, `signal_level_max` | Finite dBFS values between −120 and 0; min ≤ avg ≤ max |
 
-Run on fresh storage, or choose an unused case ID:
+The response adds server-assigned `sequence`, `received_at`, and `updated_at`; the two timestamps are equal. **201 confirms storage, not completed inference.** Duplicate ingested IDs return 409. Original observations are immutable. There is no HTTP correction endpoint.
 
-```bash
-curl -i -X POST http://127.0.0.1:8000/api/v1/observations \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "case_id": "docs-demo", "observation_id": "chunk-1",
-    "speaker_id": "speaker-2",
-    "start_at": "2026-10-10T12:00:00Z", "end_at": "2026-10-10T12:00:04Z",
-    "transcript": "I swear to god",
-    "signal_level_min": -50, "signal_level_avg": -30, "signal_level_max": -10
-  }'
-```
+## Assessments and interventions
 
-The 201 response repeats these fields and adds `sequence` (1 for a new case), `received_at`, and `updated_at`. Receipt and update times are server UTC timestamps and are equal at insertion. It confirms storage. The worker polls stored speech and assesses cases with a resolved target. Storage remains available while the worker is stopped. The [user walkthrough](user_guide.md) shows the actual response and expected results.
+Assessments include the model and prompt version, target revision and `subject_speaker_id`, sequence range `(after_sequence, through_sequence]`, evaluation/completion times, classifications, and action probabilities. Classifications contain observation IDs, topic/behavior scores, selected labels, primary topic, and target-only intensity (0–3).
 
-```bash
-curl --fail http://127.0.0.1:8000/api/v1/cases/docs-demo/observations
-curl --fail http://127.0.0.1:8000/api/v1/cases/docs-demo/assessments
-curl --fail http://127.0.0.1:8000/api/v1/models/harm_phrase/versions/1
-curl --fail 'http://127.0.0.1:8000/api/v1/interventions?case_id=docs-demo&status=pending'
-curl --fail -X POST http://127.0.0.1:8000/api/v1/cases/docs-demo/interventions/deliver
-```
+Scores meeting the stored `selection_threshold` are selected in name order. A primary topic outside that set is reported as `unknown`. Actions are `remain_silent`, `await_context`, `reflect_later`, or `intervene`; they do not create interventions automatically.
 
-## Observation records
-
-Observations are append-only and identified by `(case_id, observation_id)`. Duplicate HTTP observation IDs within a case return 409. The API does not expose a correction endpoint.
-
-The server assigns `sequence`, `received_at`, and `updated_at`; POST observation requests cannot supply them. Both timestamps are UTC and equal at insertion. Stored observations cannot be updated or deleted.
+The intervention endpoints operate on existing records. Each has one source, exposed as a one-element `assessment_ids` list. Delivery requires the current target revision, sets `sent_at` once, and sends no external notification. An unfiltered listing retains unsent records for earlier targets; `status=pending` excludes them.
 
 ## Live capture stream
 
-`GET /capture` serves live transcription. Before opening the stream, create a case with `PUT /api/v1/cases/{case_id}/target` and a body such as `{"target_speaker_order":2}`. The page generates a fresh case ID for each Start and displays it after creation succeeds.
+`GET /capture` serves the microphone page. Create a case before connecting to `WS /api/v1/capture/audio?case_id={case_id}`. Missing, invalid, or unknown IDs are rejected during the handshake.
 
-`WS /api/v1/capture/audio?case_id={case_id}` opens a session with the provider for an existing case. The required case ID is a nonempty string without `/`. Missing, invalid, or unknown IDs are rejected during the WebSocket handshake, before opening a provider connection. The case lookup finishes before streaming begins.
-
-After the provider confirms its session, the server sends:
+The server confirms the provider session with:
 
 ```json
-{"type":"ready","case_id":"capture-case-id","sample_rate":16000,"encoding":"pcm_s16le","channels":1,"session_id":"provider-session-id","speech_model":"universal-3-6-pro"}
+{"type":"ready","case_id":"case","sample_rate":16000,"encoding":"pcm_s16le","channels":1,"session_id":"provider-session","speech_model":"provider-model"}
 ```
 
-Binary messages contain 1–1600 complete little-endian signed samples (2–3200 bytes). The page sends 100 ms packets and a shorter final packet. The server retains a small tail to keep upstream packets at least 50 ms long, forwarding every sample unchanged without silence padding. A nonempty capture must contain at least 50 ms of audio.
+Send binary PCM16: 1–1600 complete little-endian mono samples per message. Capture must contain at least 50 ms of audio. The page sends 100 ms packets and a final tail. `levels` messages contain `frames` of `{start_ms,end_ms,dbfs}` in 20 ms intervals; offsets start at the first sample. Displayed average level is the arithmetic mean of frame dBFS values.
 
-The server measures 20 ms frames across message boundaries. Each `levels` message contains `frames` of `{start_ms, end_ms, dbfs}` with offsets from the first sample. RMS is normalized by 32768, converted with `20 * log10(RMS)`, and clamped to −120 dBFS. The page displays the minimum, maximum, and arithmetic mean of frame dBFS values in the latest update; the average is not computed from pooled linear energy.
-
-Partial turns, finalized turns, and speaker revisions share this outgoing shape:
+Transcript messages have this shape:
 
 ```json
-{
-  "type": "transcript", "turn_order": 0, "final": true, "revised": false,
-  "transcript": "Hello.", "speaker_id": "A",
-  "words": [{"text":"Hello.","start_ms":0,"end_ms":500,"speaker_id":"A"}]
-}
+{"type":"transcript","turn_order":0,"final":true,"revised":false,"transcript":"Hello.","speaker_id":"A","words":[{"text":"Hello.","start_ms":0,"end_ms":500,"speaker_id":"A"}]}
 ```
 
-`turn_order` identifies a turn within the provider session. Repeated updates replace that turn. Corrections have `final: true` and `revised: true`; their word labels replace the prior labels. `speaker_id` is null when the provider has not attributed the speech. The page groups consecutive finalized words by their own labels and displays null attribution as **Unassigned**. A dominant turn label does not fill missing word attribution.
+A turn's first final is saved before its message is sent; later finals are ignored. Partial updates and revisions use the same turn order. Speaker IDs can be null for unattributed speech. Revisions are saved before `revised:true` messages. They do not change original observations, targets, or existing assessments, and do not trigger reassessment. Revised records are not exposed over HTTP.
 
-The server saves the first finalized turn as observations before sending its `final: true`, `revised: false` message, so receiving that message means the turn is stored. Later final messages for that turn are ignored. It also commits each speaker-revision batch before sending its `revised: true` messages.
+Send exact text `stop`. The server drains final provider events, then sends `{"type":"stopped"}` and closes with code 1000. The drain timeout is ten seconds. Closing without `stopped` means incomplete capture.
 
-Speaker revisions update the live transcript but do not change original observations, target selection, or existing assessments, and do not trigger reassessment. Revisions are not exposed over HTTP.
-
-Send the exact text `stop` to finish. The server flushes the remaining audio and partial level frame, sends provider `Terminate`, and continues receiving transcripts and revisions until provider `Termination`. Only then does it send `{"type":"stopped"}` and close with code 1000. The provider drain has a ten-second deadline. A connection ending without `stopped` is incomplete.
-
-Capture failures use `{"type":"error","code":"providerAuth","message":"..."}` with fixed application text. Codes are `notConfigured`, `providerAuth`, `providerUnavailable`, `providerProtocol`, `providerTimeout`, `invalidAudio`, `incomplete`, and `storageUnavailable`. A storage failure rolls back the current turn or revision batch; previously committed data remains saved. A storage failure ends capture without `stopped`. Invalid audio closes with code 1008; other capture failures use 1011. These WebSocket errors are separate from the HTTP domain envelope below. The key and raw provider exceptions are never sent to the browser.
+Failures send `{"type":"error","code":"providerAuth","message":"..."}`. Codes: `notConfigured`, `providerAuth`, `providerUnavailable`, `providerProtocol`, `providerTimeout`, `invalidAudio`, `incomplete`, `storageUnavailable`. Invalid audio closes with 1008; other failures use 1011. Committed speech survives a later failure.
 
 ## Errors
 
-Domain errors use this envelope. The request ID is unique to the request.
+HTTP domain errors use `{"error":{"code":"NOT_FOUND","message":"...","request_id":"..."}}`.
 
-```json
-{
-  "error": {
-    "code": "OBSERVATION_EXISTS",
-    "message": "An observation with this identity already exists",
-    "request_id": "00000000-0000-4000-8000-000000000001"
-  }
-}
-```
-
-| HTTP / code | Meaning and caller action |
+| HTTP / code | Meaning |
 |---|---|
-| 404 `NOT_FOUND` | Case or model version absent. Check the requested identity |
-| 409 `OBSERVATION_EXISTS` | Already stored. Read the existing record. The stored observation remains available for polling |
-| 503 `NOT_READY` | Worker unavailable/stopping. Check readiness and restart after investigating |
-| 503 `STORAGE_UNAVAILABLE` | Database access failed. Inspect service health and storage availability |
-| 422 validation | FastAPI `{"detail":[...]}` response identifies invalid fields. Correct the request |
-| 500 unhandled error | Unexpected failure. Inspect records before retrying a state-changing call |
+| 404 `NOT_FOUND` | Case absent |
+| 409 `OBSERVATION_EXISTS` | Ingested identity already stored |
+| 503 `NOT_READY` | Database or worker unavailable |
+| 503 `STORAGE_UNAVAILABLE` | Storage operation failed |
+| 422 | Framework `detail` describes invalid input |
+| 500 | Unexpected failure; inspect records before retrying a write |
 
-Handled responses carry a server-generated `X-Request-ID` and `Cache-Control: no-store`. Match domain errors by `code`. Validation errors and framework errors, such as an unknown route, do not use the domain envelope.
+Handled responses carry `X-Request-ID` and `Cache-Control: no-store`. Validation errors and unknown routes do not use the domain envelope.

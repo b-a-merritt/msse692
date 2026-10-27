@@ -12,6 +12,7 @@ dependencies = [
     "fastapi[standard]>=0.141.1",
     "pydantic-settings>=2.15.0",
     "sqlmodel>=0.0.42",
+    "typesafe-sdk>=0.7.5",
     "websockets>=16.1.1",
 ]
 

@@ -15,136 +15,24 @@
 | `cases/case-11.jsonl` | Good Will Hunting (1997) | Park bench scene between Will (Matt Damon, `speaker-1`) and Sean (Robin Williams, `speaker-2`) | [Great Movie Scenes] Good Will Hunting - Park Scene | https://www.youtube.com/watch?v=qM-gZintWDc |
 | `cases/case-12.jsonl` | Forrest Gump (1994) | Forrest (Tom Hanks, `speaker-1`) meets his son at Jenny's (Robin Wright, `speaker-2`) apartment, with little Forrest (Haley Joel Osment, `speaker-3`) and Jenny's coworker (`speaker-4`) | Forrest Gump: Named after his dad (HD CLIP) | https://www.youtube.com/watch?v=ITGEGE9v0d0 |
 
-## Expected outcomes
+## Replay
 
-The assessed speaker is `speaker-2`. Configure it explicitly when replaying:
+Configure the target explicitly:
 
 ```bash
 uv run python scripts/send_observations.py scripts/cases/case-3.jsonl --target-speaker-id speaker-2
 ```
 
-- **case-3:** There should be no interventions for mark because he says "I'm sorry." He seems incapable of realizing how he offended her, but realizes he said something he shouldn't have.
-- **case-4:** Jesse uses some high intensity and bad language. I expect at least one or two interventions.
-- **case-5:** If there are any interventions, it should only be for high intensity (loud) argumentation.
-- **case-6:** Rose uses quite a few uncondintional phrases ("You always") as well as some shouting. There will likely be 2 interventions.
-- **case-7:** They speak over one another, but not for long. I don't think there are any interventions because the one violent act is nonverbal.
-- **case-8:** I expect no interventions for Walt. His threat uses no listed phrase or work and he never raises his voice. This is likely a false negative.
-- **case-9:** There is a lot of crude langauge as well as a lot of interruption. I expect a least two interventions.
-- **case-10:** I expect Gary to get interventions for interrupting and calling Brooke "Crazy." Her "You're a prick" would be recognized if she was the subject. (There should be no intervention or assessment of her).
-- **case-11:** Sean likely gets an intervention for swearing, but should not be getting one for saying "You're a tough kid."
-- **case-12:** This is a normal conversation. There should be no interventions for either.
+Use fresh storage or new case IDs. The decision model assesses topics for all new speech and behaviors for the target. These inputs have no fixed expected model scores or actions. Interventions are not created automatically.
 
-## Predicted vs. actual
+## Additional inputs
 
-Four of the ten evaluation cases matched the prediction. Two more caught everything predicted and added one
-intervention. Four did not match. Most of the misses come from the loud-and-fast rule firing on short, calm
-lines.
+`cases/stress.jsonl` is AI-generated synthetic speech for 330 interleaved cases, increasing the offered rate across six phases. Recorded gaps take approximately 11.5 minutes to replay; HTTP response time adds to that duration.
 
-Cases 1 and 2 were used for initial tuning, so they are not scored. Case 1 produced 2 interventions: a threat
-("Do this and I swear to God—") combined with loud speech, then vulgar language. Case 2 produced 7, one for each
-undesired model.
-
-| Case | Predicted | Actual interventions (trigger) | Result |
-|---|---|---|---|
-| 3 | None | None. Loud "Wait." was repaired by "I apologize, okay?" | Match |
-| 4 | 1–2, intensity and language | 3: vulgar ("piss me off"), loud ("shit for"), extended turn | One extra |
-| 5 | Loud only, if any | 2: loud ("Silence!"), repeated interruption | Mismatch, interruption not predicted |
-| 6 | 2, absolutist and shouting | 3: extended turn ("I planted myself inside you…"), loud, absolutist ("You always talking") | One extra |
-| 7 | None | 1: loud ("Such as?") | Mismatch, false positive |
-| 8 | None, likely false negative | None | Match |
-| 9 | At least 2, language and interruption | 3: vulgar ("fucking asparagus"), interruption, loud | Match |
-| 10 | Interruption and "crazy" label, none for Brooke | 3: loud ("I'll get them a little bit later…"), vulgar ("damn dishes"), interruption. None for Brooke | Mismatch, label missed, loud false positive |
-| 11 | Vulgar only, not "tough kid" | 1: vulgar ("ripped my fucking life apart") | Match |
-| 12 | None | 1: loud ("I got your letter.") | Mismatch, false positive |
-
-The evaluation cases produced 17 interventions in total.
-
-**Findings**
-
-- **Loud-and-fast false positives (cases 7, 10, 12).** The rate is computed per chunk, so short chunks inflate
-  it: "Such as?" is 2 words in 0.32 s (375 wpm). Each flagged line averaged between −15.8 and −17.8 dBFS, just
-  over the −18 dBFS threshold. About 13% of all chunks are over that threshold, so the volume check alone does
-  not filter them out.
-- **Label missed (case 10).** "You're acting crazy" matches neither list: "crazy" is not a descriptor term, and
-  "acting" is not in the address patterns.
-- **Rule hits not predicted (cases 4, 5, 6, 10).** These are extended turns, an interruption, and "damn." They
-  follow the rules as written, so they show gaps in the prediction rather than detector errors.
-- **Subject scoping held.** Only `speaker-2` was assessed. Brooke's "You're a prick" (case 10) and Forrest's
-  lines (case 12) produced nothing.
-
-## Update: rerun after defect fixes
-
-Aafter the loud-and-fast, delivery, and label fixes, all twelve cases were replayed against the same predictions. Each case ran on its own server with fresh storage. Five of the ten evaluation cases matched, one caught everything predicted and added one intervention, and four did not match.
-
-| Case | Predicted | Actual interventions (trigger) | Result |
-|---|---|---|---|
-| 3 | None | None | Match |
-| 4 | 1–2, intensity and language | 3: vulgar ("piss me off"), label ("you're fucking nuts"), extended turn | Mismatch, intensity missed, two extra |
-| 5 | Loud only, if any | 2: loud ("We've only had one game…"), repeated interruption | Mismatch, interruption not predicted |
-| 6 | 2, absolutist and shouting | 2: extended turn ("I took all my feelings…"), absolutist ("You always talking") | Mismatch, shouting missed, one extra |
-| 7 | None | 1: loud ("Don't tell me what I can or cannot do.") | Mismatch |
-| 8 | None, likely false negative | None | Match |
-| 9 | At least 2, language and interruption | 2: vulgar ("fucking asparagus"), interruption | Match |
-| 10 | Interruption and "crazy" label, none for Brooke | 3: vulgar ("damn dishes"), label ("you're acting crazy again"), interruption. None for Brooke | One extra |
-| 11 | Vulgar only, not "tough kid" | 1: vulgar ("ripped my fucking life apart") | Match |
-| 12 | None | None | Match |
-
-The evaluation cases produced 14 interventions in total, down from 17.
-
-**Findings**
-
-- **Loud-and-fast false positives fixed in cases 10 and 12.**
-- **Short shouts no longer match (cases 4 and 6).** The 1.5 s minimum excludes "shit for" and "Troy,", so the
-  shouting predicted for case 6 is missed.
-- **Labels.** The case 10 label is now detected. Case 4 gained a label for "you're fucking nuts".
-- **Subject scoping held.** Brooke's "You're a prick" now matches the label rule, but she is not the subject, so
-  it produced nothing.
-
-## Stress case
-
-`cases/stress.jsonl` is synthetic. It interleaves 330 scripted sessions (`stress-p<phase>-<nnn>`,
-`speaker-1` and subject `speaker-2`) so that replaying recorded gaps steps the load up. A 30 s
-quiet gap after each phase lets the backlog drain, so each step can be measured on its own. _It was AI-generated._
-
-
-| Phase | Sessions | Rows | Offered rate |
-|---|---|---|---|
-| p1 | 10 | 302 | 3.7 obs/s |
-| p2 | 20 | 604 | 7.2 obs/s |
-| p3 | 30 | 906 | 10.6 obs/s |
-| p4 | 60 | 1812 | 20.9 obs/s |
-| p5 | 90 | 2718 | 31.6 obs/s |
-| p6 | 120 | 3624 | 40.9 obs/s |
-
-The whole run takes ~11.5 minutes. `send_observations.py` sleeps for the full gap and then
-waits for the response, so the achieved rate falls short of the offered rate at high load. Measure
-the achieved rate from `observation.committed` timestamps.
-
-Sessions cycle through ten scenarios by session number, so every phase includes each one. Phase 1
-was checked against the server and matched every row below. If a higher phase differs, the
-deviation comes from load.
-
-| Session `nnn` ends in | Scenario | Expected outcome |
-|---|---|---|
-| 1 | Calm conversation | No assessments |
-| 2 | Character label, apology about 6 s later | Repaired, no intervention |
-| 3 | Vulgar term, no repair | Expires, one intervention |
-| 4 | Absolutist phrase, agreement about 12 s later | Repaired, no intervention |
-| 5 | Harm phrase | One intervention, immediately |
-| 6 | Loud, fast chunk | Expires, one intervention |
-| 7 | Two interruptions | Expires, one intervention |
-| 8 | Monologue longer than 30 s | Expires, one intervention |
-| 9 | `speaker-1` uses absolutist, label, vulgar, and harm phrases | No assessments |
-| 0 | Absolutist phrase repaired by an intent disclaimer, then a label with an apology about 24 s later | First repaired, second expires, one intervention |
-
-Each phase should create 6 interventions per 10 sessions, or 198 in total.
-
-## Demo cases
-
-| Case file | Contents | Expected outcome |
-|---|---|---|
-| `cases/demo-unrepaired.jsonl` | Two interruptions by `speaker-2`, no repair | A pending repeated-interruption assessment, confirmed at the deadline; one intervention |
-| `cases/demo-repaired.jsonl` | The same interruptions, then `speaker-2` says "I apologize." before the deadline | The match resolves as non-conformant; no intervention |
-| `cases/demo-speaker-control.jsonl` | `speaker-1` says "You are crazy." | Stored, but no assessment and no intervention |
-| `cases/demo-target-label.jsonl` | `speaker-2` says "You are crazy." | A confirmed `character_label` assessment; one intervention |
-| `cases/demo-grouped.jsonl` | The two interruptions, with the second one loud | Repeated interruption and loud speech grouped into one intervention with the combined message |
+| File | Contents |
+|---|---|
+| `cases/demo-unrepaired.jsonl` | Two interruptions by `speaker-2` |
+| `cases/demo-repaired.jsonl` | The interruptions followed by an apology |
+| `cases/demo-speaker-control.jsonl` | `speaker-1` says "You are crazy." |
+| `cases/demo-target-label.jsonl` | `speaker-2` says "You are crazy." |
+| `cases/demo-grouped.jsonl` | Two interruptions; the second is loud |

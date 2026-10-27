@@ -12,7 +12,6 @@ def test_converts_stored_microseconds_without_changing_transcript():
     session = Mock(spec=Session)
     session.exec.return_value = [
         Observation(
-            updated_at_us=10,
             case_id="case",
             observation_id="chunk",
             sequence=2,

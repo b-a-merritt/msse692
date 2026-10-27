@@ -1,66 +1,92 @@
+from typing import cast
+
 from sqlmodel import Session
+from sqlmodel import col
+from sqlmodel import select
 
 from normative_conformance import models
-from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.assessment import Assessment
-from normative_conformance.schemas.assessment import Explanation
-from normative_conformance.schemas.assessment import Extent
-from normative_conformance.services.assessment.list_assessments import list_assessments
-from normative_conformance.services.observation.get_case_history import get_case_history
+from normative_conformance.schemas.assessment import ObservationDecision
+from normative_conformance.schemas.decision import Action
+from normative_conformance.services.assessment.report_observation import report_observation
 from normative_conformance.timestamps import from_microseconds
 
 
 def list_assessment_records(*, case_id: str, session: Session) -> list[Assessment]:
-    """Build API records from stored assessments and their evaluated case prefixes."""
-    rows = list_assessments(case_id=case_id, session=session)
-    if not rows:
-        return []
-
-    history = get_case_history(
-        case_id=case_id,
-        through_sequence=max(row.through_sequence for row in rows),
-        session=session,
-    )
-
-    return [
-        _to_record(
-            row=row,
-            history=history,
+    """Read the retained decisions and classifications, in assessment ID order."""
+    assessments = session.exec(
+        select(models.Assessment, models.TargetAssignment.speaker_id)
+        .join(models.TargetAssignment)
+        .where(models.Assessment.case_id == case_id)
+        .order_by(col(models.Assessment.assessment_id))
+    ).all()
+    thresholds = {
+        assessment.assessment_id: assessment.selection_threshold for assessment, _ in assessments
+    }
+    assessment_ids = list(thresholds)
+    probabilities: dict[int, dict[str, float]] = {}
+    for action in session.exec(
+        select(models.AssessmentActionProbability).where(
+            col(models.AssessmentActionProbability.assessment_id).in_(assessment_ids)
         )
-        for row in rows
-    ]
-
-
-def _to_record(
-    *,
-    row: models.Assessment,
-    history: list[Observation],
-) -> Assessment:
-    assert row.assessment_id is not None
-
-    observation_ids = [
-        observation.observation_id
-        for observation in history
-        if observation.sequence <= row.through_sequence
-    ]
-
-    return Assessment(
-        assessment_id=row.assessment_id,
-        resolves_assessment_id=row.resolves_assessment_id,
-        evaluation_id=row.evaluation_id,
-        case_id=row.case_id,
-        subject_speaker_id=row.subject_speaker_id,
-        model_id=row.model_id,
-        model_version=row.model_version,
-        evaluated_at=from_microseconds(value=row.evaluated_at_us),
-        status=row.status,
-        extent=Extent(
-            through_sequence=row.through_sequence,
-            observation_count=len(observation_ids),
-            observation_ids=observation_ids,
-        ),
-        explanation=Explanation.model_validate_json(row.explanation_json),
-        next_due_at=(
-            from_microseconds(value=row.next_due_at_us) if row.next_due_at_us is not None else None
-        ),
-    )
+    ):
+        probabilities.setdefault(action.assessment_id, {})[action.action] = action.probability
+    classifications = session.exec(
+        select(models.Classification, models.Observation.observation_id)
+        .join(models.Observation)
+        .where(col(models.Classification.assessment_id).in_(assessment_ids))
+        .order_by(col(models.Observation.observation_id))
+    ).all()
+    classification_ids = [row.classification_id for row, _ in classifications]
+    topic_scores: dict[int, dict[str, float]] = {}
+    for topic in session.exec(
+        select(models.ClassificationTopicScore).where(
+            col(models.ClassificationTopicScore.classification_id).in_(classification_ids)
+        )
+    ):
+        topic_scores.setdefault(topic.classification_id, {})[topic.topic] = topic.score
+    behavior_scores: dict[int, dict[str, float]] = {}
+    for behavior in session.exec(
+        select(models.ClassificationBehaviorScore).where(
+            col(models.ClassificationBehaviorScore.classification_id).in_(classification_ids)
+        )
+    ):
+        behavior_scores.setdefault(behavior.classification_id, {})[behavior.behavior] = (
+            behavior.score
+        )
+    decisions: dict[int, list[ObservationDecision]] = {}
+    for classification, observation_id in classifications:
+        assert classification.classification_id is not None
+        decisions.setdefault(classification.assessment_id, []).append(
+            report_observation(
+                observation_id=observation_id,
+                topic_scores=topic_scores.get(classification.classification_id, {}),
+                primary_topic=classification.primary_topic,
+                behavior_scores=behavior_scores.get(classification.classification_id, {}),
+                intensity=classification.intensity,
+                threshold=thresholds[classification.assessment_id],
+            )
+        )
+    records = []
+    for assessment, speaker_id in assessments:
+        assert assessment.assessment_id is not None and speaker_id is not None
+        records.append(
+            Assessment(
+                assessment_id=assessment.assessment_id,
+                case_id=assessment.case_id,
+                subject_speaker_id=speaker_id,
+                target_revision=assessment.target_revision,
+                model=assessment.model_id,
+                prompt_version=assessment.prompt_version,
+                evaluated_at=from_microseconds(value=assessment.evaluated_at_us),
+                completed_at=from_microseconds(value=assessment.completed_at_us),
+                after_sequence=assessment.after_sequence,
+                through_sequence=assessment.through_sequence,
+                selection_threshold=assessment.selection_threshold,
+                observations=decisions.get(assessment.assessment_id, []),
+                action=cast(Action, assessment.action),
+                action_confidence=assessment.action_confidence,
+                action_probabilities=probabilities.get(assessment.assessment_id, {}),
+            )
+        )
+    return records

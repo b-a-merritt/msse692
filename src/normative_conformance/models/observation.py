@@ -7,14 +7,22 @@ from sqlmodel import SQLModel
 
 
 class Observation(SQLModel, table=True):
-    __tablename__: ClassVar[str] = "observation"
-    __table_args__ = (UniqueConstraint("case_id", "sequence"),)
+    """Ingested speech has a sequence; speech from a speaker revision has a revision instead."""
 
-    case_id: str = Field(primary_key=True, foreign_key="case_log.case_id", sa_type=Text)
-    observation_id: str = Field(primary_key=True, sa_type=Text)
-    sequence: int
-    received_at_us: int
-    updated_at_us: int
+    __tablename__: ClassVar[str] = "observation"
+    __table_args__ = (
+        UniqueConstraint("case_id", "sequence"),
+        UniqueConstraint("speaker_revision_id", "observation_id"),
+    )
+
+    observation_key: int | None = Field(default=None, primary_key=True)
+    case_id: str = Field(foreign_key="case_log.case_id", sa_type=Text)
+    observation_id: str = Field(sa_type=Text)
+    speaker_revision_id: int | None = Field(
+        default=None, foreign_key="speaker_revision.speaker_revision_id"
+    )
+    sequence: int | None = None
+    received_at_us: int | None = None
     speaker_id: str = Field(sa_type=Text)
     start_at_us: int
     end_at_us: int

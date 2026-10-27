@@ -11,6 +11,7 @@ from normative_conformance.models.case import CaseLog
 from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.services.capture.store_observations import store_observations
+from normative_conformance.services.case.target import current_assignment
 
 
 def test_turn_is_committed_in_order_and_resolves_target(engine):
@@ -46,10 +47,9 @@ def test_turn_is_committed_in_order_and_resolves_target(engine):
     with read_session(engine=engine) as session:
         rows = session.exec(select(Observation).order_by(Observation.sequence)).all()
         assert [(row.observation_id, row.sequence) for row in rows] == [("one", 1), ("two", 2)]
-        assert all(row.received_at_us == row.updated_at_us for row in rows)
-        case = session.get(CaseLog, "case")
-        assert case.target_speaker_id == "B"
-        assert case.target_revision == 1
+        assert all(row.received_at_us is not None for row in rows)
+        assignment = current_assignment(case_id="case", session=session)
+        assert (assignment.target_revision, assignment.speaker_id) == (1, "B")
 
 
 def test_second_run_failure_rolls_back_whole_turn_and_target(engine):
@@ -86,6 +86,4 @@ def test_second_run_failure_rolls_back_whole_turn_and_target(engine):
     assert caught.value.code == "storageUnavailable"
     with read_session(engine=engine) as session:
         assert session.exec(select(Observation)).all() == []
-        case = session.get(CaseLog, "case")
-        assert case.target_speaker_id is None
-        assert case.target_revision == 0
+        assert current_assignment(case_id="case", session=session) is None

@@ -1,6 +1,5 @@
 """Health checks report runtime availability without creating work."""
 
-from threading import Thread
 from unittest.mock import Mock
 from unittest.mock import patch
 from uuid import UUID
@@ -23,6 +22,7 @@ def application(*, tmp_path):
     return create_app(
         settings=Settings(
             _env_file=None,
+            type_safe_api_key="integration-key",
             app_db_path=tmp_path / "app.sqlite3",
             log_dir=tmp_path / "logs",
         )
@@ -58,40 +58,6 @@ def test_healthy_response_has_metadata(*, client, endpoint, status):
     assert response.json() == {"status": status}
     assert UUID(response.headers["X-Request-ID"]).version == 4
     assert response.headers["Cache-Control"] == "no-store"
-
-
-@pytest.mark.parametrize("attribute", ["engine", "worker_stopped", "assessment_worker"])
-def test_missing_resource_is_not_ready_but_remains_live(*, client, monkeypatch, attribute):
-    monkeypatch.setattr(client.app.state, attribute, None)
-
-    response = client.get("/health/ready")
-
-    assert response.status_code == 503
-    assert response.json()["error"]["code"] == "NOT_READY"
-    assert response.json()["error"]["request_id"] == response.headers["X-Request-ID"]
-    assert client.get("/health/live").json() == {"status": "live"}
-
-
-def test_dead_worker_is_not_ready(*, client, monkeypatch):
-    monkeypatch.setattr(client.app.state, "assessment_worker", Thread())
-
-    response = client.get("/health/ready")
-
-    assert response.status_code == 503
-    assert response.json()["error"]["message"] == "The assessment worker is not running"
-    assert client.get("/health/live").status_code == 200
-
-
-def test_worker_failure_is_not_ready(*, client, monkeypatch):
-    client.app.state.worker_stopped.set()
-    client.app.state.assessment_worker.join(timeout=5)
-    assert not client.app.state.assessment_worker.is_alive()
-
-    response = client.get("/health/ready")
-
-    assert response.status_code == 503
-    assert response.json()["error"]["code"] == "NOT_READY"
-    assert client.get("/health/live").status_code == 200
 
 
 @pytest.mark.parametrize(

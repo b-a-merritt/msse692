@@ -2,15 +2,11 @@ import logging
 from threading import Event
 
 from sqlalchemy import Engine
+from typesafe_sdk import TypeSafeClient
 
 from normative_conformance.schemas.internal import Clock
-from normative_conformance.schemas.model import ModelVersion
-from normative_conformance.services.scheduler.run_worker.create_due_interventions import (
-    create_due_interventions,
-)
 from normative_conformance.services.scheduler.run_worker.pending_cases import pending_cases
 from normative_conformance.services.scheduler.run_worker.process_case import process_case
-from normative_conformance.timestamps import to_microseconds
 
 logger = logging.getLogger(__name__)
 
@@ -20,30 +16,27 @@ def run_worker(
     stopped: Event,
     engine: Engine,
     now: Clock,
-    intervention_window_us: int,
-    models: list[ModelVersion],
+    client: TypeSafeClient,
+    batch_size: int,
+    context_seconds: int,
 ) -> None:
-    """Poll durable case progress and repair deadlines with a 0.1-second idle wait."""
-    intervention_windows: dict[str, int] = {}
+    """Poll durable case progress with a 0.1-second idle wait."""
     try:
         while not stopped.is_set():
             try:
                 # Each ready case gets one turn before any case is visited again.
-                for case_id in pending_cases(engine=engine, now_us=to_microseconds(value=now())):
+                for case_id in pending_cases(engine=engine):
                     if stopped.is_set():
                         break
-                    create_due_interventions(
-                        intervention_windows=intervention_windows,
-                        intervention_window_us=intervention_window_us,
-                        engine=engine,
-                        now=now,
-                    )
                     try:
-                        opened_at = process_case(
-                            case_id=case_id, engine=engine, now=now, models=models
+                        process_case(
+                            case_id=case_id,
+                            batch_size=batch_size,
+                            context_seconds=context_seconds,
+                            engine=engine,
+                            now=now,
+                            client=client,
                         )
-                        if opened_at is not None:
-                            intervention_windows.setdefault(case_id, opened_at)
                     except Exception:
                         logger.exception(
                             "Case processing failed",
@@ -52,12 +45,6 @@ def run_worker(
                                 "case_id": case_id,
                             },
                         )
-                create_due_interventions(
-                    intervention_windows=intervention_windows,
-                    intervention_window_us=intervention_window_us,
-                    engine=engine,
-                    now=now,
-                )
             except Exception:
                 logger.exception("Database polling failed", extra={"event": "worker.poll_failed"})
             stopped.wait(0.1)

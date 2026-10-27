@@ -1,38 +1,68 @@
-"""Case selection survives storage and obeys database constraints."""
+"""Case selection and target history survive storage and obey database constraints."""
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from normative_conformance.models.case import CaseLog
+from normative_conformance.models.case import TargetAssignment
 
 
-def test_case_target_round_trip(session):
+def test_case_and_target_assignment_round_trip(session):
     case = CaseLog(
         case_id="case",
         created_at_us=1,
         target_speaker_order=2,
-        target_speaker_id="B",
-        target_speaker_manual=True,
-        target_revision=3,
+        last_handled_sequence=4,
+        last_handled_target_revision=3,
+    )
+    assignment = TargetAssignment(
+        case_id="case", target_revision=3, assigned_at_us=2, speaker_id="B"
     )
     session.add(case)
+    session.flush()
+    session.add(assignment)
     session.commit()
     session.expunge_all()
-    stored = session.get(CaseLog, "case")
-    assert stored is not None
-    assert stored.model_dump() == case.model_dump()
+    assert session.get(CaseLog, "case").model_dump() == case.model_dump()
+    assert session.get(TargetAssignment, ("case", 3)).model_dump() == assignment.model_dump()
+
+
+def test_database_rejects_invalid_speaking_order(session):
+    session.add(CaseLog(case_id="case", created_at_us=0, target_speaker_order=3))
+    with pytest.raises(IntegrityError, match="CHECK"):
+        session.commit()
 
 
 @pytest.mark.parametrize(
-    "values",
+    "changes,reason",
     [
-        {"target_speaker_order": 3},
-        {"target_speaker_id": "PENDING"},
-        {"target_speaker_manual": True},
-        {"target_revision": -1},
+        pytest.param({"case_id": "missing"}, "FOREIGN KEY", id="missing-case"),
+        pytest.param({"target_revision": 0}, "CHECK", id="revision-zero"),
+        pytest.param({"speaker_id": "PENDING"}, "CHECK", id="pending-label"),
+        pytest.param({"speaker_id": " "}, "CHECK", id="blank-label"),
     ],
 )
-def test_database_rejects_invalid_target_state(session, values):
-    session.add(CaseLog(case_id="case", created_at_us=0, **values))
-    with pytest.raises(IntegrityError):
+def test_database_rejects_invalid_target_assignment(session, changes, reason):
+    session.add(CaseLog(case_id="case", created_at_us=0))
+    session.commit()
+    values = {"case_id": "case", "target_revision": 1, "assigned_at_us": 0, "speaker_id": "A"}
+    session.add(TargetAssignment(**(values | changes)))
+    with pytest.raises(IntegrityError, match=reason):
+        session.commit()
+
+
+@pytest.mark.parametrize("operation", ["update", "delete"])
+def test_target_assignments_are_append_only(session, operation):
+    session.add(CaseLog(case_id="case", created_at_us=0))
+    session.flush()
+    assignment = TargetAssignment(
+        case_id="case", target_revision=1, assigned_at_us=0, speaker_id="A"
+    )
+    session.add(assignment)
+    session.commit()
+    if operation == "update":
+        assignment.speaker_id = "B"
+    else:
+        session.delete(assignment)
+    with pytest.raises(IntegrityError, match="target_assignment is append-only"):
         session.commit()

@@ -4,6 +4,7 @@ from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 from sqlmodel import col
+from sqlmodel import select
 
 from normative_conformance import models
 from normative_conformance.errors import StorageUnavailable
@@ -33,7 +34,14 @@ def deliver_pending(
         intervention_ids = list(
             session.exec(
                 update(models.Intervention)
-                .where(col(models.Intervention.case_id) == case_id, is_pending())
+                .where(
+                    col(models.Intervention.assessment_id).in_(
+                        select(models.Assessment.assessment_id).where(
+                            models.Assessment.case_id == case_id
+                        )
+                    ),
+                    is_pending(),
+                )
                 .values(sent_at_us=sent_at_us)
                 .returning(col(models.Intervention.intervention_id))
             ).scalars()

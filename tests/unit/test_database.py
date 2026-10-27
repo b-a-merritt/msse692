@@ -15,20 +15,7 @@ from normative_conformance import database
 from normative_conformance.errors import StorageUnavailable
 
 
-@pytest.mark.parametrize(
-    "text,expected",
-    [(" YOU'RE, A—LIAR!\n", "you're a liar"), ("one\ttwo\r\nthree", "one two three"), ("", "")],
-)
-def test_normalize_text_preserves_word_boundaries(*, text, expected):
-    assert database._normalize_text(text) == expected
-
-
-@pytest.mark.parametrize("value,expected", [("sorry", True), ("sorrow", False)])
-def test_regexp_reports_whether_the_pattern_matches(*, value, expected):
-    assert database._regexp(r"\bsorry\b", value) is expected
-
-
-def test_connection_configuration_registers_functions_and_closes_cursor_on_failure():
+def test_connection_configuration_closes_cursor_on_failure():
     connection = MagicMock(spec=sqlite3.Connection)
     cursor = connection.cursor.return_value
     error = sqlite3.OperationalError("Configuration failed")
@@ -37,12 +24,6 @@ def test_connection_configuration_registers_functions_and_closes_cursor_on_failu
         database._configure_connection(connection, None)
     assert caught.value is error
     assert connection.isolation_level is None
-    connection.create_function.assert_has_calls(
-        [
-            call("normalize_text", 1, database._normalize_text, deterministic=True),
-            call("regexp", 2, database._regexp, deterministic=True),
-        ]
-    )
     cursor.close.assert_called_once()
 
 
@@ -132,9 +113,9 @@ def test_schema_revision_is_read_from_the_current_connection(*, monkeypatch):
     connection = object()
     engine.connect.return_value = nullcontext(connection)
     configure = Mock()
-    configure.return_value.get_current_revision.return_value = "0002"
+    configure.return_value.get_current_revision.return_value = "0001"
     monkeypatch.setattr(database.MigrationContext, "configure", configure)
-    assert database.get_schema_revision(engine=engine) == "0002"
+    assert database.get_schema_revision(engine=engine) == "0001"
     configure.assert_called_once_with(connection)
 
 

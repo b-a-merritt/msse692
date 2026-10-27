@@ -1,71 +1,40 @@
 # Deployment guide
 
-## 1. Configure and start
+Run from the repository root with writable local storage. Environment variables override `.env`; relative paths use the working directory.
 
-Prerequisites: a checkout, Git, [uv](https://docs.astral.sh/uv/getting-started/installation/), and writable local storage. uv provisions Python 3.13, which includes SQLite. Run commands in a Unix-like shell from the repository root.
-
-```mermaid
-flowchart LR
-    C[Local client] -->|127.0.0.1:8000| P[One process + one worker]
-    P --> D[(Database + logs)]
-```
-
-### Configuration
-
-Set environment variables or put the same names in `.env` at the repository root. Environment variables take precedence. Relative paths use the working directory. Keep that directory stable across restarts.
+## Configuration
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `ASSEMBLY_API_KEY` | Empty | Server-side AssemblyAI credential; required for live capture |
-| `APP_DB_PATH` | `data/prototype.sqlite3` | Application SQLite file |
-| `LOG_DIR` | `data/logs` | JSONL log files, one per application start |
-| `INTERVENTION_WINDOW_US` | `2000000` | Positive grouping delay, in microseconds |
-| `DEBUG` | `false` | Framework debug mode. Leave disabled for handoff |
+| `TYPE_SAFE_API_KEY` | Empty | Decision-model credential; required at startup, including for HTTP replays |
+| `ASSEMBLY_API_KEY` | Empty | Transcription credential; required for live capture |
+| `APP_DB_PATH` | `data/prototype.sqlite3` | SQLite database |
+| `LOG_DIR` | `data/logs` | JSONL logs |
+| `DECISION_BATCH_SIZE` | `4` | Positive number of new observations per batch; revised turns can extend it |
+| `DECISION_CONTEXT_SECONDS` | `30` | Nonnegative context duration |
+| `DEBUG` | `false` | Framework debug mode |
 | `APP_NAME` | `normative-conformance` | Application title |
 
-An empty AssemblyAI key disables live transcription with a capture error; HTTP replays remain available. Capture uses an outbound TLS WebSocket to `streaming.assemblyai.com`.
-
-Configure the target per case through `PUT /api/v1/cases/{case_id}/target`. The prototype uses disposable storage: initialize fresh database paths for the checkout being run. Schema compatibility between checkouts is not guaranteed by the migration revision.
-
-From the reviewed checkout, install runtime dependencies, configure dedicated storage, and start one process with reload disabled:
+Use a fresh database path for this disposable schema. Run one process per database; multiple workers sharing storage are unsupported.
 
 ```bash
 uv sync --locked --no-dev
 export APP_DB_PATH=data/research/app.sqlite3
 export LOG_DIR=data/research/logs
-export INTERVENTION_WINDOW_US=2000000
-export DEBUG=false
 uv run --no-dev uvicorn normative_conformance.main:app \
   --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-Startup creates directories, applies migrations and validates the catalog. Invalid models stop startup. Each instance needs its own database. Multiple processes sharing this storage are unsupported for this prototype.
+Startup migrates storage, creates the decision-model client, and starts the worker. A missing decision-model credential stops startup; a missing transcription credential disables capture. Audio goes to the transcription provider; transcripts and context go to the decision-model provider.
 
-## 2. Verify and operate
+## Verify and diagnose
 
-```bash
-curl --fail http://127.0.0.1:8000/health/live
-curl --fail http://127.0.0.1:8000/health/ready
-curl --fail http://127.0.0.1:8000/api/v1/models
-```
+`GET /health/ready` checks the database and worker, not provider availability or assessment completion. Follow the [user guide](user_guide.md) to submit speech and inspect results.
 
-Expect `live`, `ready`, and a catalog with the undesired and repair models. Execute the [user walkthrough](user_guide.md) on a fresh acceptance instance: one accepted observation, one `harm_phrase` assessment, one pending intervention, then a sent intervention. Readiness checks availability. It does not prove that a particular task or intervention has completed.
+Application logs go to stdout and `$LOG_DIR/<UTC start time>.jsonl`. Filter by `case_id` or `capture_id`. Useful events:
 
-### Diagnostics
+- `capture.audio_forwarded`, `capture.transcript_received`, `capture.observations_stored`: recording progress.
+- `capture.speaker_revisions`, `capture.completed`: corrections and successful completion.
+- `capture.failed`, `case.processing_failed`, `worker.poll_failed`: failures.
 
-Structured logs go to stdout and `$LOG_DIR/<UTC start time>.jsonl`. Use `event` and the case, observation, evaluation, or request IDs to correlate operations. Exception fields contain type names rather than exception messages. Transcripts are not included in application logs. Inspect API records to verify outcomes. Use the [error reference](api.md#errors) when readiness fails or an expected result is missing.
-
-Live capture writes INFO events to the same terminal and JSONL file. Filter by `capture_id` to follow one browser connection. `capture.connected` includes the saved `case_id`; `capture.provider_ready` associates both IDs with the AssemblyAI `provider_session_id` shown on the page.
-
-| Event | Meaning |
-|---|---|
-| `capture.connected` | Browser connected; the server is opening transcription |
-| `capture.provider_ready` | AssemblyAI confirmed its session |
-| `capture.audio_forwarded` | Audio was sent upstream; includes cumulative audio duration and packet count |
-| `capture.speech_started` | AssemblyAI detected speech |
-| `capture.transcript_received` | A partial or final transcript arrived; includes turn order, finality, speaker label, and word/character counts |
-| `capture.observations_stored` | Finalized speech committed; includes case ID and number of new observations |
-| `capture.speaker_revisions` | Speaker corrections were retained; lists affected turn orders |
-| `capture.stopping` | All buffered audio was sent; waiting for final provider events |
-| `capture.completed` | Provider termination was received and the browser was notified |
-| `capture.failed`, `capture.disconnected` | Capture ended unsuccessfully; failures include an application error code |
+Application exception records contain type names, not exception messages. Inspect stored assessments for outcomes. See [limitations](known_issues.md) and [API errors](api.md#errors).

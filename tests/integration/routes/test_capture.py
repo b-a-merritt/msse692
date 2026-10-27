@@ -6,13 +6,16 @@ from threading import Thread
 from unittest.mock import Mock
 
 import pytest
+from sqlmodel import col
 from sqlmodel import select
 from starlette.websockets import WebSocketDisconnect
 from websockets.sync.server import serve
 
 from normative_conformance.clients import assemblyai as module
 from normative_conformance.database import read_session
-from normative_conformance.models.speaker_revision import SpeakerRevision
+from normative_conformance.models.observation import Observation
+from normative_conformance.models.speaker_revision import ReplacedObservation
+from normative_conformance.timestamps import to_microseconds
 
 
 @contextmanager
@@ -131,19 +134,28 @@ def test_pcm_and_final_revisions_cross_both_websockets(open_client, monkeypatch)
                 messages.append(message)
                 if message.get("revised"):
                     with read_session(engine=client.app.state.engine) as session:
-                        revisions = session.exec(select(SpeakerRevision)).all()
-                        assert revisions
-                        for revision in revisions:
-                            assert revision.case_id == "capture-case"
-                            original_id = json.loads(revision.replaced_observation_ids_json)[0]
-                            replacement = json.loads(revision.observations_json)[0]
-                            assert replacement["observation_id"] != original_id
-                            assert replacement["case_id"] == "capture-case"
-                            assert replacement["speaker_id"] == "B"
-                            assert replacement["transcript"] == "Hello."
-                            assert replacement["start_at"] == "2026-10-24T00:00:00Z"
-                            assert replacement["end_at"] == "2026-10-24T00:00:00.200000Z"
-                            assert replacement["signal_level_avg"] == -120
+                        corrections = session.exec(
+                            select(Observation).where(
+                                col(Observation.speaker_revision_id).is_not(None)
+                            )
+                        ).all()
+                        assert corrections
+                        replaced_ids = session.exec(
+                            select(Observation.observation_id).join(ReplacedObservation)
+                        ).all()
+                        start_us = to_microseconds(
+                            value=datetime(2026, 10, 24, tzinfo=timezone.utc)
+                        )
+                        for row in corrections:
+                            assert row.observation_id not in replaced_ids
+                            assert row.case_id == "capture-case"
+                            assert row.speaker_id == "B"
+                            assert row.transcript == "Hello."
+                            assert (row.start_at_us, row.end_at_us) == (
+                                start_us,
+                                start_us + 200_000,
+                            )
+                            assert row.signal_level_avg == -120
                 if message["type"] == "stopped":
                     break
                 assert message["type"] != "error"
@@ -177,12 +189,15 @@ def test_pcm_and_final_revisions_cross_both_websockets(open_client, monkeypatch)
         open_client(now=lambda: datetime(2026, 10, 24, tzinfo=timezone.utc)) as client,
         read_session(engine=client.app.state.engine) as session,
     ):
-        revisions = session.exec(select(SpeakerRevision)).all()
-        assert len(revisions) == 2
-        assert all(
-            json.loads(row.replaced_observation_ids_json) == [observations[0]["observation_id"]]
-            for row in revisions
-        )
+        replaced = session.exec(
+            select(ReplacedObservation.speaker_revision_id, Observation.observation_id).join(
+                Observation
+            )
+        ).all()
+        assert len({revision_id for revision_id, _ in replaced}) == 2
+        assert {observation_id for _, observation_id in replaced} == {
+            observations[0]["observation_id"]
+        }
 
 
 def test_malformed_pcm_closes_both_connections(open_client, monkeypatch):

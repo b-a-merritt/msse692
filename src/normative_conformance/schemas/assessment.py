@@ -1,54 +1,32 @@
-from dataclasses import dataclass
-from typing import Literal
-from uuid import UUID
-
 from pydantic import AwareDatetime
-from pydantic import Field
 
 from normative_conformance.schemas.common import ContractModel
-from normative_conformance.schemas.common import Identifier
-
-AssessmentStatus = Literal["conformant", "non-conformant", "pending", "conflicted"]
+from normative_conformance.schemas.decision import Action
 
 
-class Extent(ContractModel):
-    through_sequence: int = Field(strict=True, ge=1)
-    observation_count: int = Field(strict=True, ge=1)
-    observation_ids: list[Identifier] = Field(min_length=1)
-
-
-class RuleResult(ContractModel):
-    rule_id: Identifier
-    outcome: Literal["satisfied", "not_satisfied", "pending"]
-    reason: str
-    observation_ids: list[Identifier]
-    deadline_at: AwareDatetime | None
-
-
-class Explanation(ContractModel):
-    reason_code: Identifier
-    summary: str
-    rules: list[RuleResult] = Field(min_length=1)
+class ObservationDecision(ContractModel):
+    observation_id: str
+    topic_scores: dict[str, float]
+    topics: list[str]
+    primary_topic: str
+    behavior_scores: dict[str, float]
+    behaviors: list[str]
+    intensity: float | None
 
 
 class Assessment(ContractModel):
-    assessment_id: int = Field(strict=True, ge=1)
-    resolves_assessment_id: int | None = Field(default=None, strict=True, ge=1)
-    evaluation_id: UUID
-    case_id: Identifier
-    subject_speaker_id: Identifier
-    model_id: Identifier
-    model_version: str = Field(strict=True, min_length=1)
-    evaluated_at: AwareDatetime
-    status: AssessmentStatus
-    extent: Extent
-    explanation: Explanation
-    next_due_at: AwareDatetime | None
-
-
-@dataclass(frozen=True, kw_only=True)
-class CaseSnapshot:
-    evaluation_id: str
+    model: str
+    prompt_version: str
+    selection_threshold: float
+    observations: list[ObservationDecision]
+    action: Action
+    action_probabilities: dict[str, float]
+    action_confidence: float
+    assessment_id: int
     case_id: str
+    subject_speaker_id: str
+    target_revision: int
+    evaluated_at: AwareDatetime
+    completed_at: AwareDatetime
+    after_sequence: int
     through_sequence: int
-    evaluated_at_us: int

@@ -17,7 +17,8 @@ class Settings(BaseSettings):
     debug: bool = False
     app_db_path: Path = Path("data/prototype.sqlite3")
     log_dir: Path = Path("data/logs")
-    intervention_window_us: int = Field(default=2_000_000, gt=0)
+    decision_batch_size: int = Field(default=4, gt=0)
+    decision_context_seconds: int = Field(default=30, ge=0)
 
 
 @lru_cache

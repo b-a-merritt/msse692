@@ -8,7 +8,6 @@ def test_records_convert_microseconds_to_utc_and_preserve_evidence():
         observation_id="word",
         sequence=1,
         received_at_us=10,
-        updated_at_us=10,
         speaker_id="A",
         start_at_us=1,
         end_at_us=9,

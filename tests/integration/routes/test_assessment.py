@@ -1,314 +1,100 @@
 from datetime import datetime
-from datetime import timedelta
 from datetime import timezone
-from uuid import uuid4
 
-import pytest
+from sqlmodel import select
 
-from normative_conformance.database import read_session
 from normative_conformance.database import write_session
-from normative_conformance.schemas.assessment import CaseSnapshot
-from normative_conformance.services.assessment.check_repairs import check_repairs
-from normative_conformance.services.assessment.evaluate_case import evaluate_case
-from normative_conformance.services.model.list_models import list_models
-from normative_conformance.services.observation.get_case_sequence import get_case_sequence
-from normative_conformance.timestamps import to_microseconds
+from normative_conformance.models.assessment import Assessment
+from normative_conformance.models.assessment import AssessmentActionProbability
+from normative_conformance.models.assessment import Classification
+from normative_conformance.models.assessment import ClassificationTopicScore
+from normative_conformance.models.observation import Observation
 
 
-def test_returns_api_records_with_original_extents_and_resolution_links(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at) as client:
+def test_lists_structured_decisions_for_the_requested_case(open_client):
+    now = datetime(1970, 1, 1, minute=1, tzinfo=timezone.utc)
+    with open_client(now=lambda: now) as client:
         assert (
-            client.put(
-                "/api/v1/cases/case/target", json={"target_speaker_id": "speaker-2"}
-            ).status_code
+            client.put("/api/v1/cases/case/target", json={"target_speaker_id": "A"}).status_code
             == 200
         )
-        assert (
-            client.put(
-                "/api/v1/cases/other/target", json={"target_speaker_id": "speaker-2"}
-            ).status_code
-            == 200
-        )
-        observation_data = {
-            "case_id": "case",
-            "observation_id": "chunk",
-            "speaker_id": "subject",
-            "start_at": "2026-09-26T12:00:00.123456+03:00",
-            "end_at": "2026-09-26T12:00:01.654321+03:00",
-            "transcript": "  Hello!\n",
-            "signal_level_min": -50.0,
-            "signal_level_avg": -30.0,
-            "signal_level_max": -10.0,
-        }
-        with read_session(engine=client.app.state.engine) as catalog_session:
-            model_catalog = list_models(session=catalog_session)
-
-        response = client.post(
-            "/api/v1/observations",
-            json=observation_data
-            | {
-                "case_id": "case",
-                "speaker_id": "speaker-2",
-                "start_at": "2026-09-26T09:00:00Z",
-                "end_at": "2026-09-26T09:00:31Z",
-            },
-        )
-        assert response.status_code == 201
-        with write_session(engine=client.app.state.engine) as assessment_session:
-            rows = evaluate_case(
-                snapshot=CaseSnapshot(
-                    case_id="case",
-                    evaluation_id=str(uuid4()),
-                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
-                    evaluated_at_us=to_microseconds(value=client.app.state.clock()),
-                ),
-                subject_speaker_id="speaker-2",
-                session=assessment_session,
-                models=model_catalog,
-            )
-            assessment_session.commit()
-        assert len(rows) == 1
-        pending = rows[0]
-        response = client.post(
-            "/api/v1/observations",
-            json=observation_data
-            | {
-                "case_id": "other",
-                "speaker_id": "speaker-2",
-                "start_at": "2026-09-26T09:00:00Z",
-                "end_at": "2026-09-26T09:00:31Z",
-            },
-        )
-        assert response.status_code == 201
-        with write_session(engine=client.app.state.engine) as assessment_session:
-            rows = evaluate_case(
-                snapshot=CaseSnapshot(
-                    case_id="other",
-                    evaluation_id=str(uuid4()),
-                    through_sequence=get_case_sequence(case_id="other", session=assessment_session),
-                    evaluated_at_us=to_microseconds(value=client.app.state.clock()),
-                ),
-                subject_speaker_id="speaker-2",
-                session=assessment_session,
-                models=model_catalog,
-            )
-            assessment_session.commit()
-        assert len(rows) == 1
-        # A later arrival must not change the pending assessment's captured extent.
-        assert (
-            client.post(
-                "/api/v1/observations", json=observation_data | {"observation_id": "later"}
-            ).status_code
-            == 201
-        )
-
-        response = client.get("/api/v1/cases/case/assessments")
-
-        assert response.status_code == 200
-        due_at = (received_at + timedelta(seconds=10)).isoformat().replace("+00:00", "Z")
-        expected_pending = {
-            "assessment_id": pending.assessment_id,
-            "resolves_assessment_id": None,
-            "evaluation_id": pending.evaluation_id,
-            "case_id": "case",
-            "subject_speaker_id": "speaker-2",
-            "model_id": "extended_turn",
-            "model_version": "1",
-            "evaluated_at": received_at.isoformat().replace("+00:00", "Z"),
-            "status": "pending",
-            "extent": {
-                "through_sequence": 1,
-                "observation_count": 1,
-                "observation_ids": ["chunk"],
-            },
-            "explanation": {
-                "reason_code": "awaiting_repair",
-                "summary": "Awaiting repair",
-                "rules": [
-                    {
-                        "rule_id": "long_turn",
-                        "outcome": "pending",
-                        "reason": "Awaiting repair",
-                        "observation_ids": [],
-                        "deadline_at": due_at,
-                    }
-                ],
-            },
-            "next_due_at": due_at,
-        }
-        assert response.json() == {"items": [expected_pending]}
-
-        with write_session(engine=client.app.state.engine) as assessment_session:
-            resolution = check_repairs(
-                snapshot=CaseSnapshot(
-                    case_id="case",
-                    evaluation_id=str(uuid4()),
-                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
-                    evaluated_at_us=to_microseconds(value=received_at + timedelta(seconds=10)),
-                ),
-                subject_speaker_id="speaker-2",
-                session=assessment_session,
-                models=model_catalog,
-            )[0]
-            assessment_session.commit()
-        response = client.get("/api/v1/cases/case/assessments")
-
-        assert response.status_code == 200
-        assert response.json() == {
-            "items": [
-                expected_pending,
-                expected_pending
-                | {
-                    "assessment_id": resolution.assessment_id,
-                    "resolves_assessment_id": pending.assessment_id,
-                    "evaluation_id": resolution.evaluation_id,
-                    "evaluated_at": due_at,
-                    "status": "conformant",
-                    "extent": {
-                        "through_sequence": 2,
-                        "observation_count": 2,
-                        "observation_ids": ["chunk", "later"],
-                    },
-                    "explanation": {
-                        "reason_code": "matched",
-                        "summary": "The model matched",
-                        "rules": [
-                            {
-                                "rule_id": "long_turn",
-                                "outcome": "satisfied",
-                                "reason": "The model matched",
-                                "observation_ids": [],
-                                "deadline_at": None,
-                            }
-                        ],
-                    },
-                    "next_due_at": None,
-                },
-            ]
-        }
-
-
-def test_preserves_repair_evidence_in_the_explanation(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at) as client:
-        assert (
-            client.put(
-                "/api/v1/cases/case/target", json={"target_speaker_id": "speaker-2"}
-            ).status_code
-            == 200
-        )
-        observation_data = {
-            "case_id": "case",
-            "observation_id": "chunk",
-            "speaker_id": "subject",
-            "start_at": "2026-09-26T12:00:00.123456+03:00",
-            "end_at": "2026-09-26T12:00:01.654321+03:00",
-            "transcript": "  Hello!\n",
-            "signal_level_min": -50.0,
-            "signal_level_avg": -30.0,
-            "signal_level_max": -10.0,
-        }
-        with read_session(engine=client.app.state.engine) as catalog_session:
-            model_catalog = list_models(session=catalog_session)
-
-        response = client.post(
-            "/api/v1/observations",
-            json=observation_data
-            | {
-                "case_id": "case",
-                "speaker_id": "speaker-2",
-                "start_at": "2026-09-26T09:00:00Z",
-                "end_at": "2026-09-26T09:00:31Z",
-            },
-        )
-        assert response.status_code == 201
-        with write_session(engine=client.app.state.engine) as assessment_session:
-            rows = evaluate_case(
-                snapshot=CaseSnapshot(
-                    case_id="case",
-                    evaluation_id=str(uuid4()),
-                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
-                    evaluated_at_us=to_microseconds(value=client.app.state.clock()),
-                ),
-                subject_speaker_id="speaker-2",
-                session=assessment_session,
-                models=model_catalog,
-            )
-            assessment_session.commit()
-        assert len(rows) == 1
-        pending = rows[0]
         assert (
             client.post(
                 "/api/v1/observations",
-                json=observation_data
-                | {
-                    "observation_id": "apology",
-                    "speaker_id": "speaker-2",
-                    "start_at": "2026-09-26T09:00:32Z",
-                    "end_at": "2026-09-26T09:00:33Z",
-                    "transcript": "I apologize",
+                json={
+                    "case_id": "case",
+                    "observation_id": "one",
+                    "speaker_id": "A",
+                    "start_at": "1970-01-01T00:00:01Z",
+                    "end_at": "1970-01-01T00:00:02Z",
+                    "transcript": "Please help",
+                    "signal_level_min": -40,
+                    "signal_level_avg": -30,
+                    "signal_level_max": -20,
                 },
             ).status_code
             == 201
         )
-        with write_session(engine=client.app.state.engine) as assessment_session:
-            check_repairs(
-                snapshot=CaseSnapshot(
-                    case_id="case",
-                    evaluation_id=str(uuid4()),
-                    through_sequence=get_case_sequence(case_id="case", session=assessment_session),
-                    evaluated_at_us=to_microseconds(value=received_at + timedelta(seconds=5)),
-                ),
-                subject_speaker_id="speaker-2",
-                session=assessment_session,
-                models=model_catalog,
+        with write_session(engine=client.app.state.engine) as session:
+            observation_key = session.exec(
+                select(Observation.observation_key).where(Observation.observation_id == "one")
+            ).one()
+            assessment = Assessment(
+                case_id="case",
+                target_revision=1,
+                model_id="jev-1.14.0",
+                prompt_version="conversation-1",
+                evaluated_at_us=3_000_000,
+                completed_at_us=4_000_000,
+                after_sequence=0,
+                through_sequence=1,
+                action="remain_silent",
+                action_confidence=0.9,
+                selection_threshold=0.7,
+                request_json='{"state":{}}',
             )
-            assessment_session.commit()
-
+            session.add(assessment)
+            session.flush()
+            classification = Classification(
+                assessment_id=assessment.assessment_id,
+                observation_key=observation_key,
+                primary_topic="chores",
+                intensity=0,
+            )
+            session.add(classification)
+            session.flush()
+            session.add(
+                ClassificationTopicScore(
+                    classification_id=classification.classification_id, topic="chores", score=0.8
+                )
+            )
+            session.add(
+                AssessmentActionProbability(
+                    assessment_id=assessment.assessment_id, action="remain_silent", probability=1
+                )
+            )
+            session.commit()
         response = client.get("/api/v1/cases/case/assessments")
-
         assert response.status_code == 200
-        items = response.json()["items"]
-        assert [item["model_id"] for item in items] == ["extended_turn", "apology", "extended_turn"]
-        resolution = items[-1]
-        assert resolution["status"] == "non-conformant"
-        assert resolution["resolves_assessment_id"] == pending.assessment_id
-        assert resolution["explanation"]["reason_code"] == "repaired"
-        assert resolution["explanation"]["rules"][0]["observation_ids"] == ["apology"]
-        assert resolution["extent"]["observation_ids"] == ["chunk", "apology"]
-
-
-@pytest.mark.parametrize("case_id", ["case", "missing"])
-def test_returns_empty_items_when_no_assessments_exist(*, open_client, case_id):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at) as client:
-        observation_data = {
-            "case_id": "case",
-            "observation_id": "chunk",
-            "speaker_id": "subject",
-            "start_at": "2026-09-26T12:00:00.123456+03:00",
-            "end_at": "2026-09-26T12:00:01.654321+03:00",
-            "transcript": "  Hello!\n",
-            "signal_level_min": -50.0,
-            "signal_level_avg": -30.0,
-            "signal_level_max": -10.0,
-        }
-
-        assert client.post("/api/v1/observations", json=observation_data).status_code == 201
-
-        response = client.get(f"/api/v1/cases/{case_id}/assessments")
-
-        assert response.status_code == 200
-        assert response.json() == {"items": []}
-
-
-def test_openapi_describes_the_assessment_response(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
-    with open_client(now=lambda: received_at) as client:
-        responses = client.get("/openapi.json").json()["paths"][
-            "/api/v1/cases/{case_id}/assessments"
-        ]["get"]["responses"]
-        assert responses["200"]["content"]["application/json"]["schema"]["$ref"] == (
-            "#/components/schemas/ListResponse_Assessment_"
-        )
+        [record] = response.json()["items"]
+        assert record["action"] == "remain_silent"
+        assert record["model"] == "jev-1.14.0"
+        assert record["subject_speaker_id"] == "A"
+        assert record["action_probabilities"] == {"remain_silent": 1}
+        assert record["observations"] == [
+            {
+                "observation_id": "one",
+                "topic_scores": {"chores": 0.8},
+                "topics": ["chores"],
+                "primary_topic": "chores",
+                "behavior_scores": {},
+                "behaviors": [],
+                "intensity": 0,
+            }
+        ]
+        assert record["after_sequence"] == 0
+        assert record["through_sequence"] == 1
+        assert record["evaluated_at"] == "1970-01-01T00:00:03Z"
+        assert record["completed_at"] == "1970-01-01T00:00:04Z"
+        assert "request_json" not in record
+        assert client.get("/api/v1/cases/missing/assessments").json() == {"items": []}

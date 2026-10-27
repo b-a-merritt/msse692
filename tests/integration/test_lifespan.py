@@ -4,21 +4,16 @@ from datetime import datetime
 from datetime import timezone
 from threading import Event
 from unittest.mock import patch
-from uuid import UUID
 
-import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session
+from sqlmodel import select
+from typesafe_sdk import TypeSafeClient
 
 from normative_conformance.config import Settings
 from normative_conformance.config import get_settings
-from normative_conformance.database import create_database_engine
-from normative_conformance.database import initialize_database
-from normative_conformance.errors import InvalidModel
-from normative_conformance.models.normative_model import NormativeModelVersion
+from normative_conformance.database import read_session
 from normative_conformance.models.observation import Observation
-from normative_conformance.services.scheduler.run_worker import process_case as processing
-from normative_conformance.timestamps import to_microseconds
+from normative_conformance.services.scheduler.run_worker import run_worker
 
 # Default ASGI construction must not load a developer's local dotenv file.
 with patch.dict(Settings.model_config, {"env_file": None}):
@@ -43,16 +38,27 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(*, tmp_path, mo
     handled = Event()
     calls = []
 
-    def evaluate_case(*, snapshot, subject_speaker_id, session, models):
-        assert session.get(Observation, (snapshot.case_id, "chunk")) is not None
-        calls.append((snapshot, subject_speaker_id))
+    def process_case(**kwargs):
+        with read_session(engine=kwargs["engine"]) as session:
+            assert (
+                session.exec(
+                    select(Observation).where(
+                        Observation.case_id == kwargs["case_id"],
+                        Observation.observation_id == "chunk",
+                    )
+                ).one_or_none()
+                is not None
+            )
+        calls.append(kwargs)
         handled.set()
-        return []
 
-    monkeypatch.setattr(processing, "evaluate_case", evaluate_case)
+    monkeypatch.setattr(run_worker, "process_case", process_case)
     application = create_app(
         settings=Settings(
             _env_file=None,
+            type_safe_api_key="integration-key",
+            decision_batch_size=2,
+            decision_context_seconds=10,
             app_db_path=tmp_path / "app.sqlite3",
             log_dir=tmp_path / "logs",
         ),
@@ -72,43 +78,11 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(*, tmp_path, mo
         assert handled.wait(timeout=5)
 
     assert not worker.is_alive()
-    snapshot, subject_speaker_id = calls[0]
-    assert snapshot.case_id == "case"
-    assert UUID(snapshot.evaluation_id).version == 4
-    assert snapshot.evaluated_at_us == to_microseconds(value=received_at)
-    assert subject_speaker_id == "subject"
+    assert calls[0]["case_id"] == "case"
+    assert isinstance(calls[0]["client"], TypeSafeClient)
+    assert calls[0]["batch_size"] == 2
+    assert calls[0]["context_seconds"] == 10
+    assert calls[0]["now"]() == received_at
     assert application.state.engine is None
     assert application.state.worker_stopped is None
-    assert application.state.assessment_worker is None
-
-
-def test_invalid_model_stops_startup_before_the_worker_starts(*, tmp_path):
-    engine = create_database_engine(path=tmp_path / "app.sqlite3")
-    try:
-        initialize_database(engine=engine)
-        with Session(bind=engine) as session:
-            session.add(
-                NormativeModelVersion(
-                    model_id="harm_phrase",
-                    name="Broken",
-                    version="2",
-                    rules_json='[{"rule_id": "rule", "description": "", "sql": "SELEC 1"}]',
-                    parameters_json="{}",
-                )
-            )
-            session.commit()
-    finally:
-        engine.dispose()
-    application = create_app(
-        settings=Settings(
-            _env_file=None,
-            app_db_path=tmp_path / "app.sqlite3",
-            log_dir=tmp_path / "logs",
-        )
-    )
-
-    with pytest.raises(InvalidModel), TestClient(application):
-        pytest.fail("Startup should fail when a stored model is invalid")
-
-    assert application.state.engine is None
     assert application.state.assessment_worker is None

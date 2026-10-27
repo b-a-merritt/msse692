@@ -10,8 +10,10 @@ from sqlmodel import Session
 from normative_conformance.errors import ObservationExists
 from normative_conformance.errors import StorageUnavailable
 from normative_conformance.models.case import CaseLog
+from normative_conformance.models.case import TargetAssignment
 from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.observation import ObservationInput
+from normative_conformance.services.case import target
 
 module = import_module("normative_conformance.services.observation.ingest")
 
@@ -25,6 +27,7 @@ module = import_module("normative_conformance.services.observation.ingest")
     ],
 )
 def test_assigns_receipt_sequence_and_commits(*, monkeypatch, existing_case, last_sequence):
+    monkeypatch.setattr(target, "current_assignment", Mock(return_value=None))
     input = ObservationInput(
         case_id="case",
         observation_id="chunk",
@@ -37,7 +40,8 @@ def test_assigns_receipt_sequence_and_commits(*, monkeypatch, existing_case, las
         signal_level_max=-10,
     )
     session = Mock(spec=Session)
-    session.get.side_effect = lambda model, key: existing_case if model is CaseLog else None
+    session.get.return_value = existing_case
+    session.exec.return_value.first.return_value = None
     session.exec.return_value.one.return_value = last_sequence
     session.exec.return_value.all.return_value = ["A", "A", "B"]
     clock = Mock(return_value=datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc))
@@ -61,11 +65,12 @@ def test_assigns_receipt_sequence_and_commits(*, monkeypatch, existing_case, las
         assert case.created_at_us == 1_000_000
     observation = next(row for row in rows if isinstance(row, Observation))
     assert observation.model_dump() == {
+        "observation_key": None,
         "case_id": "case",
         "observation_id": "chunk",
+        "speaker_revision_id": None,
         "sequence": result.sequence,
         "received_at_us": 1_000_000,
-        "updated_at_us": 1_000_000,
         "speaker_id": "subject",
         "start_at_us": 1,
         "end_at_us": 9,
@@ -74,9 +79,13 @@ def test_assigns_receipt_sequence_and_commits(*, monkeypatch, existing_case, las
         "signal_level_avg": -30,
         "signal_level_max": -10,
     }
-    if existing_case is not None and existing_case.target_speaker_order == 2:
-        assert existing_case.target_speaker_id == "B"
-        assert existing_case.target_revision == 1
+    assignments = [
+        (row.target_revision, row.assigned_at_us, row.speaker_id)
+        for row in rows
+        if isinstance(row, TargetAssignment)
+    ]
+    ordered = existing_case is not None and existing_case.target_speaker_order == 2
+    assert assignments == ([(1, 1_000_000, "B")] if ordered else [])
     session.rollback.assert_not_called()
 
 
@@ -96,12 +105,9 @@ def test_failures_distinguish_rolled_back_work_from_committed_observations(
         signal_level_max=-10,
     )
     session = Mock(spec=Session)
-    session.get.side_effect = lambda model, key: (
-        CaseLog(case_id="case", created_at_us=0)
-        if model is CaseLog
-        else object()
-        if failure_stage == "duplicate"
-        else None
+    session.get.return_value = CaseLog(case_id="case", created_at_us=0)
+    session.exec.return_value.first.return_value = (
+        object() if failure_stage == "duplicate" else None
     )
     session.exec.return_value.one.return_value = 0
     error = SQLAlchemyError("Private driver details")
@@ -127,7 +133,8 @@ def test_failures_distinguish_rolled_back_work_from_committed_observations(
 def test_staging_leaves_transaction_to_caller(monkeypatch):
     case = CaseLog(case_id="case", created_at_us=0)
     session = Mock(spec=Session)
-    session.get.side_effect = lambda model, key: case if model is CaseLog else None
+    session.get.return_value = case
+    session.exec.return_value.first.return_value = None
     session.exec.return_value.one.return_value = 3
     input = ObservationInput(
         case_id="case",
@@ -151,16 +158,15 @@ def test_staging_leaves_transaction_to_caller(monkeypatch):
     row = session.add.call_args.args[0]
     assert row.observation_id == "chunk"
     assert row.sequence == 4
-    assert row.received_at_us == row.updated_at_us == 90
+    assert row.received_at_us == 90
     session.commit.assert_not_called()
     session.rollback.assert_not_called()
 
 
 def test_staging_propagates_flush_failures_for_the_caller_to_roll_back():
     session = Mock(spec=Session)
-    session.get.side_effect = lambda model, key: (
-        CaseLog(case_id="case", created_at_us=0) if model is CaseLog else None
-    )
+    session.get.return_value = CaseLog(case_id="case", created_at_us=0)
+    session.exec.return_value.first.return_value = None
     session.exec.return_value.one.return_value = 0
     error = SQLAlchemyError("Flush failed")
     session.flush.side_effect = error

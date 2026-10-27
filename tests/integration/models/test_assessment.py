@@ -1,439 +1,209 @@
-"""Assessment persistence, model references, and saved evidence extents."""
-
 import pytest
+from sqlalchemy import delete
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import select
 
 from normative_conformance import models
 
 
-def test_assessment_round_trip_with_defaults_and_generated_id(*, session):
-    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
-    session.add(case)
+@pytest.mark.parametrize("operation", ["update", "delete"])
+@pytest.mark.parametrize(
+    "table",
+    [
+        models.Assessment,
+        models.AssessmentActionProbability,
+        models.Classification,
+        models.ClassificationTopicScore,
+        models.ClassificationBehaviorScore,
+    ],
+)
+def test_retained_decisions_cannot_be_changed(session, table, operation):
+    session.add(models.CaseLog(case_id="case", created_at_us=0))
     session.flush()
     observation = models.Observation(
-        updated_at_us=10,
         case_id="case",
-        observation_id="chunk",
+        observation_id="original",
         sequence=1,
-        received_at_us=10,
-        speaker_id="subject",
-        start_at_us=1,
-        end_at_us=9,
-        transcript="Hello",
-        signal_level_min=-30.0,
-        signal_level_avg=-20.0,
-        signal_level_max=-10.0,
+        received_at_us=1,
+        speaker_id="A",
+        start_at_us=0,
+        end_at_us=1,
+        transcript="Please help",
+        signal_level_min=-40,
+        signal_level_avg=-30,
+        signal_level_max=-20,
     )
-    session.add(observation)
-    session.flush()
-    model = models.NormativeModelVersion(
-        model_id="anger",
-        name="Anger",
-        version="1",
-        rules_json='[{"rule_id":"test"}]',
-        parameters_json="{}",
+    session.add_all(
+        [
+            observation,
+            models.TargetAssignment(
+                case_id="case", target_revision=1, assigned_at_us=0, speaker_id="A"
+            ),
+        ]
     )
-    session.add(model)
     session.flush()
     assessment = models.Assessment(
-        subject_speaker_id="configured-subject",
-        evaluation_id="evaluation-1",
         case_id="case",
-        model_id="anger",
-        model_version="1",
-        evaluated_at_us=11,
+        target_revision=1,
+        model_id="jev-1.14.0",
+        prompt_version="conversation-1",
+        evaluated_at_us=2,
+        completed_at_us=3,
+        after_sequence=0,
         through_sequence=1,
-        status="conformant",
-        explanation_json='{"reason_code":"satisfied"}',
+        action="intervene",
+        action_confidence=0.8,
+        selection_threshold=0.7,
+        request_json="{}",
     )
     session.add(assessment)
     session.flush()
+    classification = models.Classification(
+        assessment_id=assessment.assessment_id,
+        observation_key=observation.observation_key,
+        primary_topic="chores",
+        intensity=1.5,
+    )
+    session.add(classification)
+    session.flush()
+    session.add_all(
+        [
+            models.ClassificationTopicScore(
+                classification_id=classification.classification_id, topic="chores", score=0.8
+            ),
+            models.ClassificationBehaviorScore(
+                classification_id=classification.classification_id,
+                behavior="criticism",
+                score=0.9,
+            ),
+            models.AssessmentActionProbability(
+                assessment_id=assessment.assessment_id, action="intervene", probability=0.8
+            ),
+        ]
+    )
     session.commit()
-    session.expunge_all()
-    records = {"assessment": assessment, "case": case, "model": model, "observation": observation}
-
-    original = records["assessment"]
-    assert original.assessment_id > 0
-    assert original.next_due_at_us is None
-    stored = session.get(models.Assessment, original.assessment_id)
-    assert stored is not None
-    assert stored.model_dump() == original.model_dump()
+    column = (
+        table.classification_id
+        if table in (models.ClassificationTopicScore, models.ClassificationBehaviorScore)
+        else table.assessment_id
+    )
+    statement = delete(table) if operation == "delete" else update(table).values({column: 99})
+    with pytest.raises(IntegrityError, match="is append-only"):
+        session.execute(statement)
+    session.rollback()
+    session.expire_all()
+    assert session.get(models.Assessment, assessment.assessment_id).action == "intervene"
+    assert (
+        session.get(models.Classification, classification.classification_id).primary_topic
+        == "chores"
+    )
 
 
 @pytest.mark.parametrize(
-    ("changes", "constraint"),
+    "changes,reason",
     [
-        pytest.param({"assessment_id": 0}, "CHECK", id="nonpositive-id"),
-        pytest.param({"evaluation_id": "evaluation-1"}, "UNIQUE", id="duplicate-evaluation"),
-        pytest.param({"model_id": "missing"}, "FOREIGN KEY", id="missing-model"),
-        pytest.param({"model_version": "missing"}, "FOREIGN KEY", id="missing-model-version"),
-        pytest.param({"case_id": "missing"}, "FOREIGN KEY", id="missing-case"),
-        pytest.param({"through_sequence": 2}, "FOREIGN KEY", id="missing-prefix-end"),
-        pytest.param({"through_sequence": 0}, "CHECK", id="nonpositive-prefix-end"),
-        pytest.param({"status": "invalid"}, "CHECK", id="invalid-status"),
-        pytest.param({"explanation_json": "invalid"}, "CHECK", id="invalid-explanation-json"),
+        pytest.param({"action": "invented"}, "CHECK", id="unknown-action"),
+        pytest.param({"action_confidence": 1.1}, "CHECK", id="confidence-above-one"),
+        pytest.param({"after_sequence": 1}, "CHECK", id="empty-range"),
+        pytest.param({"through_sequence": 2}, "FOREIGN KEY", id="unstored-sequence"),
+        pytest.param({"target_revision": 2}, "FOREIGN KEY", id="unassigned-target"),
+        pytest.param({"request_json": "invalid"}, "CHECK", id="invalid-request"),
     ],
 )
-def test_invalid_assessments_are_rejected(*, session, changes, constraint):
-    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
-    session.add(case)
+def test_assessment_integrity_constraints(session, changes, reason):
+    session.add(models.CaseLog(case_id="case", created_at_us=0))
     session.flush()
-    observation = models.Observation(
-        updated_at_us=10,
-        case_id="case",
-        observation_id="chunk",
-        sequence=1,
-        received_at_us=10,
-        speaker_id="subject",
-        start_at_us=1,
-        end_at_us=9,
-        transcript="Hello",
-        signal_level_min=-30.0,
-        signal_level_avg=-20.0,
-        signal_level_max=-10.0,
+    session.add_all(
+        [
+            models.Observation(
+                case_id="case",
+                observation_id="one",
+                sequence=1,
+                received_at_us=1,
+                speaker_id="A",
+                start_at_us=0,
+                end_at_us=1,
+                transcript="Hello",
+                signal_level_min=-40,
+                signal_level_avg=-30,
+                signal_level_max=-20,
+            ),
+            models.TargetAssignment(
+                case_id="case", target_revision=1, assigned_at_us=0, speaker_id="A"
+            ),
+        ]
     )
-    session.add(observation)
-    session.flush()
-    model = models.NormativeModelVersion(
-        model_id="anger",
-        name="Anger",
-        version="1",
-        rules_json='[{"rule_id":"test"}]',
-        parameters_json="{}",
-    )
-    session.add(model)
-    session.flush()
-    assessment = models.Assessment(
-        subject_speaker_id="configured-subject",
-        evaluation_id="evaluation-1",
-        case_id="case",
-        model_id="anger",
-        model_version="1",
-        evaluated_at_us=11,
-        through_sequence=1,
-        status="conformant",
-        explanation_json='{"reason_code":"satisfied"}',
-    )
-    session.add(assessment)
-    session.flush()
     session.commit()
-    session.expunge_all()
-    records = {"assessment": assessment, "case": case, "model": model, "observation": observation}
-
-    values = records["assessment"].model_dump()
-    values.update(assessment_id=None, evaluation_id="evaluation-2")
-    values.update(changes)
+    values = {
+        "case_id": "case",
+        "target_revision": 1,
+        "model_id": "jev-1.14.0",
+        "prompt_version": "conversation-1",
+        "evaluated_at_us": 2,
+        "completed_at_us": 3,
+        "after_sequence": 0,
+        "through_sequence": 1,
+        "action": "remain_silent",
+        "action_confidence": 0.8,
+        "selection_threshold": 0.7,
+        "request_json": "{}",
+    } | changes
     session.add(models.Assessment(**values))
-    with pytest.raises(IntegrityError, match=constraint):
+    with pytest.raises(IntegrityError, match=reason):
         session.commit()
 
 
-@pytest.mark.parametrize("status", ["conformant", "non-conformant", "pending", "conflicted"])
-def test_new_evaluations_accept_all_statuses(*, session, status):
-    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
-    session.add(case)
+def test_an_observation_is_classified_once_per_assessment(session):
+    session.add(models.CaseLog(case_id="case", created_at_us=0))
     session.flush()
     observation = models.Observation(
-        updated_at_us=10,
         case_id="case",
-        observation_id="chunk",
+        observation_id="one",
         sequence=1,
-        received_at_us=10,
-        speaker_id="subject",
-        start_at_us=1,
-        end_at_us=9,
+        received_at_us=1,
+        speaker_id="A",
+        start_at_us=0,
+        end_at_us=1,
         transcript="Hello",
-        signal_level_min=-30.0,
-        signal_level_avg=-20.0,
-        signal_level_max=-10.0,
+        signal_level_min=-40,
+        signal_level_avg=-30,
+        signal_level_max=-20,
     )
-    session.add(observation)
-    session.flush()
-    model = models.NormativeModelVersion(
-        model_id="anger",
-        name="Anger",
-        version="1",
-        rules_json='[{"rule_id":"test"}]',
-        parameters_json="{}",
+    session.add_all(
+        [
+            observation,
+            models.TargetAssignment(
+                case_id="case", target_revision=1, assigned_at_us=0, speaker_id="A"
+            ),
+        ]
     )
-    session.add(model)
     session.flush()
     assessment = models.Assessment(
-        subject_speaker_id="configured-subject",
-        evaluation_id="evaluation-1",
         case_id="case",
-        model_id="anger",
-        model_version="1",
-        evaluated_at_us=11,
+        target_revision=1,
+        model_id="jev-1.14.0",
+        prompt_version="conversation-1",
+        evaluated_at_us=2,
+        completed_at_us=3,
+        after_sequence=0,
         through_sequence=1,
-        status="conformant",
-        explanation_json='{"reason_code":"satisfied"}',
+        action="remain_silent",
+        action_confidence=0.8,
+        selection_threshold=0.7,
+        request_json="{}",
     )
     session.add(assessment)
     session.flush()
-    session.commit()
-    session.expunge_all()
-    records = {"assessment": assessment, "case": case, "model": model, "observation": observation}
-
-    values = records["assessment"].model_dump()
-    values.update(
-        assessment_id=None, evaluation_id="evaluation-2", status=status, next_due_at_us=20
+    session.add_all(
+        [
+            models.Classification(
+                assessment_id=assessment.assessment_id,
+                observation_key=observation.observation_key,
+                primary_topic=topic,
+                intensity=None,
+            )
+            for topic in ("chores", "money")
+        ]
     )
-    assessment = models.Assessment(**values)
-    session.add(assessment)
-    session.commit()
-    session.refresh(assessment)
-    assert assessment.assessment_id != records["assessment"].assessment_id
-    assert assessment.status == status
-    assert assessment.next_due_at_us == 20
-
-
-def test_evaluation_can_include_multiple_model_versions(*, session):
-    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
-    session.add(case)
-    session.flush()
-    observation = models.Observation(
-        updated_at_us=10,
-        case_id="case",
-        observation_id="chunk",
-        sequence=1,
-        received_at_us=10,
-        speaker_id="subject",
-        start_at_us=1,
-        end_at_us=9,
-        transcript="Hello",
-        signal_level_min=-30.0,
-        signal_level_avg=-20.0,
-        signal_level_max=-10.0,
-    )
-    session.add(observation)
-    session.flush()
-    model = models.NormativeModelVersion(
-        model_id="anger",
-        name="Anger",
-        version="1",
-        rules_json='[{"rule_id":"test"}]',
-        parameters_json="{}",
-    )
-    session.add(model)
-    session.flush()
-    assessment = models.Assessment(
-        subject_speaker_id="configured-subject",
-        evaluation_id="evaluation-1",
-        case_id="case",
-        model_id="anger",
-        model_version="1",
-        evaluated_at_us=11,
-        through_sequence=1,
-        status="conformant",
-        explanation_json='{"reason_code":"satisfied"}',
-    )
-    session.add(assessment)
-    session.flush()
-    session.commit()
-    session.expunge_all()
-    records = {"assessment": assessment, "case": case, "model": model, "observation": observation}
-
-    session.add(models.NormativeModelVersion(**(records["model"].model_dump() | {"version": "2"})))
-    session.flush()
-    values = records["assessment"].model_dump() | {"assessment_id": None, "model_version": "2"}
-    session.add(models.Assessment(**values))
-    session.commit()
-    assessments = session.exec(select(models.Assessment)).all()
-    assert {(row.evaluation_id, row.model_version) for row in assessments} == {
-        ("evaluation-1", "1"),
-        ("evaluation-1", "2"),
-    }
-
-
-def test_later_observations_do_not_extend_a_saved_assessment(*, session):
-    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
-    session.add(case)
-    session.flush()
-    observation = models.Observation(
-        updated_at_us=10,
-        case_id="case",
-        observation_id="chunk",
-        sequence=1,
-        received_at_us=10,
-        speaker_id="subject",
-        start_at_us=1,
-        end_at_us=9,
-        transcript="Hello",
-        signal_level_min=-30.0,
-        signal_level_avg=-20.0,
-        signal_level_max=-10.0,
-    )
-    session.add(observation)
-    session.flush()
-    model = models.NormativeModelVersion(
-        model_id="anger",
-        name="Anger",
-        version="1",
-        rules_json='[{"rule_id":"test"}]',
-        parameters_json="{}",
-    )
-    session.add(model)
-    session.flush()
-    assessment = models.Assessment(
-        subject_speaker_id="configured-subject",
-        evaluation_id="evaluation-1",
-        case_id="case",
-        model_id="anger",
-        model_version="1",
-        evaluated_at_us=11,
-        through_sequence=1,
-        status="conformant",
-        explanation_json='{"reason_code":"satisfied"}',
-    )
-    session.add(assessment)
-    session.flush()
-    session.commit()
-    session.expunge_all()
-    records = {"assessment": assessment, "case": case, "model": model, "observation": observation}
-
-    values = records["observation"].model_dump() | {"observation_id": "later", "sequence": 2}
-    session.add(models.Observation(**values))
-    session.commit()
-    evidence = session.exec(
-        select(models.Observation)
-        .join(
-            models.Assessment,
-            (models.Observation.case_id == models.Assessment.case_id)
-            & (models.Observation.sequence <= models.Assessment.through_sequence),
-        )
-        .where(models.Assessment.assessment_id == records["assessment"].assessment_id)
-    ).all()
-    assert [row.observation_id for row in evidence] == ["chunk"]
-
-
-def test_pending_assessment_accepts_one_appended_resolution(*, session):
-    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
-    session.add(case)
-    session.flush()
-    observation = models.Observation(
-        updated_at_us=10,
-        case_id="case",
-        observation_id="chunk",
-        sequence=1,
-        received_at_us=10,
-        speaker_id="subject",
-        start_at_us=1,
-        end_at_us=9,
-        transcript="Hello",
-        signal_level_min=-30.0,
-        signal_level_avg=-20.0,
-        signal_level_max=-10.0,
-    )
-    session.add(observation)
-    session.flush()
-    model = models.NormativeModelVersion(
-        model_id="anger",
-        name="Anger",
-        version="1",
-        rules_json='[{"rule_id":"test"}]',
-        parameters_json="{}",
-    )
-    session.add(model)
-    session.flush()
-    assessment = models.Assessment(
-        subject_speaker_id="configured-subject",
-        evaluation_id="evaluation-1",
-        case_id="case",
-        model_id="anger",
-        model_version="1",
-        evaluated_at_us=11,
-        through_sequence=1,
-        status="conformant",
-        explanation_json='{"reason_code":"satisfied"}',
-    )
-    session.add(assessment)
-    session.flush()
-    session.commit()
-    session.expunge_all()
-    records = {"assessment": assessment, "case": case, "model": model, "observation": observation}
-
-    pending = models.Assessment(
-        **(
-            records["assessment"].model_dump()
-            | {
-                "assessment_id": None,
-                "evaluation_id": "pending",
-                "status": "pending",
-                "next_due_at_us": 20,
-            }
-        ),
-    )
-    session.add(pending)
-    session.commit()
-    resolution = records["assessment"].model_dump() | {
-        "assessment_id": None,
-        "evaluation_id": "resolution",
-        "evaluated_at_us": 20,
-        "resolves_assessment_id": pending.assessment_id,
-    }
-    session.add(models.Assessment(**resolution))
-    session.commit()
-    session.refresh(pending)
-    assert pending.status == "pending"
-    assert pending.next_due_at_us == 20
-    session.add(models.Assessment(**(resolution | {"evaluation_id": "duplicate"})))
     with pytest.raises(IntegrityError, match="UNIQUE"):
-        session.commit()
-
-
-def test_finalized_assessment_cannot_be_resolved(*, session):
-    case = models.CaseLog(target_speaker_id="configured-subject", case_id="case", created_at_us=1)
-    session.add(case)
-    session.flush()
-    observation = models.Observation(
-        updated_at_us=10,
-        case_id="case",
-        observation_id="chunk",
-        sequence=1,
-        received_at_us=10,
-        speaker_id="subject",
-        start_at_us=1,
-        end_at_us=9,
-        transcript="Hello",
-        signal_level_min=-30.0,
-        signal_level_avg=-20.0,
-        signal_level_max=-10.0,
-    )
-    session.add(observation)
-    session.flush()
-    model = models.NormativeModelVersion(
-        model_id="anger",
-        name="Anger",
-        version="1",
-        rules_json='[{"rule_id":"test"}]',
-        parameters_json="{}",
-    )
-    session.add(model)
-    session.flush()
-    assessment = models.Assessment(
-        subject_speaker_id="configured-subject",
-        evaluation_id="evaluation-1",
-        case_id="case",
-        model_id="anger",
-        model_version="1",
-        evaluated_at_us=11,
-        through_sequence=1,
-        status="conformant",
-        explanation_json='{"reason_code":"satisfied"}',
-    )
-    session.add(assessment)
-    session.flush()
-    session.commit()
-    session.expunge_all()
-    records = {"assessment": assessment, "case": case, "model": model, "observation": observation}
-
-    values = records["assessment"].model_dump() | {
-        "assessment_id": None,
-        "evaluation_id": "resolution",
-        "resolves_assessment_id": records["assessment"].assessment_id,
-    }
-    session.add(models.Assessment(**values))
-    with pytest.raises(IntegrityError, match="matching pending assessment"):
         session.commit()
