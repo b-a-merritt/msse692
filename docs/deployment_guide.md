@@ -10,8 +10,9 @@ Run from the repository root with writable local storage. Environment variables 
 | `ASSEMBLY_API_KEY` | Empty | Transcription credential; required for live capture |
 | `APP_DB_PATH` | `data/prototype.sqlite3` | SQLite database |
 | `LOG_DIR` | `data/logs` | JSONL logs |
-| `DECISION_BATCH_SIZE` | `4` | Positive number of new observations per batch; revised turns can extend it |
-| `DECISION_CONTEXT_SECONDS` | `30` | Nonnegative context duration |
+| `DECISION_MAX_BATCH_SECONDS` | `60` | Positive speech duration that ends a batch before the target's turn ends |
+| `DECISION_IDLE_SECONDS` | `20` | Positive time without new speech that ends a batch |
+| `DECISION_CONTEXT_SECONDS` | `30` | Nonnegative duration of earlier speech sent as context |
 | `DEBUG` | `false` | Framework debug mode |
 | `APP_NAME` | `normative-conformance` | Application title |
 

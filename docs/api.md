@@ -64,7 +64,7 @@ Transcript messages have this shape:
 {"type":"transcript","turn_order":0,"final":true,"revised":false,"transcript":"Hello.","speaker_id":"A","words":[{"text":"Hello.","start_ms":0,"end_ms":500,"speaker_id":"A"}]}
 ```
 
-A turn's first final is saved before its message is sent; later finals are ignored. Partial updates and revisions use the same turn order. Speaker IDs can be null for unattributed speech. Revisions are saved before `revised:true` messages. They do not change original observations, targets, or existing assessments, and do not trigger reassessment. Revised records are not exposed over HTTP.
+A turn's first final is saved before its message is sent; later finals are ignored. Partial updates and revisions use the same turn order. Speaker IDs can be null for unattributed speech. Revisions are saved before `revised:true` messages. They do not change original observations, targets, or assessments; assessments use the original labels. Revised records are not exposed over HTTP.
 
 Send exact text `stop`. The server drains final provider events, then sends `{"type":"stopped"}` and closes with code 1000. The drain timeout is ten seconds. Closing without `stopped` means incomplete capture.
 

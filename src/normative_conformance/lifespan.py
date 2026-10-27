@@ -30,7 +30,8 @@ def _worker_lifespan(
     app: FastAPI,
     engine: Engine,
     client: TypeSafeClient,
-    batch_size: int,
+    max_batch_seconds: int,
+    idle_seconds: int,
     context_seconds: int,
 ) -> Iterator[None]:
     """Keep the database available until the worker has stopped."""
@@ -42,7 +43,8 @@ def _worker_lifespan(
             "engine": engine,
             "now": app.state.clock,
             "client": client,
-            "batch_size": batch_size,
+            "max_batch_seconds": max_batch_seconds,
+            "idle_seconds": idle_seconds,
             "context_seconds": context_seconds,
         },
         name="assessment-worker",
@@ -72,7 +74,8 @@ def _log_started(
             "event": "app.started",
             "log_file": str(log_path),
             "schema_revision": get_schema_revision(engine=engine),
-            "decision_batch_size": settings.decision_batch_size,
+            "decision_max_batch_seconds": settings.decision_max_batch_seconds,
+            "decision_idle_seconds": settings.decision_idle_seconds,
             "decision_context_seconds": settings.decision_context_seconds,
         },
     )
@@ -102,7 +105,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     app=app,
                     engine=engine,
                     client=client,
-                    batch_size=settings.decision_batch_size,
+                    max_batch_seconds=settings.decision_max_batch_seconds,
+                    idle_seconds=settings.decision_idle_seconds,
                     context_seconds=settings.decision_context_seconds,
                 ):
                     _log_started(engine=engine, settings=settings, log_path=log_path)

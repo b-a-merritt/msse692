@@ -14,9 +14,9 @@ flowchart LR
     D --> A[Assessment API]
 ```
 
-One worker visits each ready case per pass, then waits 0.1 seconds. A resolved target and new ingested sequences or a changed target revision make a case ready. Calls are synchronous, so inference delays other cases.
+One worker visits each ready case per pass, then waits 0.1 seconds. A resolved target and new ingested sequences or a changed target revision make a case ready; it is skipped while its batch is open. Calls are synchronous, so inference delays other cases.
 
-`process_case` loads speech and the target in a read transaction. `batch_end` selects up to the configured batch size, extending the boundary to include a revised turn. `build_snapshot` overlays each turn's latest revision and includes recent context. Corrected rows overlapping unhandled originals are new; a merged row may also contain handled speech. If revisions remove all new speech, the worker advances progress without calling the decision model.
+`process_case` loads ingested speech and the target in a read transaction. `batch_end` ends a batch at the target's last observation once another speaker's observation arrives, or earlier when its speech spans `DECISION_MAX_BATCH_SECONDS` or nothing has arrived for `DECISION_IDLE_SECONDS`. `build_snapshot` adds speech ending within `DECISION_CONTEXT_SECONDS` before the batch as context. Decisions use the speaker labels speech arrived with; revisions are not read.
 
 Inference runs outside database transactions. On success, decisions and progress commit together. A target change during inference preserves the decision under its original assignment and leaves the new target pending. Failures leave progress unchanged and retry on later polls. There is no persisted attempt budget or interrupted-request recovery.
 
@@ -32,7 +32,7 @@ Every new observation gets topic scores and a primary-topic choice. Only target 
 
 See the [schema](schema.md). Times are UTC microseconds in storage and aware timestamps in responses. Append-only triggers protect observations, revisions, target assignments, assessments, and classifications.
 
-Ingested observations have a sequence and receipt time. Corrected observations reference a speaker revision; `replaced_observation` links it to the ingested rows it replaces. Classifications reference exact observation keys. Revisions affect later snapshots without changing past decisions, target selection, or polling eligibility.
+Ingested observations have a sequence and receipt time. Corrected observations reference a speaker revision; `replaced_observation` links it to the ingested rows it replaces. Classifications reference exact observation keys. Revisions are records only; decisions, target selection, and polling ignore them.
 
 `target_assignment` records speaker-label changes. Speaking order uses ingested speech; selecting a label clears that order. Assessments reference the assignment they used. Each stored intervention references one `intervene` assessment. Delivery marks it sent once, only while its target revision remains current.
 

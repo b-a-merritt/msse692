@@ -80,9 +80,11 @@ def test_worker_assesses_stored_speech_and_advances_progress(engine, session, mo
         kwargs={
             "stopped": stopped,
             "engine": engine,
-            "now": lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+            # The only speech was received a minute ago, so its batch has ended.
+            "now": lambda: datetime(1970, 1, 1, minute=1, tzinfo=timezone.utc),
             "client": object(),
-            "batch_size": 4,
+            "max_batch_seconds": 60,
+            "idle_seconds": 20,
             "context_seconds": 30,
         },
     )

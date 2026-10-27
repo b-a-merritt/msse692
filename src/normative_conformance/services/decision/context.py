@@ -1,19 +1,8 @@
-from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
 
 from normative_conformance.schemas.decision import DecisionSnapshot
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.schemas.observation import ObservationReplacement
 from normative_conformance.services.observation.load_case_speech import IngestedObservation
-
-
-@dataclass(frozen=True, eq=False)
-class _Speech:
-    """Current speech and the ingested observations it represents."""
-
-    row: ObservationInput
-    sources: list[IngestedObservation]
 
 
 def build_snapshot(
@@ -22,24 +11,27 @@ def build_snapshot(
     target_speaker_id: str,
     target_revision: int,
     ingested: list[IngestedObservation],
-    revisions: list[ObservationReplacement],
     after_sequence: int,
     through_sequence: int,
     context_seconds: int,
     captured_at: datetime,
 ) -> DecisionSnapshot:
-    """Describe the batch's speech as currently corrected, with recent speech as context.
+    """Describe the batch's new speech in time order, with the speech shortly before it.
 
-    Speech is new when any observation it represents is after `after_sequence`. Revisions can
-    remove all new speech, which leaves an empty snapshot with nothing to assess.
+    The batch must contain new speech, which is everything after `after_sequence`.
     """
-    speech = _current_speech(
-        ingested=ingested,
-        revisions=revisions,
-        through_sequence=through_sequence,
+    batch = [row for row in ingested if row.sequence <= through_sequence]
+    new = [row.observation for row in batch if row.sequence > after_sequence]
+    cutoff = min(row.start_at for row in new) - timedelta(seconds=context_seconds)
+    context = sorted(
+        (
+            row.observation
+            for row in batch
+            if row.sequence > after_sequence or row.observation.end_at > cutoff
+        ),
+        key=lambda row: (row.start_at, row.end_at, row.observation_id),
     )
-    new = [item for item in speech if any(row.sequence > after_sequence for row in item.sources)]
-    context = _recent(speech=speech, new=new, seconds=context_seconds)
+    new_ids = {row.observation_id for row in new}
     return DecisionSnapshot(
         case_id=case_id,
         target_speaker_id=target_speaker_id,
@@ -47,51 +39,8 @@ def build_snapshot(
         after_sequence=after_sequence,
         through_sequence=through_sequence,
         captured_at=captured_at,
-        observations=[item.row for item in context],
-        new_observation_ids=[item.row.observation_id for item in context if item in new],
+        observations=context,
+        new_observation_ids=[
+            row.observation_id for row in context if row.observation_id in new_ids
+        ],
     )
-
-
-def _current_speech(
-    *,
-    ingested: list[IngestedObservation],
-    revisions: list[ObservationReplacement],
-    through_sequence: int,
-) -> list[_Speech]:
-    """Replace each revised turn with its latest correction, up to the end of the batch."""
-    stored = {
-        row.observation.observation_id: row for row in ingested if row.sequence <= through_sequence
-    }
-    # Revisions arrive in order, and each one replaces a whole turn.
-    latest = {frozenset(revision.replaced_observation_ids): revision for revision in revisions}
-    replaced = {identity for identities in latest for identity in identities}
-    speech = [
-        _Speech(row=row.observation, sources=[row])
-        for identity, row in stored.items()
-        if identity not in replaced
-    ]
-    for identities, revision in latest.items():
-        turn = [stored[identity] for identity in identities if identity in stored]
-        # A turn ingested after the batch is not part of it yet.
-        if not turn:
-            continue
-        speech.extend(
-            _Speech(row=row, sources=[source for source in turn if _overlaps(row, source)])
-            for row in revision.observations
-        )
-    return speech
-
-
-def _recent(*, speech: list[_Speech], new: list[_Speech], seconds: int) -> list[_Speech]:
-    """Keep new speech and speech ending shortly before it, in time order."""
-    if not new:
-        return []
-    cutoff = min(item.row.start_at for item in new) - timedelta(seconds=seconds)
-    return sorted(
-        (item for item in speech if item in new or item.row.end_at > cutoff),
-        key=lambda item: (item.row.start_at, item.row.end_at, item.row.observation_id),
-    )
-
-
-def _overlaps(row: ObservationInput, source: IngestedObservation) -> bool:
-    return row.start_at < source.observation.end_at and source.observation.start_at < row.end_at

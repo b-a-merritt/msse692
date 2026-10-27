@@ -19,46 +19,41 @@ from normative_conformance.timestamps import to_microseconds
 def process_case(
     *,
     case_id: str,
-    batch_size: int,
+    max_batch_seconds: int,
+    idle_seconds: int,
     context_seconds: int,
     engine: Engine,
     now: Clock,
     client: TypeSafeClient,
 ) -> Assessment | None:
-    """Assess a fixed batch, then commit its decisions and progress atomically.
-
-    A batch whose new speech was entirely removed by revisions is marked handled unassessed.
-    """
+    """Assess the next closed batch, then commit its decisions and progress atomically."""
     with read_session(engine=engine) as session:
         assignment = current_assignment(case_id=case_id, session=session)
         if assignment is None or assignment.speaker_id is None:
             return None
         after_sequence = read_handled_through(case_id=case_id, session=session)
         speech = load_case_speech(case_id=case_id, session=session)
-        through_sequence = batch_end(
-            ingested=speech.ingested,
-            revisions=speech.revisions,
-            after_sequence=after_sequence,
-            batch_size=batch_size,
-        )
-        if through_sequence is None:
-            return None
-        snapshot = build_snapshot(
-            case_id=case_id,
-            target_speaker_id=assignment.speaker_id,
-            target_revision=assignment.target_revision,
-            ingested=speech.ingested,
-            revisions=speech.revisions,
-            after_sequence=after_sequence,
-            through_sequence=through_sequence,
-            context_seconds=context_seconds,
-            captured_at=now(),
-        )
-    if not snapshot.new_observation_ids:
-        with write_session(engine=engine) as session:
-            mark_handled(snapshot=snapshot, session=session)
-            session.commit()
+    captured_at = now()
+    through_sequence = batch_end(
+        ingested=speech,
+        target_speaker_id=assignment.speaker_id,
+        after_sequence=after_sequence,
+        max_seconds=max_batch_seconds,
+        idle_seconds=idle_seconds,
+        now=captured_at,
+    )
+    if through_sequence is None:
         return None
+    snapshot = build_snapshot(
+        case_id=case_id,
+        target_speaker_id=assignment.speaker_id,
+        target_revision=assignment.target_revision,
+        ingested=speech,
+        after_sequence=after_sequence,
+        through_sequence=through_sequence,
+        context_seconds=context_seconds,
+        captured_at=captured_at,
+    )
     # The provider runs outside both database transactions; the input is already fixed.
     answers, request_json = jev.evaluate(snapshot=snapshot, client=client)
     with write_session(engine=engine) as session:
@@ -67,7 +62,9 @@ def process_case(
             snapshot=snapshot,
             answers=answers,
             request_json=request_json,
-            observation_keys=speech.observation_keys,
+            observation_keys={
+                row.observation.observation_id: row.observation_key for row in speech
+            },
             completed_at_us=to_microseconds(value=now()),
         )
         mark_handled(snapshot=snapshot, session=session)

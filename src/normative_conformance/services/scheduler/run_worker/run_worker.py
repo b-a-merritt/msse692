@@ -17,7 +17,8 @@ def run_worker(
     engine: Engine,
     now: Clock,
     client: TypeSafeClient,
-    batch_size: int,
+    max_batch_seconds: int,
+    idle_seconds: int,
     context_seconds: int,
 ) -> None:
     """Poll durable case progress with a 0.1-second idle wait."""
@@ -31,7 +32,8 @@ def run_worker(
                     try:
                         process_case(
                             case_id=case_id,
-                            batch_size=batch_size,
+                            max_batch_seconds=max_batch_seconds,
+                            idle_seconds=idle_seconds,
                             context_seconds=context_seconds,
                             engine=engine,
                             now=now,

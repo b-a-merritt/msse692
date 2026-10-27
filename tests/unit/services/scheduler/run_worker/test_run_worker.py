@@ -27,7 +27,8 @@ def test_polls_each_ready_case_once_per_pass(monkeypatch):
         engine=object(),
         now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
         client=client,
-        batch_size=3,
+        max_batch_seconds=45,
+        idle_seconds=15,
         context_seconds=20,
     )
     assert [call.kwargs["case_id"] for call in process.call_args_list] == [
@@ -37,7 +38,8 @@ def test_polls_each_ready_case_once_per_pass(monkeypatch):
         "new",
     ]
     assert process.call_args.kwargs["client"] is client
-    assert process.call_args.kwargs["batch_size"] == 3
+    assert process.call_args.kwargs["max_batch_seconds"] == 45
+    assert process.call_args.kwargs["idle_seconds"] == 15
     assert process.call_args.kwargs["context_seconds"] == 20
 
 
@@ -60,7 +62,8 @@ def test_failed_poll_is_retried_after_the_wait(monkeypatch):
         engine=object(),
         now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
         client=object(),
-        batch_size=4,
+        max_batch_seconds=60,
+        idle_seconds=20,
         context_seconds=30,
     )
     assert visited == ["good"]
@@ -84,7 +87,8 @@ def test_failed_case_does_not_stop_the_others(monkeypatch):
         engine=object(),
         now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
         client=object(),
-        batch_size=4,
+        max_batch_seconds=60,
+        idle_seconds=20,
         context_seconds=30,
     )
     assert visited == ["bad", "good"]
@@ -100,7 +104,8 @@ def test_shutdown_finishes_current_case_without_starting_next(monkeypatch):
         engine=object(),
         now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
         client=object(),
-        batch_size=4,
+        max_batch_seconds=60,
+        idle_seconds=20,
         context_seconds=30,
     )
     assert [call.kwargs["case_id"] for call in process.call_args_list] == ["one"]

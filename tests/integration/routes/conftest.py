@@ -17,7 +17,9 @@ get_settings.cache_clear()
 
 @pytest.fixture
 def open_client(*, tmp_path, monkeypatch):
-    def idle_worker(*, stopped, engine, now, client, batch_size, context_seconds):
+    def idle_worker(
+        *, stopped, engine, now, client, max_batch_seconds, idle_seconds, context_seconds
+    ):
         stopped.wait()
 
     @contextmanager

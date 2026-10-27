@@ -6,7 +6,7 @@ Start the app using the [setup instructions](../README.md#run). A decision-model
 
 Configure the [transcription credential](deployment_guide.md#configuration), open [capture](http://127.0.0.1:8000/capture), choose whether the target speaks first or second, and select **Start microphone**. Allow microphone access and speak in that order. Each Start creates a fresh case; save the displayed case ID.
 
-The page shows transcripts, session-local speaker labels, and signal levels. **Unassigned** speech is stored with speaker `PENDING`. Assessment waits until the selected speaking order resolves. Speaker corrections update the transcript and later assessment context; they do not change the target or existing decisions.
+The page shows transcripts, session-local speaker labels, and signal levels. **Unassigned** speech is stored with speaker `PENDING`. Assessment waits until the selected speaking order resolves. Speaker corrections update the transcript only; assessments use the labels speech arrived with, and the target does not change.
 
 Select **Stop** and wait for completion. An error or early close means capture is incomplete, but committed speech remains saved. Reloading clears the display. Microphone capture requires localhost or HTTPS, AudioWorklet support, and a 16 kHz audio context.
 
@@ -34,8 +34,8 @@ The script preserves recorded gaps unless `--delay` is supplied. Use fresh stora
 
 ## Results
 
-Read **GET /api/v1/cases/{case_id}/assessments**. Results contain topics, target behavior scores, intensity, and an action: `remain_silent`, `await_context`, `reflect_later`, or `intervene`. A batch without new target speech has no action. Results depend on the conversation and model; no phrase guarantees an action. Recommendations do not create interventions automatically.
+Read **GET /api/v1/cases/{case_id}/assessments**. Results contain topics, target behavior scores, intensity, and an action: `remain_silent`, `await_context`, `reflect_later`, or `intervene`. An assessment covers a target turn and the other speech before it. It starts once the target stops speaking, after 60 s of speech, or after 20 s without speech. A batch without new target speech has no action. Results depend on the conversation and model; no phrase guarantees an action. Recommendations do not create interventions automatically.
 
-An empty list can mean inference is pending, the target is unresolved, or processing failed. Check **GET /api/v1/cases/{case_id}**, readiness, and server logs. Change the target through PUT using either `target_speaker_order` (1 or 2) or `target_speaker_id`; selecting a label clears the order.
+An empty list can mean the target's turn is still open, inference is pending, the target is unresolved, or processing failed. Check **GET /api/v1/cases/{case_id}**, readiness, and server logs. Change the target through PUT using either `target_speaker_order` (1 or 2) or `target_speaker_id`; selecting a label clears the order.
 
 For validation and storage errors, see the [API reference](api.md#errors).
