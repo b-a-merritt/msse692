@@ -34,7 +34,7 @@ from normative_conformance.services.capture.run_capture import BrowserMessage
 from normative_conformance.services.capture.run_capture import run_capture
 from normative_conformance.services.capture.store_observations import store_observations
 from normative_conformance.services.capture.store_revisions import store_revisions
-from normative_conformance.services.case.selection import get_case
+from normative_conformance.services.case.get_case import get_case
 
 router = APIRouter()
 STATIC = Path(__file__).parent.parent / "static"
@@ -91,6 +91,8 @@ async def capture_audio(
     websocket: WebSocket, case: Annotated[CaseRecord, Depends(get_capture_case)]
 ) -> None:
     settings = cast(Settings, websocket.app.state.settings)
+    engine = cast(Engine, websocket.app.state.engine)
+    clock = cast(Clock, websocket.app.state.clock)
     await websocket.accept()
 
     async def messages() -> AsyncIterator[BrowserMessage]:
@@ -115,8 +117,8 @@ async def capture_audio(
             store_observations,
             case_id=case.case_id,
             observations=observations,
-            engine=cast(Engine, websocket.app.state.engine),
-            now=cast(Clock, websocket.app.state.clock),
+            engine=engine,
+            now=clock,
         )
 
     async def store_corrections(replacements: list[ObservationReplacement]) -> None:
@@ -124,8 +126,8 @@ async def capture_audio(
             store_revisions,
             case_id=case.case_id,
             replacements=replacements,
-            engine=cast(Engine, websocket.app.state.engine),
-            now=cast(Clock, websocket.app.state.clock),
+            engine=engine,
+            now=clock,
         )
 
     try:
@@ -136,7 +138,7 @@ async def capture_audio(
             connect_transcriber=partial(
                 assemblyai.connect_transcriber, api_key=settings.assembly_api_key
             ),
-            now=cast(Clock, websocket.app.state.clock),
+            now=clock,
             store_observations=store,
             store_revisions=store_corrections,
         )

@@ -10,7 +10,7 @@ from normative_conformance.database import read_session
 from normative_conformance.database import write_session
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.assessment import Classification
-from normative_conformance.models.case import CaseLog
+from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
 from normative_conformance.models.observation import Observation
 from normative_conformance.models.speaker_revision import ReplacedObservation
@@ -25,12 +25,18 @@ from normative_conformance.services.scheduler.run_worker.pending_cases import pe
 module = import_module("normative_conformance.services.scheduler.run_worker.process_case")
 
 
-@pytest.mark.parametrize("change_target", [False, True])
+@pytest.mark.parametrize(
+    "in_flight_speakers,handled_through,pending",
+    [
+        pytest.param([], 2, [], id="same-target"),
+        pytest.param(["A"], 1, ["case"], id="target-changed-during-call"),
+    ],
+)
 def test_saves_fixed_corrected_snapshot_and_advances_only_its_current_target(
-    engine, session, monkeypatch, change_target
+    engine, session, monkeypatch, in_flight_speakers, handled_through, pending
 ):
     session.add(
-        CaseLog(
+        ConversationCase(
             case_id="case",
             created_at_us=0,
             last_handled_sequence=1,
@@ -94,12 +100,14 @@ def test_saves_fixed_corrected_snapshot_and_advances_only_its_current_target(
         assert snapshot.target_speaker_id == "B"
         # This independent writer succeeds while the provider is in flight.
         with write_session(engine=engine) as writer:
-            if change_target:
-                writer.add(
+            writer.add_all(
+                [
                     TargetAssignment(
-                        case_id="case", target_revision=2, assigned_at_us=4, speaker_id="A"
+                        case_id="case", target_revision=2, assigned_at_us=4, speaker_id=speaker
                     )
-                )
+                    for speaker in in_flight_speakers
+                ]
+            )
             later = SpeakerRevision(case_id="case", received_at_us=4_000_000)
             writer.add(later)
             writer.flush()
@@ -165,8 +173,8 @@ def test_saves_fixed_corrected_snapshot_and_advances_only_its_current_target(
         assert check.exec(select(Classification.observation_key)).all() == [
             corrected.observation_key
         ]
-        case = check.get(CaseLog, "case")
-        assert case.last_handled_sequence == (1 if change_target else 2)
+        case = check.get(ConversationCase, "case")
+        assert case.last_handled_sequence == handled_through
         assert case.last_handled_target_revision == 1
         [record] = list_assessment_records(case_id="case", session=check)
         assert record.action == "await_context"
@@ -174,5 +182,5 @@ def test_saves_fixed_corrected_snapshot_and_advances_only_its_current_target(
         assert record.observations[0].topic_scores == {"chores": 0.8, "money": 0.1}
         assert record.observations[0].topics == ["chores"]
         assert record.observations[0].primary_topic == "chores"
-        assert record.subject_speaker_id == "B"
-    assert pending_cases(engine=engine) == (["case"] if change_target else [])
+        assert record.target_speaker_id == "B"
+    assert pending_cases(engine=engine) == pending

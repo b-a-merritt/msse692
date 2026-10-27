@@ -79,7 +79,7 @@ def test_lists_structured_decisions_for_the_requested_case(open_client):
         [record] = response.json()["items"]
         assert record["action"] == "remain_silent"
         assert record["model"] == "jev-1.14.0"
-        assert record["subject_speaker_id"] == "A"
+        assert record["target_speaker_id"] == "A"
         assert record["action_probabilities"] == {"remain_silent": 1}
         assert record["observations"] == [
             {

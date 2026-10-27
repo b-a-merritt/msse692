@@ -23,10 +23,12 @@ class LevelMeter:
         if not pcm or len(pcm) % 2:
             raise ValueError("Audio must contain complete PCM16 samples")
         self._pending.extend(pcm)
-        frames = []
-        while len(self._pending) >= FRAME_BYTES:
-            frames.append(self._measure(bytes(self._pending[:FRAME_BYTES])))
-            del self._pending[:FRAME_BYTES]
+        complete = len(self._pending) - len(self._pending) % FRAME_BYTES
+        frames = [
+            self._measure(bytes(self._pending[offset : offset + FRAME_BYTES]))
+            for offset in range(0, complete, FRAME_BYTES)
+        ]
+        del self._pending[:complete]
         return frames
 
     def finish(self) -> list[FrameLevel]:

@@ -13,6 +13,18 @@ sprints, or promise future changes. State what is supported and what is not.
 **Why:** Readers need to understand and use the system as it exists without
 reconstructing its development history.
 
+## Export one name per module
+
+Give each module one public name that matches the module, such as `ingest` in
+`services/observation/ingest.py`. Prefix other definitions with `_`. Types and
+constants that exist for that export's signature may stay beside it. Exceptions:
+modules that define related records or contracts (`models/`, `schemas/`,
+`errors.py`), route modules, and helper modules of small conversions or queries
+shared by several operations (`records.py`, `timestamps.py`).
+
+**Why:** When a module and its export share a name, each operation is easy to
+find and its tests map one-to-one to a source module.
+
 ## Mirror source directories in tests
 
 Organize tests relative to `tests/unit/` or `tests/integration/` the same way code

@@ -6,17 +6,10 @@ from sqlalchemy.exc import IntegrityError
 from normative_conformance import models
 
 
-@pytest.mark.parametrize(
-    ("action", "accepted"),
-    [
-        pytest.param("intervene", True, id="intervene"),
-        pytest.param("remain_silent", False, id="remain-silent"),
-        pytest.param("await_context", False, id="await-context"),
-        pytest.param("reflect_later", False, id="reflect-later"),
-    ],
-)
-def test_only_intervene_assessments_can_be_sources(*, session, action, accepted):
-    session.add(models.CaseLog(case_id="case", created_at_us=1))
+# The other tests store interventions from `intervene` assessments.
+@pytest.mark.parametrize("action", ["remain_silent", "await_context", "reflect_later"])
+def test_other_actions_cannot_be_intervention_sources(*, session, action):
+    session.add(models.ConversationCase(case_id="case", created_at_us=1))
     session.flush()
     session.add_all(
         [
@@ -60,11 +53,8 @@ def test_only_intervene_assessments_can_be_sources(*, session, action, accepted)
             assessment_id=assessment.assessment_id, message="Feedback", created_at_us=12
         )
     )
-    if accepted:
+    with pytest.raises(IntegrityError, match="intervene assessment"):
         session.commit()
-    else:
-        with pytest.raises(IntegrityError, match="intervene assessment"):
-            session.commit()
 
 
 @pytest.mark.parametrize(
@@ -76,7 +66,7 @@ def test_only_intervene_assessments_can_be_sources(*, session, action, accepted)
     ],
 )
 def test_invalid_interventions_are_rejected(*, session, changes, constraint):
-    session.add(models.CaseLog(case_id="case", created_at_us=1))
+    session.add(models.ConversationCase(case_id="case", created_at_us=1))
     session.flush()
     session.add_all(
         [
@@ -129,7 +119,7 @@ def test_invalid_interventions_are_rejected(*, session, changes, constraint):
 
 @pytest.mark.parametrize("sent_at_us", [12, 13])
 def test_intervention_can_be_marked_sent(*, session, sent_at_us):
-    session.add(models.CaseLog(case_id="case", created_at_us=1))
+    session.add(models.ConversationCase(case_id="case", created_at_us=1))
     session.flush()
     session.add_all(
         [
@@ -181,7 +171,7 @@ def test_intervention_can_be_marked_sent(*, session, sent_at_us):
 
 
 def test_intervention_cannot_be_sent_before_creation(*, session):
-    session.add(models.CaseLog(case_id="case", created_at_us=1))
+    session.add(models.ConversationCase(case_id="case", created_at_us=1))
     session.flush()
     session.add_all(
         [
@@ -242,7 +232,7 @@ def test_intervention_cannot_be_sent_before_creation(*, session):
     ],
 )
 def test_intervention_is_marked_sent_only_once(*, session, sent_at_us):
-    session.add(models.CaseLog(case_id="case", created_at_us=1))
+    session.add(models.ConversationCase(case_id="case", created_at_us=1))
     session.flush()
     session.add_all(
         [
@@ -302,7 +292,7 @@ def test_intervention_is_marked_sent_only_once(*, session, sent_at_us):
     ],
 )
 def test_intervention_decision_is_immutable(*, session, changes):
-    session.add(models.CaseLog(case_id="case", created_at_us=1))
+    session.add(models.ConversationCase(case_id="case", created_at_us=1))
     session.flush()
     session.add_all(
         [
@@ -355,7 +345,7 @@ def test_intervention_decision_is_immutable(*, session, changes):
 
 
 def test_intervention_is_retained(*, session):
-    session.add(models.CaseLog(case_id="case", created_at_us=1))
+    session.add(models.ConversationCase(case_id="case", created_at_us=1))
     session.flush()
     session.add_all(
         [

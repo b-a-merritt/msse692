@@ -22,7 +22,7 @@ List endpoints return 200 with `{"items":[...]}`; unknown cases have empty lists
 
 PUT accepts exactly one of `{"target_speaker_order":1}` (1 or 2) or `{"target_speaker_id":"A"}`. Speaking order uses distinct resolved labels in ingested speech; `PENDING` does not count. A label selection clears the order. A changed target label increments `target_revision` and makes stored speech eligible for assessment.
 
-`CaseRecord` includes the resolved `target_speaker_id`, revision, and `target_speaker_manual`, which is true when a speaker is set without a speaking order.
+`CaseRecord` includes the speaking order, the resolved `target_speaker_id`, and `target_revision`. A speaker selected by label has no speaking order.
 
 ## Observation input
 
@@ -36,15 +36,15 @@ All fields are required; unknown fields are rejected. See the [submission exampl
 | `transcript` | Nonblank string |
 | `signal_level_min`, `signal_level_avg`, `signal_level_max` | Finite dBFS values between −120 and 0; min ≤ avg ≤ max |
 
-The response adds server-assigned `sequence`, `received_at`, and `updated_at`; the two timestamps are equal. **201 confirms storage, not completed inference.** Duplicate ingested IDs return 409. Original observations are immutable. There is no HTTP correction endpoint.
+The response adds server-assigned `sequence` and `received_at`. **201 confirms storage, not completed inference.** Duplicate ingested IDs return 409. Original observations are immutable. There is no HTTP correction endpoint.
 
 ## Assessments and interventions
 
-Assessments include the model and prompt version, target revision and `subject_speaker_id`, sequence range `(after_sequence, through_sequence]`, evaluation/completion times, classifications, and action probabilities. Classifications contain observation IDs, topic/behavior scores, selected labels, primary topic, and target-only intensity (0–3).
+Assessments include the model and prompt version, target revision and `target_speaker_id`, sequence range `(after_sequence, through_sequence]`, evaluation/completion times, classifications, and action probabilities. Classifications contain observation IDs, topic/behavior scores, selected labels, primary topic, and target-only intensity (0–3).
 
 Scores meeting the stored `selection_threshold` are selected in name order. A primary topic outside that set is reported as `unknown`. Actions are `remain_silent`, `await_context`, `reflect_later`, or `intervene`; they do not create interventions automatically.
 
-The intervention endpoints operate on existing records. Each has one source, exposed as a one-element `assessment_ids` list. Delivery requires the current target revision, sets `sent_at` once, and sends no external notification. An unfiltered listing retains unsent records for earlier targets; `status=pending` excludes them.
+The intervention endpoints operate on existing records. Each has one source `assessment_id` and the `target_speaker_id` it addresses. Delivery requires the current target revision, sets `sent_at` once, and sends no external notification. An unfiltered listing retains unsent records for earlier targets; `status=pending` excludes them.
 
 ## Live capture stream
 

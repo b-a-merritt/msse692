@@ -31,7 +31,6 @@ def test_converts_stored_microseconds_without_changing_transcript():
         "observation_id": "chunk",
         "sequence": 2,
         "received_at": datetime(1970, 1, 1, 0, 0, 0, 10, tzinfo=timezone.utc),
-        "updated_at": datetime(1970, 1, 1, 0, 0, 0, 10, tzinfo=timezone.utc),
         "speaker_id": "subject",
         "start_at": datetime(1969, 12, 31, 23, 59, 59, 999999, tzinfo=timezone.utc),
         "end_at": datetime(1970, 1, 1, 0, 0, 0, 1, tzinfo=timezone.utc),

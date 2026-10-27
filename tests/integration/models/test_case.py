@@ -1,14 +1,16 @@
 """Case selection and target history survive storage and obey database constraints."""
 
 import pytest
+from sqlalchemy import delete
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 
-from normative_conformance.models.case import CaseLog
+from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
 
 
 def test_case_and_target_assignment_round_trip(session):
-    case = CaseLog(
+    case = ConversationCase(
         case_id="case",
         created_at_us=1,
         target_speaker_order=2,
@@ -23,12 +25,12 @@ def test_case_and_target_assignment_round_trip(session):
     session.add(assignment)
     session.commit()
     session.expunge_all()
-    assert session.get(CaseLog, "case").model_dump() == case.model_dump()
+    assert session.get(ConversationCase, "case").model_dump() == case.model_dump()
     assert session.get(TargetAssignment, ("case", 3)).model_dump() == assignment.model_dump()
 
 
 def test_database_rejects_invalid_speaking_order(session):
-    session.add(CaseLog(case_id="case", created_at_us=0, target_speaker_order=3))
+    session.add(ConversationCase(case_id="case", created_at_us=0, target_speaker_order=3))
     with pytest.raises(IntegrityError, match="CHECK"):
         session.commit()
 
@@ -43,7 +45,7 @@ def test_database_rejects_invalid_speaking_order(session):
     ],
 )
 def test_database_rejects_invalid_target_assignment(session, changes, reason):
-    session.add(CaseLog(case_id="case", created_at_us=0))
+    session.add(ConversationCase(case_id="case", created_at_us=0))
     session.commit()
     values = {"case_id": "case", "target_revision": 1, "assigned_at_us": 0, "speaker_id": "A"}
     session.add(TargetAssignment(**(values | changes)))
@@ -51,18 +53,20 @@ def test_database_rejects_invalid_target_assignment(session, changes, reason):
         session.commit()
 
 
-@pytest.mark.parametrize("operation", ["update", "delete"])
-def test_target_assignments_are_append_only(session, operation):
-    session.add(CaseLog(case_id="case", created_at_us=0))
+@pytest.mark.parametrize(
+    "statement",
+    [
+        pytest.param(update(TargetAssignment).values(speaker_id="B"), id="update"),
+        pytest.param(delete(TargetAssignment), id="delete"),
+    ],
+)
+def test_target_assignments_are_append_only(session, statement):
+    session.add(ConversationCase(case_id="case", created_at_us=0))
     session.flush()
     assignment = TargetAssignment(
         case_id="case", target_revision=1, assigned_at_us=0, speaker_id="A"
     )
     session.add(assignment)
     session.commit()
-    if operation == "update":
-        assignment.speaker_id = "B"
-    else:
-        session.delete(assignment)
     with pytest.raises(IntegrityError, match="target_assignment is append-only"):
-        session.commit()
+        session.execute(statement)

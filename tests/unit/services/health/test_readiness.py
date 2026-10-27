@@ -20,25 +20,24 @@ def test_worker_must_be_running_before_any_storage_probe(*, stopped, alive):
     session.exec.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "failure",
-    [
-        None,
-        SQLAlchemyError("Database failed"),
-    ],
-)
-def test_probes_storage_read_only_and_preserves_failure_causes(*, failure):
+def test_probes_storage_read_only():
     session = Mock(spec=Session)
     worker = Mock(spec=Thread)
     worker.is_alive.return_value = True
     stopped = Mock(is_set=Mock(return_value=False))
-    if isinstance(failure, SQLAlchemyError):
-        session.exec.side_effect = failure
-    if failure is None:
-        assert readiness(session=session, stopped=stopped, worker=worker).status == "ready"
-    else:
-        with pytest.raises(NotReady) as caught:
-            readiness(session=session, stopped=stopped, worker=worker)
-        assert caught.value.__cause__ is failure
-        assert str(caught.value) == "The application database is unavailable"
+    assert readiness(session=session, stopped=stopped, worker=worker).status == "ready"
+    session.exec.assert_called_once()
+    session.commit.assert_not_called()
+
+
+def test_storage_failure_is_not_ready_and_keeps_its_cause():
+    session = Mock(spec=Session)
+    failure = SQLAlchemyError("Database failed")
+    session.exec.side_effect = failure
+    worker = Mock(spec=Thread)
+    worker.is_alive.return_value = True
+    stopped = Mock(is_set=Mock(return_value=False))
+    with pytest.raises(NotReady, match=r"^The application database is unavailable$") as caught:
+        readiness(session=session, stopped=stopped, worker=worker)
+    assert caught.value.__cause__ is failure
     session.commit.assert_not_called()

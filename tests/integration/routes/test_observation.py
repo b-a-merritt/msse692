@@ -11,7 +11,7 @@ from sqlmodel import Session
 from sqlmodel import select
 
 from normative_conformance.models.assessment import Assessment
-from normative_conformance.models.case import CaseLog
+from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.observation import Observation
 
 
@@ -37,13 +37,12 @@ def test_ingestion_returns_committed_observation(*, open_client):
             "start_at": "2026-09-26T09:00:00.123456Z",
             "end_at": "2026-09-26T09:00:01.654321Z",
             "received_at": received_at.isoformat().replace("+00:00", "Z"),
-            "updated_at": received_at.isoformat().replace("+00:00", "Z"),
             "sequence": 1,
         }
         assert UUID(response.headers["X-Request-ID"])
         assert response.headers["Cache-Control"] == "no-store"
         with Session(bind=client.app.state.engine) as session:
-            assert session.get(CaseLog, "case") is not None
+            assert session.get(ConversationCase, "case") is not None
             stored = session.exec(
                 select(Observation).where(
                     Observation.case_id == "case", Observation.observation_id == "chunk"
@@ -120,7 +119,7 @@ def test_invalid_request_creates_no_records(*, open_client, changes):
 
         assert response.status_code == 422
         with Session(bind=client.app.state.engine) as session:
-            assert session.exec(select(CaseLog)).all() == []
+            assert session.exec(select(ConversationCase)).all() == []
             assert session.exec(select(Observation)).all() == []
 
 
@@ -155,7 +154,7 @@ def test_storage_error_returns_safe_message_and_rolls_back(*, open_client):
             }
         }
         with Session(bind=client.app.state.engine) as session:
-            assert session.exec(select(CaseLog)).all() == []
+            assert session.exec(select(ConversationCase)).all() == []
             assert session.exec(select(Observation)).all() == []
 
 
@@ -213,7 +212,7 @@ def test_uninitialized_worker_does_not_block_storage(*, open_client, monkeypatch
 
         assert response.status_code == 201
         with Session(bind=client.app.state.engine) as session:
-            assert len(session.exec(select(CaseLog)).all()) == 1
+            assert len(session.exec(select(ConversationCase)).all()) == 1
             assert len(session.exec(select(Observation)).all()) == 1
 
 

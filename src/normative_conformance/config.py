@@ -1,5 +1,3 @@
-from datetime import datetime
-from datetime import timezone
 from functools import lru_cache
 from pathlib import Path
 
@@ -24,7 +22,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
-
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)

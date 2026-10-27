@@ -16,7 +16,7 @@ class Observation(SQLModel, table=True):
     )
 
     observation_key: int | None = Field(default=None, primary_key=True)
-    case_id: str = Field(foreign_key="case_log.case_id", sa_type=Text)
+    case_id: str = Field(foreign_key="conversation_case.case_id", sa_type=Text)
     observation_id: str = Field(sa_type=Text)
     speaker_revision_id: int | None = Field(
         default=None, foreign_key="speaker_revision.speaker_revision_id"

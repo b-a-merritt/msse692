@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from collections.abc import Awaitable
 from collections.abc import Callable
 from datetime import datetime
+from functools import partial
 from uuid import uuid4
 
 from normative_conformance.errors import CaptureDisconnected
@@ -22,12 +23,13 @@ from normative_conformance.services.capture.levels import SAMPLE_RATE
 from normative_conformance.services.capture.levels import FrameLevel
 from normative_conformance.services.capture.levels import LevelMeter
 from normative_conformance.services.capture.observations import build_observations
+from normative_conformance.services.capture.pcm import BYTES_PER_SAMPLE
 from normative_conformance.services.capture.pcm import PCMBuffer
 from normative_conformance.services.capture.transcriber import ConnectTranscriber
 from normative_conformance.services.capture.transcriber import SpeakerRevised
 from normative_conformance.services.capture.transcriber import Transcriber
+from normative_conformance.services.capture.transcriber import TurnRevision
 from normative_conformance.services.capture.transcriber import TurnUpdate
-from normative_conformance.services.capture.transcriber import Word
 
 logger = logging.getLogger(__name__)
 
@@ -120,27 +122,40 @@ def _levels_message(frames: list[FrameLevel]) -> LevelsMessage:
     )
 
 
-def _transcript_message(
-    *,
-    turn_order: int,
-    final: bool,
-    revised: bool,
-    transcript: str,
-    speaker_id: str | None,
-    words: tuple[Word, ...],
-) -> TranscriptMessage:
+def _transcript_message(*, turn: TurnUpdate, revised: bool) -> TranscriptMessage:
     return TranscriptMessage(
         type="transcript",
-        turn_order=turn_order,
-        final=final,
+        turn_order=turn.turn_order,
+        final=turn.final,
         revised=revised,
-        transcript=transcript,
-        speaker_id=speaker_id,
+        transcript=turn.transcript,
+        speaker_id=turn.speaker_id,
         words=[
             WordPayload(text=w.text, start_ms=w.start_ms, end_ms=w.end_ms, speaker_id=w.speaker_id)
-            for w in words
+            for w in turn.words
         ],
     )
+
+
+def _final_turn(revision: TurnRevision) -> TurnUpdate:
+    return TurnUpdate(
+        turn_order=revision.turn_order,
+        final=True,
+        speaker_id=revision.speaker_id,
+        transcript=" ".join(w.text for w in revision.words),
+        words=revision.words,
+    )
+
+
+def _replaced_ids(*, observation_ids: dict[int, list[str]], turn_order: int) -> list[str]:
+    """A revision may only replace a turn this capture has stored."""
+    if turn_order not in observation_ids:
+        raise CaptureFailure("providerProtocol")
+    return observation_ids[turn_order]
+
+
+def _audio_ms(byte_count: int) -> float:
+    return byte_count * 1000 / (SAMPLE_RATE * BYTES_PER_SAMPLE)
 
 
 async def _stream(
@@ -238,18 +253,18 @@ async def _audio(
                     extra={
                         "event": "capture.audio_forwarded",
                         "capture_id": capture_id,
-                        "audio_duration_ms": bytes_sent * 1000 / (SAMPLE_RATE * 2),
+                        "audio_duration_ms": _audio_ms(bytes_sent),
                         "packets_sent": packets_sent,
                     },
                 )
-                next_progress_at = bytes_sent + SAMPLE_RATE * 2 * 5
+                next_progress_at = bytes_sent + SAMPLE_RATE * BYTES_PER_SAMPLE * 5
         if not isinstance(message, bytes):
             logger.info(
                 "Capture stopping; waiting for final transcripts and speaker revisions",
                 extra={
                     "event": "capture.stopping",
                     "capture_id": capture_id,
-                    "audio_duration_ms": bytes_sent * 1000 / (SAMPLE_RATE * 2),
+                    "audio_duration_ms": _audio_ms(bytes_sent),
                     "packets_sent": packets_sent,
                 },
             )
@@ -271,6 +286,13 @@ async def _events(
     store_observations: StoreObservations,
     store_revisions: StoreRevisions,
 ) -> None:
+    build = partial(
+        build_observations,
+        case_id=case_id,
+        session_id=transcriber.session_id,
+        started_at=started_at,
+        frames=frames,
+    )
     last_partial_turn: int | None = None
     observation_ids: dict[int, list[str]] = {}
     async for event in transcriber.events():
@@ -278,13 +300,7 @@ async def _events(
             if event.final:
                 if event.turn_order in observation_ids:
                     continue
-                observations = build_observations(
-                    case_id=case_id,
-                    session_id=transcriber.session_id,
-                    started_at=started_at,
-                    frames=frames,
-                    turn=event,
-                )
+                observations = build(turn=event)
                 if observations:
                     await store_observations(observations)
                     observation_ids[event.turn_order] = [row.observation_id for row in observations]
@@ -302,60 +318,30 @@ async def _events(
                     },
                 )
                 last_partial_turn = event.turn_order
-            await send(
-                _transcript_message(
-                    turn_order=event.turn_order,
-                    final=event.final,
-                    revised=False,
-                    transcript=event.transcript,
-                    speaker_id=event.speaker_id,
-                    words=event.words,
-                )
-            )
+            await send(_transcript_message(turn=event, revised=False))
         elif isinstance(event, SpeakerRevised):
-            replacements = []
-            for turn in event.turns:
-                original_ids = observation_ids.get(turn.turn_order)
-                if original_ids is None:
-                    raise CaptureFailure("providerProtocol")
-                observations = build_observations(
-                    case_id=case_id,
-                    session_id=transcriber.session_id,
-                    started_at=started_at,
-                    frames=frames,
-                    turn=TurnUpdate(
-                        turn_order=turn.turn_order,
-                        final=True,
-                        speaker_id=turn.speaker_id,
-                        transcript=" ".join(w.text for w in turn.words),
-                        words=turn.words,
-                    ),
-                )
-                replacements.append(
+            turns = [_final_turn(revision) for revision in event.turns]
+            await store_revisions(
+                [
                     ObservationReplacement(
-                        replaced_observation_ids=original_ids, observations=observations
+                        replaced_observation_ids=_replaced_ids(
+                            observation_ids=observation_ids, turn_order=turn.turn_order
+                        ),
+                        observations=build(turn=turn),
                     )
-                )
-            await store_revisions(replacements)
+                    for turn in turns
+                ]
+            )
             logger.info(
                 "Speaker revisions received",
                 extra={
                     "event": "capture.speaker_revisions",
                     "capture_id": capture_id,
-                    "turn_orders": [turn.turn_order for turn in event.turns],
+                    "turn_orders": [turn.turn_order for turn in turns],
                 },
             )
-            for turn in event.turns:
-                await send(
-                    _transcript_message(
-                        turn_order=turn.turn_order,
-                        final=True,
-                        revised=True,
-                        transcript=" ".join(w.text for w in turn.words),
-                        speaker_id=turn.speaker_id,
-                        words=turn.words,
-                    )
-                )
+            for turn in turns:
+                await send(_transcript_message(turn=turn, revised=True))
         else:
             logger.info(
                 "Speech detected by transcription service",

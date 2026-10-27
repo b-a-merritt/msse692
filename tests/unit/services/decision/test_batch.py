@@ -1,25 +1,25 @@
 import pytest
 
 from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.schemas.observation import ObservationRecord
 from normative_conformance.schemas.observation import ObservationReplacement
 from normative_conformance.services.decision.batch import batch_end
+from normative_conformance.services.observation.load_case_speech import IngestedObservation
 
 
 def _stored(*, observation_id, sequence):
-    return ObservationRecord(
-        case_id="case",
-        observation_id=observation_id,
+    return IngestedObservation(
         sequence=sequence,
-        speaker_id="A",
-        start_at="1970-01-01T00:00:00Z",
-        end_at="1970-01-01T00:00:01Z",
-        transcript="Hello",
-        signal_level_min=-40,
-        signal_level_avg=-30,
-        signal_level_max=-20,
-        received_at="1970-01-01T00:01:00Z",
-        updated_at="1970-01-01T00:01:00Z",
+        observation=ObservationInput(
+            case_id="case",
+            observation_id=observation_id,
+            speaker_id="A",
+            start_at="1970-01-01T00:00:00Z",
+            end_at="1970-01-01T00:00:01Z",
+            transcript="Hello",
+            signal_level_min=-40,
+            signal_level_avg=-30,
+            signal_level_max=-20,
+        ),
     )
 
 
@@ -38,7 +38,7 @@ def test_batch_ends_after_up_to_batch_size_new_observations(after_sequence, batc
     ]
     assert (
         batch_end(
-            observations=observations,
+            ingested=observations,
             revisions=[],
             after_sequence=after_sequence,
             batch_size=batch_size,
@@ -77,7 +77,7 @@ def test_batch_includes_the_whole_of_a_revised_turn(after_sequence, expected):
     )
     assert (
         batch_end(
-            observations=observations,
+            ingested=observations,
             revisions=[revision],
             after_sequence=after_sequence,
             batch_size=1,

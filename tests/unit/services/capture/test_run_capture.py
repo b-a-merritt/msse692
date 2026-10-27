@@ -486,8 +486,7 @@ def test_later_final_words_do_not_overwrite_or_represent_unsaved_speech():
     assert sent[-1] == {"type": "stopped"}
 
 
-@pytest.mark.parametrize("fails", [False, True])
-def test_revisions_commit_before_revised_messages_and_completion(fails):
+def test_revisions_commit_before_revised_messages_and_completion():
     final = TurnUpdate(1, True, "A", "Hello", (Word("Hello", 0, 20, "A"),))
     revision = SpeakerRevised((TurnRevision(1, "B", (Word("Hello", 0, 20, "B"),)),))
     transcriber = FakeTranscriber(on_finish=[final, revision])
@@ -496,8 +495,6 @@ def test_revisions_commit_before_revised_messages_and_completion(fails):
     observations = AsyncMock()
 
     async def store(replacements):
-        if fails:
-            raise CaptureFailure("storageUnavailable")
         stored.extend(replacements)
 
     async def send(message):
@@ -517,17 +514,38 @@ def test_revisions_commit_before_revised_messages_and_completion(fails):
             store_revisions=store,
         )
 
-    if fails:
-        with pytest.raises(CaptureFailure) as caught:
-            asyncio.run(scenario())
-        assert caught.value.code == "storageUnavailable"
-        assert not any(m.get("revised") or m["type"] == "stopped" for m in sent)
-    else:
-        asyncio.run(scenario())
-        original_id = observations.await_args.args[0][0].observation_id
-        assert stored[0].replaced_observation_ids == [original_id]
-        assert sent[-2]["revised"] is True
-        assert sent[-1] == {"type": "stopped"}
+    asyncio.run(scenario())
+    original_id = observations.await_args.args[0][0].observation_id
+    assert stored[0].replaced_observation_ids == [original_id]
+    assert sent[-2]["revised"] is True
+    assert sent[-1] == {"type": "stopped"}
+    observations.assert_awaited_once()
+
+
+def test_revision_storage_failure_sends_no_revision_or_completion():
+    final = TurnUpdate(1, True, "A", "Hello", (Word("Hello", 0, 20, "A"),))
+    revision = SpeakerRevised((TurnRevision(1, "B", (Word("Hello", 0, 20, "B"),)),))
+    transcriber = FakeTranscriber(on_finish=[final, revision])
+    sent = []
+    observations = AsyncMock()
+
+    async def send(message):
+        sent.append(message)
+
+    with pytest.raises(CaptureFailure) as caught:
+        asyncio.run(
+            module.run_capture(
+                case_id="capture-case",
+                messages=browser(b"\x00\x00" * 1600, "stop"),
+                send=send,
+                connect_transcriber=connecting(transcriber),
+                now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
+                store_observations=observations,
+                store_revisions=AsyncMock(side_effect=CaptureFailure("storageUnavailable")),
+            )
+        )
+    assert caught.value.code == "storageUnavailable"
+    assert not any(m.get("revised") or m["type"] == "stopped" for m in sent)
     observations.assert_awaited_once()
 
 

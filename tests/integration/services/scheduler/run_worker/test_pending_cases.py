@@ -1,4 +1,4 @@
-from normative_conformance.models.case import CaseLog
+from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
 from normative_conformance.models.observation import Observation
 from normative_conformance.services.scheduler.run_worker.pending_cases import pending_cases
@@ -7,22 +7,22 @@ from normative_conformance.services.scheduler.run_worker.pending_cases import pe
 def test_only_resolved_cases_with_new_input_target_are_ready(engine, session):
     session.add_all(
         [
-            CaseLog(case_id="new", created_at_us=0),
-            CaseLog(case_id="unresolved", created_at_us=0),
-            CaseLog(case_id="cleared", created_at_us=0),
-            CaseLog(
+            ConversationCase(case_id="new", created_at_us=0),
+            ConversationCase(case_id="unresolved", created_at_us=0),
+            ConversationCase(case_id="cleared", created_at_us=0),
+            ConversationCase(
                 case_id="handled",
                 created_at_us=0,
                 last_handled_sequence=1,
                 last_handled_target_revision=1,
             ),
-            CaseLog(
+            ConversationCase(
                 case_id="changed",
                 created_at_us=0,
                 last_handled_sequence=1,
                 last_handled_target_revision=1,
             ),
-            CaseLog(case_id="empty", created_at_us=0),
+            ConversationCase(case_id="empty", created_at_us=0),
         ]
     )
     session.flush()

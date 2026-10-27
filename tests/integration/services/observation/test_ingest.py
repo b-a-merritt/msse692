@@ -11,11 +11,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 from sqlmodel import select
 
-from normative_conformance.database import read_session
 from normative_conformance.database import write_session
 from normative_conformance.errors import ObservationExists
 from normative_conformance.errors import StorageUnavailable
-from normative_conformance.models.case import CaseLog
+from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.services.observation.ingest import ingest
@@ -46,7 +45,7 @@ def test_commits_case_and_observation_with_exact_timestamps(*, engine):
     assert record.sequence == 1
     assert record.received_at == received_at
     with Session(bind=engine) as session:
-        case = session.get(CaseLog, "case")
+        case = session.get(ConversationCase, "case")
         observation = session.exec(
             select(Observation).where(
                 Observation.case_id == "case", Observation.observation_id == "chunk"
@@ -103,7 +102,7 @@ def test_sequences_follow_arrival_order_within_each_case(*, engine):
         sequences.append(record.sequence)
     assert sequences == [1, 2, 1]
     with Session(bind=engine) as session:
-        assert session.get(CaseLog, "case").created_at_us == 1_790_413_323_456_789
+        assert session.get(ConversationCase, "case").created_at_us == 1_790_413_323_456_789
 
 
 @pytest.mark.parametrize("changed_content", [False, True])
@@ -191,7 +190,7 @@ def test_storage_failure_rolls_backnew_case_and_observation(*, engine):
     assert str(caught.value) == "The observation could not be stored"
     assert isinstance(caught.value.__cause__, IntegrityError)
     with Session(bind=engine) as session:
-        assert session.exec(select(CaseLog)).all() == []
+        assert session.exec(select(ConversationCase)).all() == []
         assert session.exec(select(Observation)).all() == []
 
 
@@ -263,7 +262,7 @@ def test_concurrent_ingestion_assigns_distinct_sequences(*, engine):
         records = [future.result(timeout=10) for future in futures]
     assert {record.sequence for record in records} == {1, 2}
     with Session(bind=engine) as session:
-        assert len(session.exec(select(CaseLog)).all()) == 1
+        assert len(session.exec(select(ConversationCase)).all()) == 1
         assert len(session.exec(select(Observation)).all()) == 2
 
 
@@ -305,64 +304,3 @@ def test_concurrent_duplicates_commit_once(*, engine):
         observations = session.exec(select(Observation)).all()
         assert len(observations) == 1
         assert observations[0].sequence == 1
-
-
-@pytest.mark.parametrize("commit", [False, True])
-def test_staged_observations_and_case_share_one_transaction(engine, commit):
-    from normative_conformance.services.observation.ingest import stage_observation
-
-    first = ObservationInput(
-        case_id="capture",
-        observation_id="one",
-        speaker_id="A",
-        start_at="1970-01-01T00:00:00Z",
-        end_at="1970-01-01T00:00:01Z",
-        transcript="Hello",
-        signal_level_min=-50,
-        signal_level_avg=-30,
-        signal_level_max=-10,
-    )
-    second = ObservationInput(
-        case_id="capture",
-        observation_id="two",
-        speaker_id="B",
-        start_at="1970-01-01T00:00:01Z",
-        end_at="1970-01-01T00:00:02Z",
-        transcript="Hi",
-        signal_level_min=-50,
-        signal_level_avg=-30,
-        signal_level_max=-10,
-    )
-    with write_session(engine=engine) as session:
-        one = stage_observation(
-            input=first,
-            session=session,
-            now=lambda: datetime(1970, 1, 1, 0, 0, 3, tzinfo=timezone.utc),
-        )
-        two = stage_observation(
-            input=second,
-            session=session,
-            now=lambda: datetime(1970, 1, 1, 0, 0, 3, tzinfo=timezone.utc),
-        )
-        assert (one.sequence, two.sequence) == (1, 2)
-        assert one.received_at == one.updated_at == two.updated_at
-        if commit:
-            session.commit()
-    with read_session(engine=engine) as session:
-        case = session.get(CaseLog, "capture")
-        row = session.exec(
-            select(Observation).where(
-                Observation.case_id == "capture", Observation.observation_id == "one"
-            )
-        ).one_or_none()
-        other = session.exec(
-            select(Observation).where(
-                Observation.case_id == "capture", Observation.observation_id == "two"
-            )
-        ).one_or_none()
-        if commit:
-            assert case.created_at_us == 3_000_000
-            assert row.received_at_us == 3_000_000
-            assert other.sequence == 2
-        else:
-            assert case is row is other is None

@@ -7,7 +7,7 @@ from sqlmodel import select
 from normative_conformance.database import read_session
 from normative_conformance.database import write_session
 from normative_conformance.errors import CaptureFailure
-from normative_conformance.models.case import CaseLog
+from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.services.capture.store_observations import store_observations
@@ -36,7 +36,7 @@ def test_turn_is_committed_in_order_and_resolves_target(engine):
         }
     )
     with write_session(engine=engine) as session:
-        session.add(CaseLog(case_id="case", created_at_us=0, target_speaker_order=2))
+        session.add(ConversationCase(case_id="case", created_at_us=0, target_speaker_order=2))
         session.commit()
     store_observations(
         case_id="case",
@@ -68,7 +68,7 @@ def test_second_run_failure_rolls_back_whole_turn_and_target(engine):
         update={"observation_id": "two", "speaker_id": "B", "transcript": "Yes"}
     )
     with write_session(engine=engine) as session:
-        session.add(CaseLog(case_id="case", created_at_us=0, target_speaker_order=1))
+        session.add(ConversationCase(case_id="case", created_at_us=0, target_speaker_order=1))
         session.commit()
     with engine.begin() as connection:
         connection.exec_driver_sql("""

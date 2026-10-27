@@ -6,19 +6,35 @@ from sqlalchemy.exc import IntegrityError
 from normative_conformance import models
 
 
-@pytest.mark.parametrize("operation", ["update", "delete"])
 @pytest.mark.parametrize(
-    "table",
+    "statement",
     [
-        models.Assessment,
-        models.AssessmentActionProbability,
-        models.Classification,
-        models.ClassificationTopicScore,
-        models.ClassificationBehaviorScore,
+        pytest.param(update(models.Assessment).values(action="remain_silent"), id="assessment"),
+        pytest.param(
+            update(models.AssessmentActionProbability).values(probability=0.1),
+            id="action-probability",
+        ),
+        pytest.param(
+            update(models.Classification).values(primary_topic="money"), id="classification"
+        ),
+        pytest.param(update(models.ClassificationTopicScore).values(score=0.1), id="topic-score"),
+        pytest.param(
+            update(models.ClassificationBehaviorScore).values(score=0.1), id="behavior-score"
+        ),
+        *(
+            pytest.param(delete(table), id=f"delete-{table.__tablename__}")
+            for table in (
+                models.Assessment,
+                models.AssessmentActionProbability,
+                models.Classification,
+                models.ClassificationTopicScore,
+                models.ClassificationBehaviorScore,
+            )
+        ),
     ],
 )
-def test_retained_decisions_cannot_be_changed(session, table, operation):
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+def test_retained_decisions_cannot_be_changed(session, statement):
+    session.add(models.ConversationCase(case_id="case", created_at_us=0))
     session.flush()
     observation = models.Observation(
         case_id="case",
@@ -82,12 +98,6 @@ def test_retained_decisions_cannot_be_changed(session, table, operation):
         ]
     )
     session.commit()
-    column = (
-        table.classification_id
-        if table in (models.ClassificationTopicScore, models.ClassificationBehaviorScore)
-        else table.assessment_id
-    )
-    statement = delete(table) if operation == "delete" else update(table).values({column: 99})
     with pytest.raises(IntegrityError, match="is append-only"):
         session.execute(statement)
     session.rollback()
@@ -111,7 +121,7 @@ def test_retained_decisions_cannot_be_changed(session, table, operation):
     ],
 )
 def test_assessment_integrity_constraints(session, changes, reason):
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(models.ConversationCase(case_id="case", created_at_us=0))
     session.flush()
     session.add_all(
         [
@@ -154,7 +164,7 @@ def test_assessment_integrity_constraints(session, changes, reason):
 
 
 def test_an_observation_is_classified_once_per_assessment(session):
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(models.ConversationCase(case_id="case", created_at_us=0))
     session.flush()
     observation = models.Observation(
         case_id="case",

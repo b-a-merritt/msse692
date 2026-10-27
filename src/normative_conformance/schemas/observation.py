@@ -44,7 +44,6 @@ class ObservationInput(ContractModel):
 
 class ObservationRecord(ObservationInput):
     received_at: AwareDatetime
-    updated_at: AwareDatetime
     sequence: int = Field(strict=True, ge=1)
 
 

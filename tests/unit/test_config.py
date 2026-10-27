@@ -1,4 +1,3 @@
-from datetime import timezone
 from unittest.mock import Mock
 
 import pytest
@@ -38,7 +37,3 @@ def test_settings_are_cached_until_cleared(*, monkeypatch):
         assert config.get_settings.cache_info().hits == 1
     finally:
         config.get_settings.cache_clear()
-
-
-def test_runtime_clock_is_timezone_aware_utc():
-    assert config.utc_now().tzinfo is timezone.utc

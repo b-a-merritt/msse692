@@ -4,8 +4,8 @@ from datetime import timedelta
 
 from normative_conformance.schemas.decision import DecisionSnapshot
 from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.schemas.observation import ObservationRecord
 from normative_conformance.schemas.observation import ObservationReplacement
+from normative_conformance.services.observation.load_case_speech import IngestedObservation
 
 
 @dataclass(frozen=True, eq=False)
@@ -13,7 +13,7 @@ class _Speech:
     """Current speech and the ingested observations it represents."""
 
     row: ObservationInput
-    sources: list[ObservationRecord]
+    sources: list[IngestedObservation]
 
 
 def build_snapshot(
@@ -21,7 +21,7 @@ def build_snapshot(
     case_id: str,
     target_speaker_id: str,
     target_revision: int,
-    observations: list[ObservationRecord],
+    ingested: list[IngestedObservation],
     revisions: list[ObservationReplacement],
     after_sequence: int,
     through_sequence: int,
@@ -34,7 +34,7 @@ def build_snapshot(
     remove all new speech, which leaves an empty snapshot with nothing to assess.
     """
     speech = _current_speech(
-        observations=observations,
+        ingested=ingested,
         revisions=revisions,
         through_sequence=through_sequence,
     )
@@ -54,17 +54,19 @@ def build_snapshot(
 
 def _current_speech(
     *,
-    observations: list[ObservationRecord],
+    ingested: list[IngestedObservation],
     revisions: list[ObservationReplacement],
     through_sequence: int,
 ) -> list[_Speech]:
     """Replace each revised turn with its latest correction, up to the end of the batch."""
-    stored = {row.observation_id: row for row in observations if row.sequence <= through_sequence}
+    stored = {
+        row.observation.observation_id: row for row in ingested if row.sequence <= through_sequence
+    }
     # Revisions arrive in order, and each one replaces a whole turn.
     latest = {frozenset(revision.replaced_observation_ids): revision for revision in revisions}
     replaced = {identity for identities in latest for identity in identities}
     speech = [
-        _Speech(row=_as_input(row), sources=[row])
+        _Speech(row=row.observation, sources=[row])
         for identity, row in stored.items()
         if identity not in replaced
     ]
@@ -91,11 +93,5 @@ def _recent(*, speech: list[_Speech], new: list[_Speech], seconds: int) -> list[
     )
 
 
-def _overlaps(row: ObservationInput, source: ObservationRecord) -> bool:
-    return row.start_at < source.end_at and source.start_at < row.end_at
-
-
-def _as_input(row: ObservationRecord) -> ObservationInput:
-    return ObservationInput.model_validate(
-        row.model_dump(exclude={"received_at", "updated_at", "sequence"})
-    )
+def _overlaps(row: ObservationInput, source: IngestedObservation) -> bool:
+    return row.start_at < source.observation.end_at and source.observation.start_at < row.end_at

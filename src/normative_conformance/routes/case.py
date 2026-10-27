@@ -8,7 +8,8 @@ from normative_conformance.routes.errors import ERROR_RESPONSES
 from normative_conformance.schemas.case import CaseRecord
 from normative_conformance.schemas.case import TargetSelection
 from normative_conformance.schemas.errors import ErrorEnvelope
-from normative_conformance.services.case import selection
+from normative_conformance.services.case.get_case import get_case as load_case
+from normative_conformance.services.case.select_target import select_target as store_target
 
 router = APIRouter(responses=ERROR_RESPONSES)
 
@@ -22,7 +23,7 @@ def select_target(
     now: ServerClock,
 ) -> CaseRecord:
     """Create or configure a case by speaking order or an explicit speaker label."""
-    return selection.select_target(
+    return store_target(
         case_id=case_id,
         selection=input,
         session=session,
@@ -36,4 +37,4 @@ def select_target(
     responses={404: {"model": ErrorEnvelope, "description": "Case not found"}},
 )
 def get_case(*, case_id: PathId, session: ReadSession) -> CaseRecord:
-    return selection.get_case(case_id=case_id, session=session)
+    return load_case(case_id=case_id, session=session)

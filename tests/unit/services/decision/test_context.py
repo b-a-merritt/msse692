@@ -4,16 +4,15 @@ from datetime import timezone
 import pytest
 
 from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.schemas.observation import ObservationRecord
 from normative_conformance.schemas.observation import ObservationReplacement
 from normative_conformance.services.decision.context import build_snapshot
+from normative_conformance.services.observation.load_case_speech import IngestedObservation
 
 
 def test_latest_revision_replaces_originals_before_time_order_and_context_filtering():
-    first = ObservationRecord(
+    first = ObservationInput(
         case_id="case",
         observation_id="one",
-        sequence=1,
         speaker_id="A",
         start_at="1970-01-01T00:00:10Z",
         end_at="1970-01-01T00:00:11Z",
@@ -21,14 +20,11 @@ def test_latest_revision_replaces_originals_before_time_order_and_context_filter
         signal_level_min=-40,
         signal_level_avg=-30,
         signal_level_max=-20,
-        received_at="1970-01-01T00:01:00Z",
-        updated_at="1970-01-01T00:01:00Z",
     )
-    second = first.model_copy(update={"observation_id": "two", "sequence": 2})
+    second = first.model_copy(update={"observation_id": "two"})
     new = first.model_copy(
         update={
             "observation_id": "new",
-            "sequence": 3,
             "start_at": datetime(1970, 1, 1, second=20, tzinfo=timezone.utc),
             "end_at": datetime(1970, 1, 1, second=21, tzinfo=timezone.utc),
         }
@@ -36,12 +32,11 @@ def test_latest_revision_replaces_originals_before_time_order_and_context_filter
     stale = first.model_copy(
         update={
             "observation_id": "stale",
-            "sequence": 4,
             "start_at": datetime(1970, 1, 1, tzinfo=timezone.utc),
             "end_at": datetime(1970, 1, 1, second=1, tzinfo=timezone.utc),
         }
     )
-    future = first.model_copy(update={"observation_id": "future", "sequence": 5})
+    future = first.model_copy(update={"observation_id": "future"})
     replacement = ObservationInput(
         case_id="case",
         observation_id="merged-B",
@@ -70,7 +65,13 @@ def test_latest_revision_replaces_originals_before_time_order_and_context_filter
         case_id="case",
         target_speaker_id="A",
         target_revision=1,
-        observations=[first, second, new, stale, future],
+        ingested=[
+            IngestedObservation(sequence=1, observation=first),
+            IngestedObservation(sequence=2, observation=second),
+            IngestedObservation(sequence=3, observation=new),
+            IngestedObservation(sequence=4, observation=stale),
+            IngestedObservation(sequence=5, observation=future),
+        ],
         revisions=revisions,
         after_sequence=2,
         through_sequence=4,
@@ -92,10 +93,9 @@ def test_latest_revision_replaces_originals_before_time_order_and_context_filter
     ],
 )
 def test_corrected_new_rows_and_context_cutoff(after, through, seconds, expected):
-    original = ObservationRecord(
+    original = ObservationInput(
         case_id="case",
         observation_id="one",
-        sequence=1,
         speaker_id="A",
         start_at="1970-01-01T00:00:00Z",
         end_at="1970-01-01T00:00:01Z",
@@ -103,13 +103,10 @@ def test_corrected_new_rows_and_context_cutoff(after, through, seconds, expected
         signal_level_min=-40,
         signal_level_avg=-30,
         signal_level_max=-20,
-        received_at="1970-01-01T00:01:00Z",
-        updated_at="1970-01-01T00:01:00Z",
     )
     second = original.model_copy(
         update={
             "observation_id": "two",
-            "sequence": 2,
             "start_at": datetime(1970, 1, 1, second=10, tzinfo=timezone.utc),
             "end_at": datetime(1970, 1, 1, second=11, tzinfo=timezone.utc),
         }
@@ -129,7 +126,10 @@ def test_corrected_new_rows_and_context_cutoff(after, through, seconds, expected
         case_id="case",
         target_speaker_id="B",
         target_revision=2,
-        observations=[original, second],
+        ingested=[
+            IngestedObservation(sequence=1, observation=original),
+            IngestedObservation(sequence=2, observation=second),
+        ],
         revisions=[
             ObservationReplacement(replaced_observation_ids=["one"], observations=[replacement])
         ],
@@ -143,10 +143,9 @@ def test_corrected_new_rows_and_context_cutoff(after, through, seconds, expected
 
 
 def test_correction_spanning_handled_speech_is_new_only_where_speech_is_unhandled():
-    handled = ObservationRecord(
+    handled = ObservationInput(
         case_id="case",
         observation_id="handled",
-        sequence=1,
         speaker_id="A",
         start_at="1970-01-01T00:00:00Z",
         end_at="1970-01-01T00:00:01Z",
@@ -154,13 +153,10 @@ def test_correction_spanning_handled_speech_is_new_only_where_speech_is_unhandle
         signal_level_min=-40,
         signal_level_avg=-30,
         signal_level_max=-20,
-        received_at="1970-01-01T00:01:00Z",
-        updated_at="1970-01-01T00:01:00Z",
     )
     unhandled = handled.model_copy(
         update={
             "observation_id": "unhandled",
-            "sequence": 2,
             "start_at": datetime(1970, 1, 1, second=1, tzinfo=timezone.utc),
             "end_at": datetime(1970, 1, 1, second=2, tzinfo=timezone.utc),
         }
@@ -180,7 +176,10 @@ def test_correction_spanning_handled_speech_is_new_only_where_speech_is_unhandle
         case_id="case",
         target_speaker_id="A",
         target_revision=1,
-        observations=[handled, unhandled],
+        ingested=[
+            IngestedObservation(sequence=1, observation=handled),
+            IngestedObservation(sequence=2, observation=unhandled),
+        ],
         revisions=[
             ObservationReplacement(
                 replaced_observation_ids=["handled", "unhandled"],
@@ -206,10 +205,9 @@ def test_correction_spanning_handled_speech_is_new_only_where_speech_is_unhandle
 
 
 def test_revision_that_removes_all_new_speech_leaves_nothing_to_assess():
-    removed = ObservationRecord(
+    removed = ObservationInput(
         case_id="case",
         observation_id="removed",
-        sequence=1,
         speaker_id="A",
         start_at="1970-01-01T00:00:00Z",
         end_at="1970-01-01T00:00:01Z",
@@ -217,14 +215,14 @@ def test_revision_that_removes_all_new_speech_leaves_nothing_to_assess():
         signal_level_min=-40,
         signal_level_avg=-30,
         signal_level_max=-20,
-        received_at="1970-01-01T00:01:00Z",
-        updated_at="1970-01-01T00:01:00Z",
     )
     snapshot = build_snapshot(
         case_id="case",
         target_speaker_id="A",
         target_revision=1,
-        observations=[removed],
+        ingested=[
+            IngestedObservation(sequence=1, observation=removed),
+        ],
         revisions=[ObservationReplacement(replaced_observation_ids=["removed"], observations=[])],
         after_sequence=0,
         through_sequence=1,

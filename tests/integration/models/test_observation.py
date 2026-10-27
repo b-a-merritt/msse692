@@ -1,6 +1,8 @@
 """Observation persistence, case-scoped identity, and value constraints."""
 
 import pytest
+from sqlalchemy import delete
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
@@ -8,7 +10,7 @@ from normative_conformance import models
 
 
 def test_observation_round_trip(*, session):
-    session.add(models.CaseLog(case_id="case", created_at_us=1))
+    session.add(models.ConversationCase(case_id="case", created_at_us=1))
     session.flush()
     observation = models.Observation(
         case_id="case",
@@ -52,7 +54,7 @@ def test_observation_round_trip(*, session):
     ],
 )
 def test_invalid_observations_are_rejected(*, session, changes, constraint):
-    session.add(models.CaseLog(case_id="case", created_at_us=1))
+    session.add(models.ConversationCase(case_id="case", created_at_us=1))
     session.flush()
     values = {
         "case_id": "case",
@@ -78,8 +80,8 @@ def test_invalid_observations_are_rejected(*, session, changes, constraint):
 def test_observation_identity_is_scoped_to_case(*, session):
     session.add_all(
         [
-            models.CaseLog(case_id="case", created_at_us=1),
-            models.CaseLog(case_id="other", created_at_us=1),
+            models.ConversationCase(case_id="case", created_at_us=1),
+            models.ConversationCase(case_id="other", created_at_us=1),
         ]
     )
     session.flush()
@@ -110,7 +112,7 @@ def test_observation_identity_is_scoped_to_case(*, session):
 
 @pytest.mark.parametrize("level", [-120.0, 0.0])
 def test_signal_boundaries_and_equal_levels_are_valid(*, session, level):
-    session.add(models.CaseLog(case_id="case", created_at_us=1))
+    session.add(models.ConversationCase(case_id="case", created_at_us=1))
     session.flush()
     observation = models.Observation(
         case_id="case",
@@ -131,9 +133,15 @@ def test_signal_boundaries_and_equal_levels_are_valid(*, session, level):
     assert session.get(models.Observation, observation.observation_key).signal_level_avg == level
 
 
-@pytest.mark.parametrize("operation", ["update", "delete"])
-def test_observations_are_append_only(session, operation):
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+@pytest.mark.parametrize(
+    "statement",
+    [
+        pytest.param(update(models.Observation).values(speaker_id="B"), id="update"),
+        pytest.param(delete(models.Observation), id="delete"),
+    ],
+)
+def test_observations_are_append_only(session, statement):
+    session.add(models.ConversationCase(case_id="case", created_at_us=0))
     session.flush()
     row = models.Observation(
         case_id="case",
@@ -150,12 +158,8 @@ def test_observations_are_append_only(session, operation):
     )
     session.add(row)
     session.commit()
-    if operation == "delete":
-        session.delete(row)
-    else:
-        row.speaker_id = "B"
     with pytest.raises(IntegrityError, match="observation is append-only"):
-        session.commit()
+        session.execute(statement)
     session.rollback()
     session.expire_all()
     assert session.get(models.Observation, row.observation_key).speaker_id == "A"

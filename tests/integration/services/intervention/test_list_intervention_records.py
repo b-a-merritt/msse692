@@ -10,7 +10,7 @@ from normative_conformance.services.intervention.list_intervention_records impor
 
 
 def test_records_include_case_subject_source_and_delivery_status(*, session):
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(models.ConversationCase(case_id="case", created_at_us=0))
     session.flush()
     session.add(
         models.TargetAssignment(
@@ -72,8 +72,8 @@ def test_records_include_case_subject_source_and_delivery_status(*, session):
     assert [
         (
             record.case_id,
-            record.subject_speaker_id,
-            record.assessment_ids,
+            record.target_speaker_id,
+            record.assessment_id,
             record.status,
             record.created_at,
             record.sent_at,
@@ -83,7 +83,7 @@ def test_records_include_case_subject_source_and_delivery_status(*, session):
         (
             "case",
             "configured-subject",
-            [assessments[0].assessment_id],
+            assessments[0].assessment_id,
             "sent",
             datetime.fromtimestamp(102, timezone.utc),
             datetime.fromtimestamp(106, timezone.utc),
@@ -91,7 +91,7 @@ def test_records_include_case_subject_source_and_delivery_status(*, session):
         (
             "case",
             "configured-subject",
-            [assessments[1].assessment_id],
+            assessments[1].assessment_id,
             "pending",
             datetime.fromtimestamp(105, timezone.utc),
             None,

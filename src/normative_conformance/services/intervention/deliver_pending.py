@@ -10,10 +10,10 @@ from normative_conformance import models
 from normative_conformance.errors import StorageUnavailable
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.schemas.intervention import Intervention
+from normative_conformance.services.intervention.is_pending import is_pending
 from normative_conformance.services.intervention.list_intervention_records import (
     list_intervention_records,
 )
-from normative_conformance.services.intervention.list_interventions import is_pending
 from normative_conformance.timestamps import to_microseconds
 
 logger = logging.getLogger(__name__)

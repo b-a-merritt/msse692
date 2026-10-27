@@ -12,11 +12,10 @@ from normative_conformance.errors import StorageUnavailable
 module = import_module("normative_conformance.services.intervention.deliver_pending")
 
 
-@pytest.mark.parametrize("ids", [[], [2, 5]])
-def test_returns_updated_records_only_after_commit(*, monkeypatch, ids):
+def test_returns_updated_records_only_after_commit(*, monkeypatch):
     session = Mock(spec=Session)
-    session.exec.return_value.scalars.return_value = iter(ids)
-    records = [object() for _ in ids]
+    session.exec.return_value.scalars.return_value = iter([2, 5])
+    records = [object(), object()]
     listing = Mock(return_value=records)
     monkeypatch.setattr(module, "list_intervention_records", listing)
     result = module.deliver_pending(
@@ -25,12 +24,23 @@ def test_returns_updated_records_only_after_commit(*, monkeypatch, ids):
         now=lambda: datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=timezone.utc),
     )
     assert result == records
-    if ids:
-        listing.assert_called_once_with(intervention_ids=ids, session=session)
-        session.commit.assert_called_once()
-    else:
-        listing.assert_not_called()
-        session.commit.assert_not_called()
+    listing.assert_called_once_with(intervention_ids=[2, 5], session=session)
+    session.commit.assert_called_once()
+
+
+def test_nothing_pending_returns_nothing_without_committing(*, monkeypatch):
+    session = Mock(spec=Session)
+    session.exec.return_value.scalars.return_value = iter([])
+    listing = Mock()
+    monkeypatch.setattr(module, "list_intervention_records", listing)
+    result = module.deliver_pending(
+        case_id="requested",
+        session=session,
+        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=timezone.utc),
+    )
+    assert result == []
+    listing.assert_not_called()
+    session.commit.assert_not_called()
 
 
 @pytest.mark.parametrize("stage", ["connection", "exec", "commit"])

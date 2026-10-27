@@ -7,5 +7,9 @@ def to_microseconds(*, value: datetime) -> int:
     return (value - datetime(1970, 1, 1, tzinfo=timezone.utc)) // timedelta(microseconds=1)
 
 
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def from_microseconds(*, value: int) -> datetime:
     return datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(microseconds=value)

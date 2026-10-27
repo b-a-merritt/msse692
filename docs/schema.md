@@ -2,7 +2,7 @@
 
 ```mermaid
 erDiagram
-    case_log {
+    conversation_case {
         TEXT case_id PK
         INTEGER created_at_us
         INTEGER target_speaker_order "nullable 1 or 2"
@@ -83,9 +83,9 @@ erDiagram
         INTEGER created_at_us
         INTEGER sent_at_us "nullable"
     }
-    case_log ||--o{ target_assignment : "case_id"
-    case_log ||--o{ observation : "case_id"
-    case_log ||--o{ speaker_revision : "case_id"
+    conversation_case ||--o{ target_assignment : "case_id"
+    conversation_case ||--o{ observation : "case_id"
+    conversation_case ||--o{ speaker_revision : "case_id"
     speaker_revision ||--|{ replaced_observation : "speaker_revision_id"
     observation ||--o{ replaced_observation : "observation_key"
     speaker_revision |o--o{ observation : "speaker_revision_id"

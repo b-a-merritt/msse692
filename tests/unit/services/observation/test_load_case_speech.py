@@ -61,7 +61,7 @@ def test_groups_corrections_by_revision_and_keys_ids_to_their_latest_rows():
 
     result = load_case_speech(case_id="case", session=session)
 
-    assert [(row.observation_id, row.sequence) for row in result.observations] == [
+    assert [(row.observation.observation_id, row.sequence) for row in result.ingested] == [
         ("turn", 1),
         ("other", 2),
     ]

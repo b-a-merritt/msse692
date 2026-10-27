@@ -4,7 +4,7 @@ from normative_conformance.services.intervention.list_interventions import list_
 
 def test_reads_stored_interventions_with_case_status_and_id_filters(*, session):
     session.add_all(
-        models.CaseLog(case_id=case_id, created_at_us=0) for case_id in ("case", "other")
+        models.ConversationCase(case_id=case_id, created_at_us=0) for case_id in ("case", "other")
     )
     session.flush()
     session.add_all(

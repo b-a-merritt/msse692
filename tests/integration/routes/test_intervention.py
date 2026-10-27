@@ -16,7 +16,7 @@ def test_delivery_marks_listed_interventions_sent_once(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
     with open_client(now=lambda: received_at) as client:
         with write_session(engine=client.app.state.engine) as session:
-            session.add(models.CaseLog(case_id="case", created_at_us=0))
+            session.add(models.ConversationCase(case_id="case", created_at_us=0))
             session.flush()
             session.add(
                 models.TargetAssignment(
@@ -65,8 +65,8 @@ def test_delivery_marks_listed_interventions_sent_once(*, open_client):
         pending = {
             "intervention_id": intervention.intervention_id,
             "case_id": "case",
-            "subject_speaker_id": "A",
-            "assessment_ids": [assessment.assessment_id],
+            "target_speaker_id": "A",
+            "assessment_id": assessment.assessment_id,
             "message": "Feedback",
             "created_at": _timestamp(received_at),
             "status": "pending",
@@ -108,7 +108,7 @@ def test_delivery_storage_error_returns_safe_message_and_stays_pending(*, open_c
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
     with open_client(now=lambda: received_at) as client:
         with write_session(engine=client.app.state.engine) as session:
-            session.add(models.CaseLog(case_id="case", created_at_us=0))
+            session.add(models.ConversationCase(case_id="case", created_at_us=0))
             session.flush()
             session.add(
                 models.TargetAssignment(

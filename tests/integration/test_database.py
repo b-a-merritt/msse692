@@ -13,14 +13,12 @@ from sqlmodel import Session
 
 from normative_conformance import database
 from normative_conformance.errors import StorageUnavailable
-from normative_conformance.models import CaseLog
+from normative_conformance.models import ConversationCase
 
 
 def test_reopening_and_reinitializing_preserves_records(*, engine):
     with Session(bind=engine) as session:
-        session.add(
-            CaseLog(target_speaker_id="configured-subject", case_id="retained", created_at_us=123)
-        )
+        session.add(ConversationCase(case_id="retained", created_at_us=123))
         session.commit()
     engine.dispose()
 
@@ -29,7 +27,7 @@ def test_reopening_and_reinitializing_preserves_records(*, engine):
         database.initialize_database(engine=reopened)
         database.initialize_database(engine=reopened)
         with Session(bind=reopened) as session:
-            case = session.get(CaseLog, "retained")
+            case = session.get(ConversationCase, "retained")
             assert case is not None
             assert case.created_at_us == 123
     finally:
@@ -52,18 +50,8 @@ def test_unknown_revision_is_rejected_without_rewriting_it(*, engine):
         )
 
 
-@pytest.mark.parametrize("already_initialized", [False, True], ids=["fresh", "existing"])
-def test_failed_migration_rolls_back_schema_and_data(
-    *, empty_engine, tmp_path, monkeypatch, already_initialized
-):
-    if already_initialized:
-        database.initialize_database(engine=empty_engine)
-        with empty_engine.begin() as connection:
-            connection.exec_driver_sql(
-                "INSERT INTO case_log (case_id, created_at_us) VALUES ('retained', 123)"
-            )
-    original_tables = inspect(empty_engine).get_table_names()
-
+def _install_failing_migration(*, tmp_path, monkeypatch):
+    """Copy the migrations and add one that fails after partial writes."""
     migration_dir = tmp_path / "migrations"
     copytree(
         str(files("normative_conformance") / "migrations"),
@@ -79,7 +67,9 @@ def test_failed_migration_rolls_back_schema_and_data(
 
             def upgrade():
                 op.execute("CREATE TABLE partial (id INTEGER PRIMARY KEY)")
-                op.execute("INSERT INTO case_log (case_id, created_at_us) VALUES ('partial', 456)")
+                op.execute(
+                    "INSERT INTO conversation_case (case_id, created_at_us) VALUES ('partial', 456)"
+                )
                 op.execute("INSERT INTO missing_table VALUES (1)")
 
             def downgrade():
@@ -89,18 +79,41 @@ def test_failed_migration_rolls_back_schema_and_data(
     )
     monkeypatch.setattr(database, "MIGRATIONS_LOCATION", str(migration_dir))
 
+
+def test_failed_migration_of_a_fresh_database_leaves_no_tables(
+    *, empty_engine, tmp_path, monkeypatch
+):
+    _install_failing_migration(tmp_path=tmp_path, monkeypatch=monkeypatch)
+
     with pytest.raises(StorageUnavailable) as caught:
         database.initialize_database(engine=empty_engine)
 
     assert str(caught.value) == "The application database could not be migrated"
     assert isinstance(caught.value.__cause__, OperationalError)
+    assert inspect(empty_engine).get_table_names() == []
+
+
+def test_failed_migration_of_an_existing_database_keeps_schema_and_data(
+    *, empty_engine, tmp_path, monkeypatch
+):
+    database.initialize_database(engine=empty_engine)
+    with empty_engine.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO conversation_case (case_id, created_at_us) VALUES ('retained', 123)"
+        )
+    original_tables = inspect(empty_engine).get_table_names()
+    _install_failing_migration(tmp_path=tmp_path, monkeypatch=monkeypatch)
+
+    with pytest.raises(StorageUnavailable) as caught:
+        database.initialize_database(engine=empty_engine)
+
+    assert isinstance(caught.value.__cause__, OperationalError)
     assert inspect(empty_engine).get_table_names() == original_tables
-    if already_initialized:
-        with empty_engine.connect() as connection:
-            assert (
-                connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
-                == "0001"
-            )
-            assert connection.exec_driver_sql(
-                "SELECT case_id, created_at_us FROM case_log"
-            ).all() == [("retained", 123)]
+    with empty_engine.connect() as connection:
+        assert (
+            connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
+            == "0001"
+        )
+        assert connection.exec_driver_sql(
+            "SELECT case_id, created_at_us FROM conversation_case"
+        ).all() == [("retained", 123)]

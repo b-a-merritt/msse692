@@ -9,7 +9,7 @@ from normative_conformance.database import create_database_engine
 from normative_conformance.database import read_session
 from normative_conformance.database import write_session
 from normative_conformance.models.assessment import Assessment
-from normative_conformance.models.case import CaseLog
+from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.observation import Observation
 from normative_conformance.models.speaker_revision import SpeakerRevision
 from normative_conformance.schemas.observation import ObservationReplacement
@@ -18,9 +18,10 @@ from normative_conformance.services.capture.observations import build_observatio
 from normative_conformance.services.capture.store_revisions import store_revisions
 from normative_conformance.services.capture.transcriber import TurnUpdate
 from normative_conformance.services.capture.transcriber import Word
-from normative_conformance.services.observation.ingest import stage_observation
+from normative_conformance.services.observation.load_case_speech import IngestedObservation
 from normative_conformance.services.observation.load_case_speech import load_case_speech
-from normative_conformance.services.observation.records import to_record
+from normative_conformance.services.observation.records import to_input
+from normative_conformance.services.observation.stage_observation import stage_observation
 
 
 def test_reopened_storage_supplies_corrected_speech_without_capture_state(engine):
@@ -46,7 +47,7 @@ def test_reopened_storage_supplies_corrected_speech_without_capture_state(engine
         originals_by_turn[turn.turn_order] = build_observations(
             case_id="case", session_id="provider", started_at=start, frames=frames, turn=turn
         )
-    case = CaseLog(case_id="case", created_at_us=0, target_speaker_order=1)
+    case = ConversationCase(case_id="case", created_at_us=0, target_speaker_order=1)
     with write_session(engine=engine) as session:
         session.add(case)
         session.flush()
@@ -132,19 +133,26 @@ def test_reopened_storage_supplies_corrected_speech_without_capture_state(engine
             assert len(revisions) == 4
             assert len({row.received_at_us for row in revisions}) == 1
             assert [row.model_dump() for row in original_rows] == original_state
-            assert session.get(CaseLog, "case").model_dump() == case_state
+            assert session.get(ConversationCase, "case").model_dump() == case_state
             assert session.get(Assessment, 1).model_dump() == assessment_state
             assert len(session.exec(select(Assessment)).all()) == 1
 
             speech = load_case_speech(case_id="case", session=session)
-            assert speech.observations == [to_record(observation=row) for row in original_rows]
+            assert speech.ingested == [
+                IngestedObservation(sequence=row.sequence, observation=to_input(observation=row))
+                for row in original_rows
+            ]
             # Latest revision wins for each replaced turn.
             latest = {
                 tuple(revision.replaced_observation_ids): revision.observations
                 for revision in speech.revisions
             }
             replaced_ids = {identity for identities in latest for identity in identities}
-            context = [row for row in speech.observations if row.observation_id not in replaced_ids]
+            context = [
+                row.observation
+                for row in speech.ingested
+                if row.observation.observation_id not in replaced_ids
+            ]
             context.extend(row for replacement in latest.values() for row in replacement)
             context.sort(key=lambda row: (row.start_at, row.end_at, row.observation_id))
             assert [(row.transcript, row.speaker_id) for row in context] == [

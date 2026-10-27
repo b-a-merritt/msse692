@@ -22,7 +22,6 @@ def test_records_convert_microseconds_to_utc_and_preserve_evidence():
         "observation_id": "word",
         "sequence": 1,
         "received_at": "1970-01-01T00:00:00.000010Z",
-        "updated_at": "1970-01-01T00:00:00.000010Z",
         "speaker_id": "A",
         "start_at": "1970-01-01T00:00:00.000001Z",
         "end_at": "1970-01-01T00:00:00.000009Z",

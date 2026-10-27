@@ -4,6 +4,7 @@ from sqlalchemy import Engine
 from sqlalchemy import insert
 from sqlalchemy import literal
 from sqlalchemy.exc import SQLAlchemyError
+from sqlmodel import Session
 from sqlmodel import col
 from sqlmodel import select
 
@@ -14,6 +15,7 @@ from normative_conformance.models.speaker_revision import ReplacedObservation
 from normative_conformance.models.speaker_revision import SpeakerRevision
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.schemas.observation import ObservationReplacement
+from normative_conformance.services.observation.records import to_row
 from normative_conformance.timestamps import to_microseconds
 
 
@@ -32,40 +34,41 @@ def store_revisions(
             session.connection()
             received_at_us = to_microseconds(value=now())
             for replacement in replacements:
-                revision = SpeakerRevision(case_id=case_id, received_at_us=received_at_us)
-                session.add(revision)
-                session.flush()
-                session.execute(
-                    insert(ReplacedObservation).from_select(
-                        ["speaker_revision_id", "observation_key"],
-                        select(
-                            literal(revision.speaker_revision_id), Observation.observation_key
-                        ).where(
-                            Observation.case_id == case_id,
-                            col(Observation.observation_id).in_(
-                                replacement.replaced_observation_ids
-                            ),
-                            col(Observation.speaker_revision_id).is_(None),
-                        ),
-                    )
-                )
-                session.add_all(
-                    [
-                        Observation(
-                            case_id=case_id,
-                            observation_id=row.observation_id,
-                            speaker_revision_id=revision.speaker_revision_id,
-                            speaker_id=row.speaker_id,
-                            start_at_us=to_microseconds(value=row.start_at),
-                            end_at_us=to_microseconds(value=row.end_at),
-                            transcript=row.transcript,
-                            signal_level_min=row.signal_level_min,
-                            signal_level_avg=row.signal_level_avg,
-                            signal_level_max=row.signal_level_max,
-                        )
-                        for row in replacement.observations
-                    ]
+                _stage_replacement(
+                    session=session,
+                    case_id=case_id,
+                    received_at_us=received_at_us,
+                    replacement=replacement,
                 )
             session.commit()
     except SQLAlchemyError as error:
         raise CaptureFailure("storageUnavailable") from error
+
+
+def _stage_replacement(
+    *,
+    session: Session,
+    case_id: str,
+    received_at_us: int,
+    replacement: ObservationReplacement,
+) -> None:
+    revision = SpeakerRevision(case_id=case_id, received_at_us=received_at_us)
+    session.add(revision)
+    session.flush()
+
+    session.execute(
+        insert(ReplacedObservation).from_select(
+            ["speaker_revision_id", "observation_key"],
+            select(literal(revision.speaker_revision_id), Observation.observation_key).where(
+                Observation.case_id == case_id,
+                col(Observation.observation_id).in_(replacement.replaced_observation_ids),
+                col(Observation.speaker_revision_id).is_(None),
+            ),
+        )
+    )
+    session.add_all(
+        [
+            to_row(observation=row, speaker_revision_id=revision.speaker_revision_id)
+            for row in replacement.observations
+        ]
+    )

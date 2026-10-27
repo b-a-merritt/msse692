@@ -332,7 +332,7 @@ def test_live_final_turn_is_stored_once_and_resolves_target_before_stop(open_cli
             )
             assert rows[0]["start_at"] == "2026-10-26T00:00:00Z"
             assert rows[-1]["end_at"] == "2026-10-26T00:00:00.100000Z"
-            assert all(row["received_at"] == row["updated_at"] for row in rows)
+            assert all(row["received_at"] for row in rows)
             assert client.get("/api/v1/cases/live").json()["target_speaker_id"] == "B"
             socket.send_text("stop")
             while (message := socket.receive_json())["type"] != "stopped":

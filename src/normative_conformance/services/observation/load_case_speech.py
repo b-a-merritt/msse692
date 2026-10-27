@@ -7,15 +7,19 @@ from sqlmodel import select
 from normative_conformance.models.observation import Observation
 from normative_conformance.models.speaker_revision import ReplacedObservation
 from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.schemas.observation import ObservationRecord
 from normative_conformance.schemas.observation import ObservationReplacement
 from normative_conformance.services.observation.records import to_input
-from normative_conformance.services.observation.records import to_record
+
+
+@dataclass(frozen=True)
+class IngestedObservation:
+    sequence: int
+    observation: ObservationInput
 
 
 @dataclass(frozen=True)
 class CaseSpeech:
-    observations: list[ObservationRecord]
+    ingested: list[IngestedObservation]
     revisions: list[ObservationReplacement]
     observation_keys: dict[str, int]
 
@@ -51,7 +55,7 @@ def load_case_speech(*, case_id: str, session: Session) -> CaseSpeech:
         assert row.observation_key is not None
         keys[row.observation_id] = row.observation_key
     return CaseSpeech(
-        observations=[to_record(observation=row) for row in ingested],
+        ingested=[_ingested(row) for row in ingested],
         revisions=[
             ObservationReplacement(
                 replaced_observation_ids=ids, observations=replacements.get(revision_id, [])
@@ -60,3 +64,8 @@ def load_case_speech(*, case_id: str, session: Session) -> CaseSpeech:
         ],
         observation_keys=keys,
     )
+
+
+def _ingested(row: Observation) -> IngestedObservation:
+    assert row.sequence is not None
+    return IngestedObservation(sequence=row.sequence, observation=to_input(observation=row))

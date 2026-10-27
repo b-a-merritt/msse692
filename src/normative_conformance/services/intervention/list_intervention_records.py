@@ -24,8 +24,8 @@ def list_intervention_records(
             Intervention(
                 intervention_id=row.intervention_id,
                 case_id=row_case_id,
-                subject_speaker_id=speaker_id,
-                assessment_ids=[row.assessment_id],
+                target_speaker_id=speaker_id,
+                assessment_id=row.assessment_id,
                 message=row.message,
                 created_at=from_microseconds(value=row.created_at_us),
                 status="pending" if row.sent_at_us is None else "sent",

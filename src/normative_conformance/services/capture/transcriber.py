@@ -1,5 +1,3 @@
-"""The transcription interface capture depends on, independent of any provider."""
-
 from collections.abc import AsyncIterator
 from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager

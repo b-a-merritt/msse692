@@ -15,7 +15,7 @@ from normative_conformance.services.intervention.list_intervention_records impor
 
 
 def test_pending_interventions_are_returned_sent_once(*, session, engine):
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(models.ConversationCase(case_id="case", created_at_us=0))
     session.flush()
     session.add(
         models.TargetAssignment(
@@ -87,7 +87,7 @@ def test_pending_interventions_are_returned_sent_once(*, session, engine):
 
 
 def test_concurrent_delivery_returns_each_intervention_once(*, session, engine):
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(models.ConversationCase(case_id="case", created_at_us=0))
     session.flush()
     session.add(
         models.TargetAssignment(

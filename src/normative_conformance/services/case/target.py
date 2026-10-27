@@ -8,7 +8,7 @@ from sqlmodel import Session
 from sqlmodel import col
 from sqlmodel import select
 
-from normative_conformance.models.case import CaseLog
+from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
 
 
@@ -36,10 +36,11 @@ def current_revision(case_id: SQLColumnExpression[str]) -> ScalarSelect[int]:
 
 def current_assignment(*, case_id: str, session: Session) -> TargetAssignment | None:
     return session.exec(
-        select(TargetAssignment)
-        .where(TargetAssignment.case_id == case_id)
-        .order_by(col(TargetAssignment.target_revision).desc())
-        .limit(1)
+        select(TargetAssignment).where(
+            TargetAssignment.case_id == case_id,
+            col(TargetAssignment.target_revision)
+            == current_revision(col(TargetAssignment.case_id)),
+        )
     ).first()
 
 
@@ -61,7 +62,7 @@ def set_target_label(
 
 
 def refresh_target(
-    *, case: CaseLog, labels: Iterable[str | None], session: Session, assigned_at_us: int
+    *, case: ConversationCase, labels: Iterable[str | None], session: Session, assigned_at_us: int
 ) -> None:
     """Recompute order-based mappings without overriding an explicit selection."""
     if case.target_speaker_order is None:

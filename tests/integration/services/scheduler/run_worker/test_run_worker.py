@@ -8,7 +8,7 @@ from sqlmodel import select
 
 from normative_conformance.database import read_session
 from normative_conformance.models.assessment import Assessment
-from normative_conformance.models.case import CaseLog
+from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
 from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.decision import DecisionAnswers
@@ -21,7 +21,7 @@ process_case_module = import_module(
 
 
 def test_worker_assesses_stored_speech_and_advances_progress(engine, session, monkeypatch):
-    session.add(CaseLog(case_id="case", created_at_us=0))
+    session.add(ConversationCase(case_id="case", created_at_us=0))
     session.flush()
     session.add(
         TargetAssignment(case_id="case", target_revision=1, assigned_at_us=0, speaker_id="A")
@@ -96,4 +96,4 @@ def test_worker_assesses_stored_speech_and_advances_progress(engine, session, mo
     with read_session(engine=engine) as check:
         rows = check.exec(select(Assessment)).all()
         assert [(row.through_sequence, row.action) for row in rows] == [(1, "remain_silent")]
-        assert check.get(CaseLog, "case").last_handled_sequence == 1
+        assert check.get(ConversationCase, "case").last_handled_sequence == 1

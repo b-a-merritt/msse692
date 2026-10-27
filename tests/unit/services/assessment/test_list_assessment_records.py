@@ -31,11 +31,7 @@ def test_reads_structured_decisions_and_applies_the_stored_threshold():
                 "B",
             )
         ],
-        models.AssessmentActionProbability: [
-            models.AssessmentActionProbability(
-                assessment_id=7, action="reflect_later", probability=1
-            )
-        ],
+        models.AssessmentActionProbability: [(7, "reflect_later", 1)],
         models.Classification: [
             (
                 models.Classification(
@@ -58,17 +54,9 @@ def test_reads_structured_decisions_and_applies_the_stored_threshold():
                 "other",
             ),
         ],
-        models.ClassificationTopicScore: [
-            models.ClassificationTopicScore(classification_id=1, topic="chores", score=0.7),
-            models.ClassificationTopicScore(classification_id=1, topic="money", score=0.2),
-            models.ClassificationTopicScore(classification_id=2, topic="money", score=0.6),
-        ],
-        models.ClassificationBehaviorScore: [
-            models.ClassificationBehaviorScore(
-                classification_id=1, behavior="criticism", score=0.9
-            ),
-            models.ClassificationBehaviorScore(classification_id=1, behavior="swearing", score=0.1),
-        ],
+        # Score queries select (owner ID, name, score) columns.
+        models.ClassificationTopicScore: [(1, "chores", 0.7), (1, "money", 0.2), (2, "money", 0.6)],
+        models.ClassificationBehaviorScore: [(1, "criticism", 0.9), (1, "swearing", 0.1)],
     }
     session = Mock(spec=Session)
 
@@ -81,7 +69,7 @@ def test_reads_structured_decisions_and_applies_the_stored_threshold():
 
     session.exec.side_effect = execute
     [assessment] = list_assessment_records(case_id="case", session=session)
-    assert assessment.subject_speaker_id == "B"
+    assert assessment.target_speaker_id == "B"
     assert assessment.action == "reflect_later"
     assert assessment.action_probabilities == {"reflect_later": 1}
     assert assessment.target_revision == 2

@@ -7,7 +7,7 @@ from normative_conformance.database import write_session
 from normative_conformance.errors import CaptureFailure
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.observation.ingest import stage_observation
+from normative_conformance.services.observation.stage_observation import stage_observation
 
 logger = logging.getLogger(__name__)
 

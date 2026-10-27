@@ -24,7 +24,7 @@ class Assessment(ContractModel):
     action_confidence: float
     assessment_id: int
     case_id: str
-    subject_speaker_id: str
+    target_speaker_id: str
     target_revision: int
     evaluated_at: AwareDatetime
     completed_at: AwareDatetime

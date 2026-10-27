@@ -79,16 +79,19 @@ def test_empty_revision_batch_does_not_open_storage(monkeypatch):
     write.assert_not_called()
 
 
-@pytest.mark.parametrize("failure_at", ["open", "commit"])
-def test_storage_failures_are_capture_failures(monkeypatch, failure_at):
+@pytest.mark.parametrize(
+    "owner,operation",
+    [
+        pytest.param("context", "__enter__", id="open"),
+        pytest.param("session", "commit", id="commit"),
+    ],
+)
+def test_storage_failures_are_capture_failures(monkeypatch, owner, operation):
     session = Mock(spec=Session)
     context = MagicMock()
     context.__enter__.return_value = session
     failure = SQLAlchemyError("private storage details")
-    if failure_at == "open":
-        context.__enter__.side_effect = failure
-    else:
-        session.commit.side_effect = failure
+    getattr({"context": context, "session": session}[owner], operation).side_effect = failure
     monkeypatch.setattr(module, "write_session", Mock(return_value=context))
     observation = ObservationInput(
         case_id="case",

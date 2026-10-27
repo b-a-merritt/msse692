@@ -14,14 +14,14 @@ TABLES = (
     "observation",
     "speaker_revision",
     "target_assignment",
-    "case_log",
+    "conversation_case",
 )
 
 
 def upgrade() -> None:
     """Create the application tables and protect retained records."""
     op.execute("""
-CREATE TABLE case_log (
+CREATE TABLE conversation_case (
     case_id TEXT PRIMARY KEY NOT NULL,
     created_at_us INTEGER NOT NULL,
     target_speaker_order INTEGER CHECK (target_speaker_order IN (1, 2)),
@@ -33,7 +33,7 @@ CREATE TABLE case_log (
     # Each change of target speaker gets the next revision, so earlier work can be recognized.
     op.execute("""
 CREATE TABLE target_assignment (
-    case_id TEXT NOT NULL REFERENCES case_log(case_id),
+    case_id TEXT NOT NULL REFERENCES conversation_case(case_id),
     target_revision INTEGER NOT NULL CHECK (target_revision > 0),
     assigned_at_us INTEGER NOT NULL,
     speaker_id TEXT CHECK (length(trim(speaker_id)) > 0 AND speaker_id <> 'PENDING'),
@@ -43,7 +43,7 @@ CREATE TABLE target_assignment (
     op.execute("""
 CREATE TABLE speaker_revision (
     speaker_revision_id INTEGER PRIMARY KEY CHECK (speaker_revision_id > 0),
-    case_id TEXT NOT NULL REFERENCES case_log(case_id),
+    case_id TEXT NOT NULL REFERENCES conversation_case(case_id),
     received_at_us INTEGER NOT NULL
 ) STRICT
 """)
@@ -51,7 +51,7 @@ CREATE TABLE speaker_revision (
     op.execute("""
 CREATE TABLE observation (
     observation_key INTEGER PRIMARY KEY CHECK (observation_key > 0),
-    case_id TEXT NOT NULL REFERENCES case_log(case_id),
+    case_id TEXT NOT NULL REFERENCES conversation_case(case_id),
     observation_id TEXT NOT NULL,
     speaker_revision_id INTEGER REFERENCES speaker_revision(speaker_revision_id),
     sequence INTEGER CHECK (sequence > 0),
@@ -189,7 +189,7 @@ BEGIN SELECT RAISE(ABORT, 'intervention can only be marked sent once'); END
 """)
     # Everything except case progress and delivery is append-only.
     for table in TABLES:
-        if table in ("case_log", "intervention"):
+        if table in ("conversation_case", "intervention"):
             continue
         for operation in ("update", "delete"):
             op.execute(f"""

@@ -60,19 +60,12 @@ def test_healthy_response_has_metadata(*, client, endpoint, status):
     assert response.headers["Cache-Control"] == "no-store"
 
 
-@pytest.mark.parametrize(
-    "resource,message",
-    [
-        ("database", "The application database is unavailable"),
-    ],
-)
-def test_unavailable_storage_returns_safe_error(*, client, monkeypatch, resource, message):
-    if resource == "database":
-        monkeypatch.setattr(
-            client.app.state.engine,
-            "connect",
-            Mock(side_effect=OperationalError("connect", {}, RuntimeError("private details"))),
-        )
+def test_unavailable_storage_returns_safe_error(*, client, monkeypatch):
+    monkeypatch.setattr(
+        client.app.state.engine,
+        "connect",
+        Mock(side_effect=OperationalError("connect", {}, RuntimeError("private details"))),
+    )
 
     response = client.get("/health/ready")
 
@@ -80,7 +73,7 @@ def test_unavailable_storage_returns_safe_error(*, client, monkeypatch, resource
     assert response.json() == {
         "error": {
             "code": "NOT_READY",
-            "message": message,
+            "message": "The application database is unavailable",
             "request_id": response.headers["X-Request-ID"],
         }
     }

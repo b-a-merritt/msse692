@@ -74,29 +74,16 @@ def test_engine_creation_installs_transaction_callbacks_without_connecting(*, mo
     engine.connect.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "failure",
-    [
-        None,
-        CommandError("Unknown revision"),
-        OperationalError("DDL", {}, Exception("Driver failed")),
-    ],
-)
-def test_migrations_join_one_explicit_writer_transaction(*, monkeypatch, failure):
+def test_migrations_join_one_explicit_writer_transaction(*, monkeypatch):
     connection = MagicMock()
     connection.__enter__.return_value = connection
     engine = Mock(spec=Engine)
     engine.connect.return_value.execution_options.return_value = connection
-    upgrade = Mock(side_effect=failure)
+    upgrade = Mock()
     monkeypatch.setattr(database.command, "upgrade", upgrade)
-    if failure:
-        with pytest.raises(
-            StorageUnavailable, match=r"^The application database could not be migrated$"
-        ) as caught:
-            database.initialize_database(engine=engine)
-        assert caught.value.__cause__ is failure
-    else:
-        database.initialize_database(engine=engine)
+
+    database.initialize_database(engine=engine)
+
     engine.connect.return_value.execution_options.assert_called_once_with(
         sqlite_transaction_mode="immediate"
     )
@@ -105,6 +92,29 @@ def test_migrations_join_one_explicit_writer_transaction(*, monkeypatch, failure
     assert config.attributes["connection"] is connection
     assert config.get_main_option("script_location") == database.MIGRATIONS_LOCATION
     connection.begin.assert_called_once()
+    connection.__exit__.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        CommandError("Unknown revision"),
+        OperationalError("DDL", {}, Exception("Driver failed")),
+    ],
+)
+def test_migration_failures_are_reported_as_storage_unavailable(*, monkeypatch, failure):
+    connection = MagicMock()
+    connection.__enter__.return_value = connection
+    engine = Mock(spec=Engine)
+    engine.connect.return_value.execution_options.return_value = connection
+    monkeypatch.setattr(database.command, "upgrade", Mock(side_effect=failure))
+
+    with pytest.raises(
+        StorageUnavailable, match=r"^The application database could not be migrated$"
+    ) as caught:
+        database.initialize_database(engine=engine)
+
+    assert caught.value.__cause__ is failure
     connection.__exit__.assert_called_once()
 
 
@@ -119,8 +129,24 @@ def test_schema_revision_is_read_from_the_current_connection(*, monkeypatch):
     configure.assert_called_once_with(connection)
 
 
-@pytest.mark.parametrize("write", [False, True])
-def test_session_context_closes_on_failure_without_implicitly_committing(*, monkeypatch, write):
+@pytest.mark.parametrize(
+    "open_session,constructed_with",
+    [
+        pytest.param(
+            database.read_session,
+            lambda engine, connection: call(engine, expire_on_commit=False),
+            id="read",
+        ),
+        pytest.param(
+            database.write_session,
+            lambda engine, connection: call(bind=connection, expire_on_commit=False),
+            id="write",
+        ),
+    ],
+)
+def test_session_context_closes_on_failure_without_implicitly_committing(
+    *, monkeypatch, open_session, constructed_with
+):
     engine = Mock(spec=Engine)
     connection = object()
     engine.connect.return_value.execution_options.return_value = nullcontext(connection)
@@ -131,9 +157,7 @@ def test_session_context_closes_on_failure_without_implicitly_committing(*, monk
     failure = ValueError("Operation failed")
     with (
         pytest.raises(ValueError) as caught,
-        (
-            database.write_session(engine=engine) if write else database.read_session(engine=engine)
-        ) as actual,
+        open_session(engine=engine) as actual,
     ):
         assert actual is session
         raise failure
@@ -141,7 +165,4 @@ def test_session_context_closes_on_failure_without_implicitly_committing(*, monk
     session.__exit__.assert_called_once()
     assert session.__exit__.call_args.args[:2] == (ValueError, failure)
     session.commit.assert_not_called()
-    if write:
-        constructor.assert_called_once_with(bind=connection, expire_on_commit=False)
-    else:
-        constructor.assert_called_once_with(engine, expire_on_commit=False)
+    assert constructor.call_args_list == [constructed_with(engine, connection)]

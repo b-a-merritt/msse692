@@ -34,7 +34,6 @@ def test_http_configuration_ingestion_and_restart_preserve_case_targets(open_cli
         assert resolved["target_speaker_id"] == "B"
         assert resolved["target_revision"] == 1
         manual = client.put("/api/v1/cases/live/target", json={"target_speaker_id": "A"}).json()
-        assert manual["target_speaker_manual"]
         assert manual["target_revision"] == 2
         assert (
             client.put("/api/v1/cases/replay/target", json={"target_speaker_id": "Q"}).status_code
@@ -63,5 +62,4 @@ def test_http_configuration_ingestion_and_restart_preserve_case_targets(open_cli
         assert client.get("/api/v1/cases/live").json() == manual
         automatic = client.put("/api/v1/cases/live/target", json={"target_speaker_order": 1}).json()
         assert automatic["target_speaker_id"] == "B"
-        assert not automatic["target_speaker_manual"]
         assert automatic["target_revision"] == 3

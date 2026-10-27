@@ -6,6 +6,7 @@ import pytest
 
 from normative_conformance.timestamps import from_microseconds
 from normative_conformance.timestamps import to_microseconds
+from normative_conformance.timestamps import utc_now
 
 
 @pytest.mark.parametrize(
@@ -20,3 +21,7 @@ from normative_conformance.timestamps import to_microseconds
 def test_signed_microseconds_round_trip_without_float_rounding(*, value, microseconds):
     assert to_microseconds(value=value) == microseconds
     assert from_microseconds(value=microseconds) == value.astimezone(timezone.utc)
+
+
+def test_runtime_clock_is_timezone_aware_utc():
+    assert utc_now().tzinfo is timezone.utc

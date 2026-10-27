@@ -27,17 +27,18 @@ from normative_conformance.routes import dependencies
         ),
     ],
 )
-@pytest.mark.parametrize("available", [False, True])
-def test_dependency_requires_an_initialized_resource(*, name, operation, message, available):
+def test_dependency_returns_an_initialized_resource_or_reports_it_missing(
+    *, name, operation, message
+):
     value = object()
-    state = SimpleNamespace(**({name: value} if available else {}))
-    request = Request({"type": "http", "app": SimpleNamespace(state=state)})
-    if available:
-        assert operation(request=request) is value
-    else:
-        with pytest.raises(NotReady) as caught:
-            operation(request=request)
-        assert str(caught.value) == message
+    available = Request(
+        {"type": "http", "app": SimpleNamespace(state=SimpleNamespace(**{name: value}))}
+    )
+    missing = Request({"type": "http", "app": SimpleNamespace(state=SimpleNamespace())})
+    assert operation(request=available) is value
+    with pytest.raises(NotReady) as caught:
+        operation(request=missing)
+    assert str(caught.value) == message
 
 
 def test_clock_is_supplied_without_reading_it():

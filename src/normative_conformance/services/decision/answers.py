@@ -1,5 +1,3 @@
-"""Read the decision model's answers for the questions that were asked."""
-
 from typing import cast
 
 from typesafe_sdk import SystemOneResponse

@@ -54,7 +54,6 @@ def test_normalizes_source_times_and_preserves_labels_and_transcript(speaker_id)
         pytest.param({"speaker_id": "path/segment"}, id="invalid-speaker"),
         pytest.param({"observation_id": "path/segment"}, id="invalid-identity"),
         pytest.param({"sequence": 1}, id="client-sequence"),
-        pytest.param({"updated_at": "2026-09-26T09:00:02Z"}, id="client-update-time"),
         pytest.param({"received_at": "2026-09-26T09:00:02Z"}, id="client-receipt-time"),
     ],
 )

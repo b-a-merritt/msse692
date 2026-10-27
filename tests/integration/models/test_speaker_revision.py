@@ -1,6 +1,8 @@
 """Speaker revisions link replaced ingested speech to its corrected speech."""
 
 import pytest
+from sqlalchemy import delete
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
@@ -8,7 +10,7 @@ from normative_conformance import models
 
 
 def test_revision_round_trip(session):
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+    session.add(models.ConversationCase(case_id="case", created_at_us=0))
     session.flush()
     original = models.Observation(
         case_id="case",
@@ -70,8 +72,8 @@ def test_revision_requires_existing_case(session):
 def test_only_ingested_speech_in_the_revision_case_can_be_replaced(session, replaced):
     session.add_all(
         [
-            models.CaseLog(case_id="case", created_at_us=0),
-            models.CaseLog(case_id="other", created_at_us=0),
+            models.ConversationCase(case_id="case", created_at_us=0),
+            models.ConversationCase(case_id="other", created_at_us=0),
         ]
     )
     session.flush()
@@ -130,8 +132,8 @@ def test_only_ingested_speech_in_the_revision_case_can_be_replaced(session, repl
 def test_invalid_corrections_are_rejected(session, changes, reason):
     session.add_all(
         [
-            models.CaseLog(case_id="case", created_at_us=0),
-            models.CaseLog(case_id="other", created_at_us=0),
+            models.ConversationCase(case_id="case", created_at_us=0),
+            models.ConversationCase(case_id="other", created_at_us=0),
         ]
     )
     session.flush()
@@ -158,10 +160,19 @@ def test_invalid_corrections_are_rejected(session, changes, reason):
         session.commit()
 
 
-@pytest.mark.parametrize("table", ["speaker_revision", "replaced_observation"])
-@pytest.mark.parametrize("operation", ["update", "delete"])
-def test_revisions_are_append_only(session, table, operation):
-    session.add(models.CaseLog(case_id="case", created_at_us=0))
+@pytest.mark.parametrize(
+    "statement",
+    [
+        pytest.param(update(models.SpeakerRevision).values(received_at_us=6), id="update-revision"),
+        pytest.param(delete(models.SpeakerRevision), id="delete-revision"),
+        pytest.param(
+            update(models.ReplacedObservation).values(observation_key=99), id="update-replaced"
+        ),
+        pytest.param(delete(models.ReplacedObservation), id="delete-replaced"),
+    ],
+)
+def test_revisions_are_append_only(session, statement):
+    session.add(models.ConversationCase(case_id="case", created_at_us=0))
     session.flush()
     original = models.Observation(
         case_id="case",
@@ -186,12 +197,5 @@ def test_revisions_are_append_only(session, table, operation):
     session.add(replaced)
     session.commit()
 
-    row = revision if table == "speaker_revision" else replaced
-    if operation == "delete":
-        session.delete(row)
-    elif table == "speaker_revision":
-        revision.received_at_us = 6
-    else:
-        replaced.observation_key = original.observation_key + 1
-    with pytest.raises(IntegrityError, match=f"{table} is append-only"):
-        session.commit()
+    with pytest.raises(IntegrityError, match=f"{statement.table.name} is append-only"):
+        session.execute(statement)

@@ -4,8 +4,6 @@ from importlib import import_module
 from threading import Event
 from unittest.mock import Mock
 
-import pytest
-
 module = import_module("normative_conformance.services.scheduler.run_worker.run_worker")
 
 
@@ -43,21 +41,11 @@ def test_polls_each_ready_case_once_per_pass(monkeypatch):
     assert process.call_args.kwargs["context_seconds"] == 20
 
 
-@pytest.mark.parametrize("failure", ["poll", "case"])
-def test_failure_does_not_lose_work(monkeypatch, failure):
+def test_failed_poll_is_retried_after_the_wait(monkeypatch):
     stopped = Event()
     visited = []
     waits = []
-
-    def pending(**kwargs):
-        if failure == "poll" and not waits:
-            raise RuntimeError("Unavailable")
-        return ["bad", "good"]
-
-    def process(**kwargs):
-        visited.append(kwargs["case_id"])
-        if kwargs["case_id"] == "bad":
-            raise RuntimeError("Failed evaluation")
+    pending = Mock(side_effect=[RuntimeError("Unavailable"), ["good"]])
 
     def wait(seconds):
         waits.append(seconds)
@@ -66,6 +54,30 @@ def test_failure_does_not_lose_work(monkeypatch, failure):
 
     monkeypatch.setattr(stopped, "wait", wait)
     monkeypatch.setattr(module, "pending_cases", pending)
+    monkeypatch.setattr(module, "process_case", lambda **kwargs: visited.append(kwargs["case_id"]))
+    module.run_worker(
+        stopped=stopped,
+        engine=object(),
+        now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+        client=object(),
+        batch_size=4,
+        context_seconds=30,
+    )
+    assert visited == ["good"]
+    assert waits == [0.1, 0.1]
+
+
+def test_failed_case_does_not_stop_the_others(monkeypatch):
+    stopped = Event()
+    visited = []
+
+    def process(**kwargs):
+        visited.append(kwargs["case_id"])
+        if kwargs["case_id"] == "bad":
+            raise RuntimeError("Failed evaluation")
+
+    monkeypatch.setattr(stopped, "wait", lambda seconds: stopped.set())
+    monkeypatch.setattr(module, "pending_cases", lambda **kwargs: ["bad", "good"])
     monkeypatch.setattr(module, "process_case", process)
     module.run_worker(
         stopped=stopped,
@@ -75,8 +87,7 @@ def test_failure_does_not_lose_work(monkeypatch, failure):
         batch_size=4,
         context_seconds=30,
     )
-    assert visited == ["bad", "good"] * (1 if failure == "poll" else 2)
-    assert waits == [0.1, 0.1]
+    assert visited == ["bad", "good"]
 
 
 def test_shutdown_finishes_current_case_without_starting_next(monkeypatch):

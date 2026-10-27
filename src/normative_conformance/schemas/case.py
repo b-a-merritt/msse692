@@ -25,5 +25,4 @@ class CaseRecord(ContractModel):
     created_at: AwareDatetime
     target_speaker_order: int | None
     target_speaker_id: str | None
-    target_speaker_manual: bool
     target_revision: int
