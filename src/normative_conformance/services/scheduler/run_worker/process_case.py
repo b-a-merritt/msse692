@@ -16,6 +16,7 @@ from normative_conformance.services.assessment.store_assessment import store_ass
 from normative_conformance.services.case.target import current_assignment
 from normative_conformance.services.decision.batch import batch_end
 from normative_conformance.services.decision.context import build_snapshot
+from normative_conformance.services.intervention.create_intervention import create_intervention
 from normative_conformance.services.observation.load_case_speech import load_case_speech
 from normative_conformance.services.scheduler.run_worker.progress import mark_handled
 from normative_conformance.services.scheduler.run_worker.progress import read_handled_through
@@ -120,6 +121,14 @@ def _save(
             observation_keys=observation_keys,
             completed_at_us=to_microseconds(value=now()),
         )
-        mark_handled(snapshot=snapshot, session=session)
+        create_intervention(
+            assessment=assessment,
+            answers=answers,
+            session=session,
+        )
+        mark_handled(
+            snapshot=snapshot,
+            session=session,
+        )
         session.commit()
     return assessment

@@ -18,13 +18,13 @@ def test_returns_updated_records_only_after_commit(*, monkeypatch):
     records = [object(), object()]
     listing = Mock(return_value=records)
     monkeypatch.setattr(module, "list_intervention_records", listing)
-    result = module.deliver_pending(
-        case_id="requested",
-        session=session,
-        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=UTC),
-    )
+
+    def clock():
+        return datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=UTC)
+
+    result = module.deliver_pending(case_id="requested", session=session, now=clock)
     assert result == records
-    listing.assert_called_once_with(intervention_ids=[2, 5], session=session)
+    listing.assert_called_once_with(intervention_ids=[2, 5], session=session, now=clock)
     session.commit.assert_called_once()
 
 

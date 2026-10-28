@@ -40,7 +40,7 @@ def deliver_pending(
                             models.Assessment.case_id == case_id
                         )
                     ),
-                    is_pending(),
+                    is_pending(now_us=sent_at_us),
                 )
                 .values(sent_at_us=sent_at_us)
                 .returning(col(models.Intervention.intervention_id))
@@ -49,7 +49,9 @@ def deliver_pending(
         if not intervention_ids:
             return []
 
-        records = list_intervention_records(intervention_ids=intervention_ids, session=session)
+        records = list_intervention_records(
+            intervention_ids=intervention_ids, session=session, now=now
+        )
         session.commit()
         logger.info(
             "Interventions delivered",

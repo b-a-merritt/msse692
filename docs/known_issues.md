@@ -2,7 +2,7 @@
 
 - Failed inference retries on every poll without a limit or backoff. Only requests the provider rejects (400 or 422) are skipped, leaving a gap in assessed sequences. Interrupted calls may be repeated after restart.
 - One synchronous worker handles all cases. Slow inference delays other cases; the batch duration limits speech time, not request bytes. While a batch is open, each 1-second poll reloads the case's speech.
-- Actions are saved recommendations. Intervention creation, grouping, and external notifications are not implemented.
+- Interventions are not grouped, and delivery sends no external notification; a client must call the delivery endpoint.
 - Decisions use the speaker labels speech arrived with. Revisions are stored but never reassessed, and they do not remap targets.
 - A short acknowledgement from another speaker ends the target's turn and its batch.
 - A dropped transcription stream ends capture; speech until the next Start is lost, and that Start creates a new case.

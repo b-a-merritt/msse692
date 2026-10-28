@@ -6,6 +6,8 @@ from pydantic import Field
 from normative_conformance.schemas.common import ContractModel
 from normative_conformance.schemas.common import Identifier
 
+InterventionStatus = Literal["pending", "sent", "expired"]
+
 
 class Intervention(ContractModel):
     intervention_id: int = Field(strict=True, ge=1)
@@ -14,5 +16,5 @@ class Intervention(ContractModel):
     assessment_id: int = Field(strict=True, ge=1)
     message: str
     created_at: AwareDatetime
-    status: Literal["pending", "sent"]
+    status: InterventionStatus
     sent_at: AwareDatetime | None

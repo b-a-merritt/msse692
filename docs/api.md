@@ -13,7 +13,7 @@ Base URL: `http://127.0.0.1:8000`. Full field schemas: [Swagger UI](http://127.0
 | `POST /api/v1/observations` | 201: `ObservationRecord` |
 | `GET /api/v1/cases/{case_id}/observations` | Ingested observations, newest sequence first |
 | `GET /api/v1/cases/{case_id}/assessments` | Assessments, increasing assessment ID |
-| `GET /api/v1/interventions` | Interventions, increasing ID; optional `case_id` and `status=pending` or `sent` |
+| `GET /api/v1/interventions` | Interventions, increasing ID; optional `case_id` and `status` (`pending`, `sent`, or `expired`) |
 | `POST /api/v1/cases/{case_id}/interventions/deliver` | Marks eligible interventions sent once and returns them |
 
 List endpoints return 200 with `{"items":[...]}`; unknown cases have empty lists. Lists are unpaginated.
@@ -42,9 +42,9 @@ The response adds server-assigned `sequence` and `received_at`. **201 confirms s
 
 Assessments include the model and prompt version, target revision and `target_speaker_id`, sequence range `(after_sequence, through_sequence]`, evaluation/completion times, classifications, and action probabilities. Classifications contain observation IDs, topic/behavior scores, selected labels, primary topic, and target-only intensity (0–3).
 
-Scores meeting the stored `selection_threshold` are selected in name order. A primary topic outside that set is reported as `unknown`. Actions are `remain_silent`, `await_context`, `reflect_later`, or `intervene`. They do not create interventions automatically. A batch without new target speech has a null `action` and `action_confidence` and empty `action_probabilities`.
+Scores meeting the stored `selection_threshold` are selected in name order. A primary topic outside that set is reported as `unknown`. Actions are `remain_silent`, `await_context`, `reflect_later`, or `intervene`. An `intervene` action creates one intervention with a fixed message chosen by the strongest selected target behavior. A batch without new target speech has a null `action` and `action_confidence` and empty `action_probabilities`.
 
-The intervention endpoints operate on existing records. Each has one source `assessment_id` and the `target_speaker_id` it addresses. Delivery requires the current target revision, sets `sent_at` once, and sends no external notification. An unfiltered listing retains unsent records for earlier targets; `status=pending` excludes them.
+Each intervention has one source `assessment_id` and the `target_speaker_id` it addresses. `status` is `sent` once delivered. An unsent intervention is `pending` while its target revision is current, it is newer than 60 s, and no later assessment of the target's speech exists; otherwise it is `expired`. Delivery returns the case's pending interventions, sets `sent_at` once, and sends no external notification.
 
 ## Live capture stream
 

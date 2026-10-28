@@ -6,14 +6,16 @@ from normative_conformance.routes import intervention
 def test_listing_forwards_case_and_delivery_status_filters(*, monkeypatch):
     service = Mock(return_value=[])
     monkeypatch.setattr(intervention, "list_intervention_records", service)
-    session = object()
+    session, clock = object(), Mock()
     assert (
         intervention.list_interventions(
-            case_id="requested", status="pending", session=session
+            case_id="requested", status="pending", session=session, now=clock
         ).items
         == []
     )
-    service.assert_called_once_with(case_id="requested", status="pending", session=session)
+    service.assert_called_once_with(
+        case_id="requested", status="pending", session=session, now=clock
+    )
 
 
 def test_delivery_forwards_case_with_write_session_and_server_clock(*, monkeypatch):

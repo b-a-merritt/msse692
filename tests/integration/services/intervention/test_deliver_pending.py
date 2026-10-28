@@ -59,7 +59,9 @@ def test_pending_interventions_are_returned_sent_once(*, session, engine):
     )
     session.add(intervention)
     session.commit()
-    pending = list_intervention_records(session=session)[0]
+    pending = list_intervention_records(
+        session=session, now=lambda: datetime.fromtimestamp(110, UTC)
+    )[0]
     session.commit()
 
     with write_session(engine=engine) as operation_session:
@@ -72,7 +74,10 @@ def test_pending_interventions_are_returned_sent_once(*, session, engine):
         pending.model_copy(update={"status": "sent", "sent_at": datetime.fromtimestamp(110, UTC)})
     ]
     with read_session(engine=engine) as check:
-        assert list_intervention_records(session=check) == delivered
+        assert (
+            list_intervention_records(session=check, now=lambda: datetime.fromtimestamp(110, UTC))
+            == delivered
+        )
     with write_session(engine=engine) as operation_session:
         assert (
             deliver_pending(

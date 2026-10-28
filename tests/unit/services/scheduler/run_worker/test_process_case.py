@@ -176,6 +176,8 @@ def test_snapshot_is_taken_outside_transactions_and_progress_commits_with_the_re
     saved = Assessment(assessment_id=9)
     store = Mock(return_value=saved)
     monkeypatch.setattr(module, "store_assessment", store)
+    create = Mock()
+    monkeypatch.setattr(module, "create_intervention", create)
     mark_handled = Mock()
     monkeypatch.setattr(module, "mark_handled", mark_handled)
 
@@ -187,6 +189,7 @@ def test_snapshot_is_taken_outside_transactions_and_progress_commits_with_the_re
     assert store.call_args.kwargs["snapshot"] is snapshot
     assert store.call_args.kwargs["answers"] is ANSWERS
     assert store.call_args.kwargs["observation_keys"] == {"one": 10, "two": 20, "three": 30}
+    create.assert_called_once_with(assessment=saved, answers=ANSWERS, session=writer)
     mark_handled.assert_called_once_with(snapshot=snapshot, session=writer)
     writer.commit.assert_called_once()
 

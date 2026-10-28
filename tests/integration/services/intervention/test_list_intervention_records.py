@@ -78,7 +78,9 @@ def test_records_include_case_subject_source_and_delivery_status(*, session):
             record.created_at,
             record.sent_at,
         )
-        for record in list_intervention_records(session=session)
+        for record in list_intervention_records(
+            session=session, now=lambda: datetime.fromtimestamp(110, UTC)
+        )
     ] == [
         (
             "case",

@@ -1,3 +1,6 @@
+from datetime import UTC
+from datetime import datetime
+
 from normative_conformance import models
 from normative_conformance.services.intervention.list_interventions import list_interventions
 
@@ -74,43 +77,53 @@ def test_reads_stored_interventions_with_case_status_and_id_filters(*, session):
     other = models.Intervention(
         assessment_id=assessments["other"].assessment_id, message="Other", created_at_us=4
     )
-    # An unsent intervention for a former target mapping is no longer pending.
+    # An unsent intervention for a former target mapping has expired.
     stale = models.Intervention(
         assessment_id=assessments["stale"].assessment_id, message="Stale", created_at_us=5
     )
     session.add_all([first, second, other, stale])
     session.commit()
+
+    # Every intervention was created within a minute of this time.
+    def now():
+        return datetime.fromtimestamp(10, UTC)
+
     rows = {
-        "first": (first, "case", "A"),
-        "second": (second, "case", "A"),
-        "other": (other, "other", "A"),
-        "stale": (stale, "case", "former"),
+        "first": (first, "case", "A", "sent"),
+        "second": (second, "case", "A", "pending"),
+        "other": (other, "other", "A", "pending"),
+        "stale": (stale, "case", "former", "expired"),
     }
 
-    assert list_interventions(session=session) == [
+    assert list_interventions(session=session, now=now) == [
         rows["first"],
         rows["second"],
         rows["other"],
         rows["stale"],
     ]
-    assert list_interventions(case_id="case", session=session) == [
+    assert list_interventions(case_id="case", session=session, now=now) == [
         rows["first"],
         rows["second"],
         rows["stale"],
     ]
-    assert list_interventions(case_id="missing", session=session) == []
-    assert list_interventions(status="pending", session=session) == [rows["second"], rows["other"]]
-    assert list_interventions(status="sent", session=session) == [rows["first"]]
+    assert list_interventions(case_id="missing", session=session, now=now) == []
+    assert list_interventions(status="pending", session=session, now=now) == [
+        rows["second"],
+        rows["other"],
+    ]
+    assert list_interventions(status="sent", session=session, now=now) == [rows["first"]]
+    assert list_interventions(status="expired", session=session, now=now) == [rows["stale"]]
     assert list_interventions(
-        intervention_ids=[other.intervention_id, first.intervention_id], session=session
+        intervention_ids=[other.intervention_id, first.intervention_id], session=session, now=now
     ) == [rows["first"], rows["other"]]
-    assert list_interventions(intervention_ids=[], session=session) == []
+    assert list_interventions(intervention_ids=[], session=session, now=now) == []
     assert (
         list_interventions(
             case_id="case",
             status="pending",
             intervention_ids=[first.intervention_id],
             session=session,
+            now=now,
         )
         == []
     )
