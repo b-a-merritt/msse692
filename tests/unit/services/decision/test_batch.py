@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 import pytest
 
@@ -13,13 +13,13 @@ def _ingested(*, sequence, speaker_id, start_second, end_second):
     return IngestedObservation(
         observation_key=sequence,
         sequence=sequence,
-        received_at=datetime.fromtimestamp(end_second, timezone.utc),
+        received_at=datetime.fromtimestamp(end_second, UTC),
         observation=ObservationInput(
             case_id="case",
             observation_id=str(sequence),
             speaker_id=speaker_id,
-            start_at=datetime.fromtimestamp(start_second, timezone.utc),
-            end_at=datetime.fromtimestamp(end_second, timezone.utc),
+            start_at=datetime.fromtimestamp(start_second, UTC),
+            end_at=datetime.fromtimestamp(end_second, UTC),
             transcript="Hello",
             signal_level_min=-40,
             signal_level_avg=-30,
@@ -54,7 +54,7 @@ def test_batch_ends_when_the_target_stops_speaking(after_sequence, expected):
             after_sequence=after_sequence,
             max_seconds=60,
             idle_seconds=20,
-            now=datetime.fromtimestamp(41, timezone.utc),
+            now=datetime.fromtimestamp(41, UTC),
         )
         == expected
     )
@@ -80,7 +80,7 @@ def test_batch_ends_once_its_speech_spans_the_limit(max_seconds, expected):
             after_sequence=0,
             max_seconds=max_seconds,
             idle_seconds=20,
-            now=datetime.fromtimestamp(22, timezone.utc),
+            now=datetime.fromtimestamp(22, UTC),
         )
         == expected
     )
@@ -105,7 +105,7 @@ def test_batch_ends_when_no_speech_has_arrived_for_the_idle_time(now_second, exp
             after_sequence=0,
             max_seconds=60,
             idle_seconds=20,
-            now=datetime.fromtimestamp(now_second, timezone.utc),
+            now=datetime.fromtimestamp(now_second, UTC),
         )
         == expected
     )
@@ -120,7 +120,7 @@ def test_nothing_new_has_no_batch():
             after_sequence=1,
             max_seconds=60,
             idle_seconds=20,
-            now=datetime.fromtimestamp(100, timezone.utc),
+            now=datetime.fromtimestamp(100, UTC),
         )
         is None
     )

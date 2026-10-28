@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 
@@ -40,7 +40,7 @@ def test_commits_whole_turn(monkeypatch):
         case_id="case",
         observations=[observation, other],
         engine=object(),
-        now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
+        now=lambda: datetime(2026, 10, 26, tzinfo=UTC),
     )
     assert committed == [observation, other]
 
@@ -69,7 +69,7 @@ def test_write_failure_is_reported(monkeypatch, stage, expected):
             case_id="case",
             observations=[observation],
             engine=object(),
-            now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+            now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         )
     assert caught.value.code == expected
     session.commit.assert_not_called()
@@ -82,6 +82,6 @@ def test_no_observations_requires_no_storage(monkeypatch):
         case_id="case",
         observations=[],
         engine=object(),
-        now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
     )
     write.assert_not_called()

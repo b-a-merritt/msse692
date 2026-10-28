@@ -1,6 +1,6 @@
 import json
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from importlib import import_module
 
 import pytest
@@ -144,7 +144,7 @@ def test_saves_the_target_turn_as_first_labeled_and_advances_only_its_current_ta
         context_seconds=30,
         engine=engine,
         client=object(),
-        now=lambda: datetime(1970, 1, 1, second=4, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, second=4, tzinfo=UTC),
     )
     with read_session(engine=engine) as check:
         rows = check.exec(select(Assessment)).all()

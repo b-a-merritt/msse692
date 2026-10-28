@@ -1,11 +1,16 @@
 from contextlib import contextmanager
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from importlib import import_module
 from unittest.mock import Mock
 
 import pytest
+from httpx2 import Headers
 from sqlmodel import Session
+from typesafe_sdk import TypeSafeAuthenticationError
+from typesafe_sdk import TypeSafeBadRequestError
+from typesafe_sdk import TypeSafeInternalServerError
+from typesafe_sdk import TypeSafeUnprocessableEntityError
 
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.case import TargetAssignment
@@ -20,13 +25,13 @@ def _ingested(*, observation_id, sequence, speaker_id):
     return IngestedObservation(
         observation_key=sequence * 10,
         sequence=sequence,
-        received_at=datetime.fromtimestamp(sequence, timezone.utc),
+        received_at=datetime.fromtimestamp(sequence, UTC),
         observation=ObservationInput(
             case_id="case",
             observation_id=observation_id,
             speaker_id=speaker_id,
-            start_at=datetime.fromtimestamp(sequence, timezone.utc),
-            end_at=datetime.fromtimestamp(sequence + 0.5, timezone.utc),
+            start_at=datetime.fromtimestamp(sequence, UTC),
+            end_at=datetime.fromtimestamp(sequence + 0.5, UTC),
             transcript="Hello",
             signal_level_min=-40,
             signal_level_avg=-30,
@@ -71,7 +76,7 @@ KWARGS = {
     "idle_seconds": 20,
     "context_seconds": 30,
     # Speech is received after this time, so a batch only ends with the target's turn.
-    "now": lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+    "now": lambda: datetime(1970, 1, 1, tzinfo=UTC),
 }
 
 
@@ -189,7 +194,8 @@ def test_snapshot_is_taken_outside_transactions_and_progress_commits_with_the_re
 @pytest.mark.parametrize(
     "provider_error,storage_error",
     [
-        pytest.param(RuntimeError("Unavailable"), None, id="provider"),
+        pytest.param(TypeSafeInternalServerError(500, {}, Headers()), None, id="provider-outage"),
+        pytest.param(TypeSafeAuthenticationError(401, {}, Headers()), None, id="invalid-key"),
         pytest.param(None, RuntimeError("Disk failed"), id="storage"),
     ],
 )
@@ -223,9 +229,57 @@ def test_failures_leave_progress_unchanged(monkeypatch, provider_error, storage_
     mark_handled = Mock()
     monkeypatch.setattr(module, "mark_handled", mark_handled)
 
-    with pytest.raises(RuntimeError) as caught:
+    with pytest.raises(Exception) as caught:
         module.process_case(**KWARGS)
 
     assert caught.value is (provider_error or storage_error)
     mark_handled.assert_not_called()
     writer.commit.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(TypeSafeBadRequestError(400, {}, Headers()), id="bad-request"),
+        pytest.param(TypeSafeUnprocessableEntityError(422, {}, Headers()), id="unprocessable"),
+    ],
+)
+def test_rejected_batch_is_skipped_without_an_assessment(monkeypatch, error):
+    writer = Mock(spec=Session)
+    _sessions(monkeypatch=monkeypatch, reader=Mock(spec=Session), writer=writer)
+    monkeypatch.setattr(
+        module,
+        "current_assignment",
+        Mock(
+            return_value=TargetAssignment(
+                case_id="case", target_revision=2, assigned_at_us=0, speaker_id="A"
+            )
+        ),
+    )
+    monkeypatch.setattr(module, "read_handled_through", Mock(return_value=0))
+    monkeypatch.setattr(
+        module,
+        "load_case_speech",
+        Mock(
+            return_value=[
+                _ingested(observation_id="one", sequence=1, speaker_id="A"),
+                _ingested(observation_id="two", sequence=2, speaker_id="B"),
+            ]
+        ),
+    )
+    monkeypatch.setattr(module.jev, "evaluate", Mock(side_effect=error))
+    store = Mock()
+    monkeypatch.setattr(module, "store_assessment", store)
+    mark_handled = Mock()
+    monkeypatch.setattr(module, "mark_handled", mark_handled)
+
+    assert module.process_case(**KWARGS) is None
+
+    store.assert_not_called()
+    [call] = mark_handled.call_args_list
+    assert (call.kwargs["snapshot"].after_sequence, call.kwargs["snapshot"].through_sequence) == (
+        0,
+        1,
+    )
+    assert call.kwargs["session"] is writer
+    writer.commit.assert_called_once()

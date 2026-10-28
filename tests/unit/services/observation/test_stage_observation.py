@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from importlib import import_module
 from unittest.mock import Mock
 
@@ -33,7 +33,7 @@ def test_staging_leaves_transaction_to_caller(monkeypatch):
     record = module.stage_observation(
         input=input,
         session=session,
-        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 90, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 90, tzinfo=UTC),
     )
     assert record.sequence == 4
     assert record.received_at.microsecond == 90
@@ -65,7 +65,7 @@ def test_staging_propagates_flush_failures_for_the_caller_to_roll_back():
     )
     with pytest.raises(SQLAlchemyError) as caught:
         module.stage_observation(
-            input=input, session=session, now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc)
+            input=input, session=session, now=lambda: datetime(1970, 1, 1, tzinfo=UTC)
         )
     assert caught.value is error
     session.commit.assert_not_called()

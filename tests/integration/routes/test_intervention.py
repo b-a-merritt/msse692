@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 import pytest
 
@@ -13,7 +13,7 @@ def _timestamp(value):
 
 
 def test_delivery_marks_listed_interventions_sent_once(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         with write_session(engine=client.app.state.engine) as session:
             session.add(models.ConversationCase(case_id="case", created_at_us=0))
@@ -97,7 +97,7 @@ def test_delivery_marks_listed_interventions_sent_once(*, open_client):
     ],
 )
 def test_invalid_query_is_rejected(*, open_client, params):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         response = client.get("/api/v1/interventions", params=params)
 
@@ -105,7 +105,7 @@ def test_invalid_query_is_rejected(*, open_client, params):
 
 
 def test_delivery_storage_error_returns_safe_message_and_stays_pending(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         with write_session(engine=client.app.state.engine) as session:
             session.add(models.ConversationCase(case_id="case", created_at_us=0))

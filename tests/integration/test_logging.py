@@ -2,8 +2,8 @@
 
 import logging
 import sys
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 from normative_conformance.logging import APP_LOGGER
 from normative_conformance.logging import UVICORN_ACCESS_LOGGER
@@ -18,7 +18,7 @@ def test_existing_file_gets_a_suffix_and_restarts_do_not_duplicate_handlers(
     class FixedDatetime(datetime):
         @classmethod
         def now(cls, tz=None):
-            return datetime(2026, 10, 1, 12, tzinfo=timezone.utc)
+            return datetime(2026, 10, 1, 12, tzinfo=UTC)
 
     monkeypatch.setattr("normative_conformance.logging.datetime", FixedDatetime)
     first = start_logging(log_dir=tmp_path)

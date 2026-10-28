@@ -1,7 +1,7 @@
 """Staged observations commit only with the caller's transaction."""
 
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 from sqlmodel import select
 
@@ -31,7 +31,7 @@ def test_staged_observations_and_new_case_commit_together(engine):
             stage_observation(
                 input=row,
                 session=session,
-                now=lambda: datetime(1970, 1, 1, 0, 0, 3, tzinfo=timezone.utc),
+                now=lambda: datetime(1970, 1, 1, 0, 0, 3, tzinfo=UTC),
             )
         session.commit()
     with read_session(engine=engine) as session:
@@ -58,7 +58,7 @@ def test_uncommitted_staged_observations_leave_no_case(engine):
                 signal_level_max=-10,
             ),
             session=session,
-            now=lambda: datetime(1970, 1, 1, 0, 0, 3, tzinfo=timezone.utc),
+            now=lambda: datetime(1970, 1, 1, 0, 0, 3, tzinfo=UTC),
         )
     with read_session(engine=engine) as session:
         assert session.get(ConversationCase, "capture") is None

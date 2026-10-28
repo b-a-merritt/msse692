@@ -1,9 +1,9 @@
 """Ingestion commits ordered observations for database polling."""
 
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from threading import Barrier
 
 import pytest
@@ -33,7 +33,7 @@ def test_commits_case_and_observation_with_exact_timestamps(*, engine):
         "signal_level_max": -10.0,
     }
     observation_input = ObservationInput.model_validate(observation_data)
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
 
     with write_session(engine=engine) as session:
         record = ingest(
@@ -78,7 +78,7 @@ def test_sequences_follow_arrival_order_within_each_case(*, engine):
         "signal_level_avg": -30.0,
         "signal_level_max": -10.0,
     }
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
 
     inputs = [
         observation_data,
@@ -121,7 +121,7 @@ def test_duplicates_leave_original_unchanged_and_do_not_consume_sequence(
         "signal_level_max": -10.0,
     }
     observation_input = ObservationInput.model_validate(observation_data)
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
 
     with write_session(engine=engine) as session:
         ingest(
@@ -172,7 +172,7 @@ def test_storage_failure_rolls_backnew_case_and_observation(*, engine):
         "signal_level_max": -10.0,
     }
     observation_input = ObservationInput.model_validate(observation_data)
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
 
     with engine.begin() as connection:
         connection.exec_driver_sql("""
@@ -218,7 +218,7 @@ def test_stores_signed_microseconds_without_float_rounding(*, engine):
         ingest(
             input=input,
             session=session,
-            now=lambda: datetime(2500, 1, 1, 0, 0, 0, 1, tzinfo=timezone.utc),
+            now=lambda: datetime(2500, 1, 1, 0, 0, 0, 1, tzinfo=UTC),
         )
     with Session(bind=engine) as session:
         observation = session.exec(
@@ -244,7 +244,7 @@ def test_concurrent_ingestion_assigns_distinct_sequences(*, engine):
         "signal_level_max": -10.0,
     }
     observation_input = ObservationInput.model_validate(observation_data)
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
 
     ready = Barrier(2, timeout=10)
 
@@ -279,7 +279,7 @@ def test_concurrent_duplicates_commit_once(*, engine):
         "signal_level_max": -10.0,
     }
     observation_input = ObservationInput.model_validate(observation_data)
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
 
     ready = Barrier(2, timeout=10)
 

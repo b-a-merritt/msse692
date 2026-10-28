@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 import pytest
 from sqlmodel import select
@@ -31,8 +31,8 @@ def test_turn_is_committed_in_order_and_resolves_target(engine):
             "observation_id": "two",
             "speaker_id": "B",
             "transcript": "Yes",
-            "start_at": datetime(2026, 10, 26, 0, 0, 1, tzinfo=timezone.utc),
-            "end_at": datetime(2026, 10, 26, 0, 0, 2, tzinfo=timezone.utc),
+            "start_at": datetime(2026, 10, 26, 0, 0, 1, tzinfo=UTC),
+            "end_at": datetime(2026, 10, 26, 0, 0, 2, tzinfo=UTC),
         }
     )
     with write_session(engine=engine) as session:
@@ -42,7 +42,7 @@ def test_turn_is_committed_in_order_and_resolves_target(engine):
         case_id="case",
         observations=[first, second],
         engine=engine,
-        now=lambda: datetime(2026, 10, 26, 0, 0, 3, tzinfo=timezone.utc),
+        now=lambda: datetime(2026, 10, 26, 0, 0, 3, tzinfo=UTC),
     )
     with read_session(engine=engine) as session:
         rows = session.exec(select(Observation).order_by(Observation.sequence)).all()
@@ -81,7 +81,7 @@ def test_second_run_failure_rolls_back_whole_turn_and_target(engine):
             case_id="case",
             observations=[first, second],
             engine=engine,
-            now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
+            now=lambda: datetime(2026, 10, 26, tzinfo=UTC),
         )
     assert caught.value.code == "storageUnavailable"
     with read_session(engine=engine) as session:

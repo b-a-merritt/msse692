@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from importlib import import_module
 from threading import Event
 from threading import Thread
@@ -81,7 +81,7 @@ def test_worker_assesses_stored_speech_and_advances_progress(engine, session, mo
             "stopped": stopped,
             "engine": engine,
             # The only speech was received a minute ago, so its batch has ended.
-            "now": lambda: datetime(1970, 1, 1, minute=1, tzinfo=timezone.utc),
+            "now": lambda: datetime(1970, 1, 1, minute=1, tzinfo=UTC),
             "client": object(),
             "max_batch_seconds": 60,
             "idle_seconds": 20,

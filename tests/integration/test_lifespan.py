@@ -1,7 +1,7 @@
 """Startup and shutdown own the database polling worker."""
 
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from threading import Event
 from unittest.mock import patch
 
@@ -33,7 +33,7 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(*, tmp_path, mo
         "signal_level_avg": -30.0,
         "signal_level_max": -10.0,
     }
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
 
     handled = Event()
     calls = []

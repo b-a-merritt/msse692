@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from unittest.mock import Mock
 
 import pytest
@@ -49,7 +49,7 @@ def test_configures_case_and_commits_selection(
         case_id="case",
         selection=TargetSelection(**input),
         session=session,
-        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 10, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 10, tzinfo=UTC),
     )
 
     assert result.target_speaker_id == expected
@@ -76,7 +76,7 @@ def test_selecting_order_replaces_a_label_selection(monkeypatch):
         case_id="case",
         selection=TargetSelection(target_speaker_order=2),
         session=session,
-        now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
     )
 
     assert result.target_speaker_id == "B"
@@ -97,7 +97,7 @@ def test_storage_failure_rolls_back(monkeypatch, stage):
             case_id="case",
             selection=TargetSelection(target_speaker_order=1),
             session=session,
-            now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+            now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         )
     assert caught.value.__cause__ is error
     session.rollback.assert_called_once()

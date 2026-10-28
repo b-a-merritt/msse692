@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from unittest.mock import Mock
 
 from sqlmodel import Session
@@ -29,7 +29,7 @@ def test_ingested_rows_keep_their_key_sequence_and_receipt_time():
     [speech] = load_case_speech(case_id="case", session=session)
 
     assert (speech.observation_key, speech.sequence) == (7, 3)
-    assert speech.received_at == datetime(1970, 1, 1, second=2, tzinfo=timezone.utc)
+    assert speech.received_at == datetime(1970, 1, 1, second=2, tzinfo=UTC)
     assert speech.observation.model_dump(include={"observation_id", "speaker_id"}) == {
         "observation_id": "turn",
         "speaker_id": "A",

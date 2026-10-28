@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from unittest.mock import Mock
 
 from sqlmodel import Session
@@ -37,7 +37,7 @@ def test_stores_decisions_as_queryable_rows_without_committing():
         target_revision=2,
         after_sequence=3,
         through_sequence=4,
-        captured_at=datetime(1970, 1, 1, microsecond=10, tzinfo=timezone.utc),
+        captured_at=datetime(1970, 1, 1, microsecond=10, tzinfo=UTC),
         observations=[],
         new_observation_ids=["revised"],
     )

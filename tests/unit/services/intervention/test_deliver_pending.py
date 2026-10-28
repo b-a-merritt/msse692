@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from importlib import import_module
 from unittest.mock import Mock
 
@@ -21,7 +21,7 @@ def test_returns_updated_records_only_after_commit(*, monkeypatch):
     result = module.deliver_pending(
         case_id="requested",
         session=session,
-        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=UTC),
     )
     assert result == records
     listing.assert_called_once_with(intervention_ids=[2, 5], session=session)
@@ -36,7 +36,7 @@ def test_nothing_pending_returns_nothing_without_committing(*, monkeypatch):
     result = module.deliver_pending(
         case_id="requested",
         session=session,
-        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, 0, 0, 0, 100, tzinfo=UTC),
     )
     assert result == []
     listing.assert_not_called()
@@ -56,7 +56,7 @@ def test_delivery_failure_rolls_back_and_returns_no_success(*, monkeypatch, stag
         module.deliver_pending(
             case_id="requested",
             session=session,
-            now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+            now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         )
     session.rollback.assert_called_once()
     assert caught.value.__cause__ is error

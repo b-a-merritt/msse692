@@ -30,7 +30,7 @@ from normative_conformance.schemas.case import CaseRecord
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.schemas.observation import ObservationReplacement
-from normative_conformance.services.capture.run_capture import BrowserMessage
+from normative_conformance.services.capture.forward_audio import BrowserMessage
 from normative_conformance.services.capture.run_capture import run_capture
 from normative_conformance.services.capture.store_observations import store_observations
 from normative_conformance.services.capture.store_revisions import store_revisions

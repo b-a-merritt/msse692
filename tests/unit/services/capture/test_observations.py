@@ -1,6 +1,6 @@
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 
 import pytest
 
@@ -12,7 +12,7 @@ from normative_conformance.services.capture.transcriber import Word
 
 
 def test_groups_consecutive_words_and_uses_overlapping_frames_without_duration_weighting():
-    start = datetime(2026, 10, 26, tzinfo=timezone.utc)
+    start = datetime(2026, 10, 26, tzinfo=UTC)
     inputs = {
         "case_id": "case",
         "session_id": "session",
@@ -52,7 +52,7 @@ def test_unresolved_words_do_not_inherit_dominant_speaker():
     inputs = {
         "case_id": "case",
         "session_id": "s",
-        "started_at": datetime(2026, 10, 26, tzinfo=timezone.utc),
+        "started_at": datetime(2026, 10, 26, tzinfo=UTC),
         "frames": [FrameLevel(start_ms=0, end_ms=100, dbfs=-30)],
     }
     rows = build_observations(
@@ -79,7 +79,7 @@ def test_partials_and_empty_final_turns_create_no_observations():
     inputs = {
         "case_id": "case",
         "session_id": "s",
-        "started_at": datetime(2026, 10, 26, tzinfo=timezone.utc),
+        "started_at": datetime(2026, 10, 26, tzinfo=UTC),
         "frames": [],
     }
     assert build_observations(**inputs, turn=TurnUpdate(0, False, "A", "Hello", ())) == []
@@ -101,7 +101,7 @@ def test_unusable_final_words_fail_without_inventing_observation_data(words, tra
     inputs = {
         "case_id": "case",
         "session_id": "s",
-        "started_at": datetime(2026, 10, 26, tzinfo=timezone.utc),
+        "started_at": datetime(2026, 10, 26, tzinfo=UTC),
         "frames": [FrameLevel(start_ms=0, end_ms=20, dbfs=-30)],
     }
     with pytest.raises(CaptureFailure) as caught:
@@ -113,7 +113,7 @@ def test_timestamp_overflow_is_a_protocol_failure():
     inputs = {
         "case_id": "case",
         "session_id": "s",
-        "started_at": datetime.max.replace(tzinfo=timezone.utc),
+        "started_at": datetime.max.replace(tzinfo=UTC),
         "frames": [FrameLevel(start_ms=0, end_ms=20, dbfs=-30)],
     }
     with pytest.raises(CaptureFailure) as caught:
@@ -128,7 +128,7 @@ def test_relabeling_an_unchanged_span_has_a_distinct_stable_identity(original_la
     inputs = {
         "case_id": "case",
         "session_id": "session",
-        "started_at": datetime(2026, 10, 26, tzinfo=timezone.utc),
+        "started_at": datetime(2026, 10, 26, tzinfo=UTC),
         "frames": [FrameLevel(start_ms=0, end_ms=20, dbfs=-30)],
     }
     original_turn = TurnUpdate(

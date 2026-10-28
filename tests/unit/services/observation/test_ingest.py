@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from importlib import import_module
 from unittest.mock import Mock
 
@@ -61,13 +61,13 @@ def test_assigns_receipt_sequence_and_commits(
 
     def clock():
         order.append("clock")
-        return datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc)
+        return datetime(1970, 1, 1, 0, 0, 1, tzinfo=UTC)
 
     result = module.ingest(input=input, session=session, now=clock)
 
     assert order == ["lock", "clock", "commit"]
     assert result.sequence == sequence
-    assert result.received_at == datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc)
+    assert result.received_at == datetime(1970, 1, 1, 0, 0, 1, tzinfo=UTC)
     rows = [call.args[0] for call in session.add.call_args_list]
     assert [
         (row.case_id, row.created_at_us) for row in rows if isinstance(row, ConversationCase)
@@ -115,7 +115,7 @@ def test_duplicate_is_rejected_without_storing_anything():
                 signal_level_max=-10,
             ),
             session=session,
-            now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+            now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         )
     session.rollback.assert_called_once()
     session.add.assert_not_called()
@@ -146,7 +146,7 @@ def test_storage_failures_roll_back_with_a_safe_message(*, monkeypatch, stage):
                 signal_level_max=-10,
             ),
             session=session,
-            now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+            now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         )
     assert caught.value.__cause__ is error
     session.rollback.assert_called_once()

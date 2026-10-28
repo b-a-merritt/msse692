@@ -1,43 +1,34 @@
 import asyncio
 import logging
 from collections.abc import AsyncIterator
-from collections.abc import Awaitable
-from collections.abc import Callable
+from contextlib import AsyncExitStack
 from datetime import datetime
 from functools import partial
 from uuid import uuid4
 
 from normative_conformance.errors import CaptureDisconnected
 from normative_conformance.errors import CaptureFailure
-from normative_conformance.schemas.capture import FrameLevelPayload
-from normative_conformance.schemas.capture import LevelsMessage
-from normative_conformance.schemas.capture import OutgoingMessage
 from normative_conformance.schemas.capture import ReadyMessage
+from normative_conformance.schemas.capture import Send
 from normative_conformance.schemas.capture import StoppedMessage
-from normative_conformance.schemas.capture import TranscriptMessage
-from normative_conformance.schemas.capture import WordPayload
 from normative_conformance.schemas.internal import Clock
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.schemas.observation import ObservationReplacement
+from normative_conformance.services.capture.forward_audio import BrowserMessage
+from normative_conformance.services.capture.forward_audio import forward_audio
 from normative_conformance.services.capture.levels import SAMPLE_RATE
 from normative_conformance.services.capture.levels import FrameLevel
-from normative_conformance.services.capture.levels import LevelMeter
 from normative_conformance.services.capture.observations import build_observations
-from normative_conformance.services.capture.pcm import BYTES_PER_SAMPLE
-from normative_conformance.services.capture.pcm import PCMBuffer
+from normative_conformance.services.capture.record_transcripts import StoreObservations
+from normative_conformance.services.capture.record_transcripts import StoreRevisions
+from normative_conformance.services.capture.record_transcripts import record_transcripts
 from normative_conformance.services.capture.transcriber import ConnectTranscriber
-from normative_conformance.services.capture.transcriber import SpeakerRevised
 from normative_conformance.services.capture.transcriber import Transcriber
-from normative_conformance.services.capture.transcriber import TurnRevision
-from normative_conformance.services.capture.transcriber import TurnUpdate
 
 logger = logging.getLogger(__name__)
 
 DRAIN_TIMEOUT = 10
-BrowserMessage = bytes | str
-Send = Callable[[OutgoingMessage], Awaitable[None]]
-StoreObservations = Callable[[list[ObservationInput]], Awaitable[None]]
-StoreRevisions = Callable[[list[ObservationReplacement]], Awaitable[None]]
+# Waits before each retry to open a session. Nothing is streamed until one opens.
+CONNECT_RETRY_DELAYS = (1, 2)
+TRANSIENT_FAILURES = {"providerUnavailable", "providerTimeout"}
 
 
 async def run_capture(
@@ -60,7 +51,10 @@ async def run_capture(
         extra={"event": "capture.connected", "capture_id": capture_id, "case_id": case_id},
     )
     try:
-        async with connect_transcriber() as transcriber:
+        async with AsyncExitStack() as stack:
+            transcriber = await _open_transcriber(
+                stack=stack, connect_transcriber=connect_transcriber, capture_id=capture_id
+            )
             started_at = now()
             logger.info(
                 "Transcription session ready",
@@ -113,49 +107,27 @@ async def run_capture(
     )
 
 
-def _levels_message(frames: list[FrameLevel]) -> LevelsMessage:
-    return LevelsMessage(
-        type="levels",
-        frames=[
-            FrameLevelPayload(start_ms=f.start_ms, end_ms=f.end_ms, dbfs=f.dbfs) for f in frames
-        ],
-    )
-
-
-def _transcript_message(*, turn: TurnUpdate, revised: bool) -> TranscriptMessage:
-    return TranscriptMessage(
-        type="transcript",
-        turn_order=turn.turn_order,
-        final=turn.final,
-        revised=revised,
-        transcript=turn.transcript,
-        speaker_id=turn.speaker_id,
-        words=[
-            WordPayload(text=w.text, start_ms=w.start_ms, end_ms=w.end_ms, speaker_id=w.speaker_id)
-            for w in turn.words
-        ],
-    )
-
-
-def _final_turn(revision: TurnRevision) -> TurnUpdate:
-    return TurnUpdate(
-        turn_order=revision.turn_order,
-        final=True,
-        speaker_id=revision.speaker_id,
-        transcript=" ".join(w.text for w in revision.words),
-        words=revision.words,
-    )
-
-
-def _replaced_ids(*, observation_ids: dict[int, list[str]], turn_order: int) -> list[str]:
-    """A revision may only replace a turn this capture has stored."""
-    if turn_order not in observation_ids:
-        raise CaptureFailure("providerProtocol")
-    return observation_ids[turn_order]
-
-
-def _audio_ms(byte_count: int) -> float:
-    return byte_count * 1000 / (SAMPLE_RATE * BYTES_PER_SAMPLE)
+async def _open_transcriber(
+    *, stack: AsyncExitStack, connect_transcriber: ConnectTranscriber, capture_id: str
+) -> Transcriber:
+    """Open a session, retrying while the provider is unavailable or slow to respond."""
+    for attempt, delay in enumerate(CONNECT_RETRY_DELAYS, start=1):
+        try:
+            return await stack.enter_async_context(connect_transcriber())
+        except CaptureFailure as error:
+            if error.code not in TRANSIENT_FAILURES:
+                raise
+            logger.warning(
+                "Transcription session failed to open; retrying",
+                extra={
+                    "event": "capture.provider_retry",
+                    "capture_id": capture_id,
+                    "attempt": attempt,
+                    "error_code": error.code,
+                },
+            )
+            await asyncio.sleep(delay)
+    return await stack.enter_async_context(connect_transcriber())
 
 
 async def _stream(
@@ -173,14 +145,18 @@ async def _stream(
     stopping = asyncio.Event()
     frames: list[FrameLevel] = []
     events = asyncio.create_task(
-        _events(
+        record_transcripts(
             transcriber=transcriber,
+            build=partial(
+                build_observations,
+                case_id=case_id,
+                session_id=transcriber.session_id,
+                started_at=started_at,
+                frames=frames,
+            ),
             send=send,
             stopping=stopping,
             capture_id=capture_id,
-            case_id=case_id,
-            started_at=started_at,
-            frames=frames,
             store_observations=store_observations,
             store_revisions=store_revisions,
         )
@@ -188,7 +164,7 @@ async def _stream(
     tasks = {
         events,
         asyncio.create_task(
-            _audio(
+            forward_audio(
                 messages=messages,
                 send=send,
                 transcriber=transcriber,
@@ -209,146 +185,6 @@ async def _stream(
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
-
-
-async def _audio(
-    *,
-    messages: AsyncIterator[BrowserMessage],
-    send: Send,
-    transcriber: Transcriber,
-    stopping: asyncio.Event,
-    capture_id: str,
-    frames: list[FrameLevel],
-) -> None:
-    meter = LevelMeter()
-    buffer = PCMBuffer()
-    bytes_sent = 0
-    packets_sent = 0
-    next_progress_at = 0
-    async for message in messages:
-        if stopping.is_set():
-            raise CaptureFailure("invalidAudio")
-        try:
-            if isinstance(message, bytes):
-                packet = buffer.feed(message)
-                measured = meter.feed(pcm=message)
-            elif message == "stop":
-                packet = buffer.finish()
-                measured = meter.finish()
-            else:
-                raise ValueError("Expected PCM or stop")
-        except ValueError as error:
-            raise CaptureFailure("invalidAudio") from error
-        frames.extend(measured)
-        if measured:
-            await send(_levels_message(measured))
-        if packet:
-            await transcriber.send_audio(packet)
-            bytes_sent += len(packet)
-            packets_sent += 1
-            # Report the first packet, then every five seconds of forwarded audio.
-            if bytes_sent >= next_progress_at:
-                logger.info(
-                    "Audio forwarded to transcription service",
-                    extra={
-                        "event": "capture.audio_forwarded",
-                        "capture_id": capture_id,
-                        "audio_duration_ms": _audio_ms(bytes_sent),
-                        "packets_sent": packets_sent,
-                    },
-                )
-                next_progress_at = bytes_sent + SAMPLE_RATE * BYTES_PER_SAMPLE * 5
-        if not isinstance(message, bytes):
-            logger.info(
-                "Capture stopping; waiting for final transcripts and speaker revisions",
-                extra={
-                    "event": "capture.stopping",
-                    "capture_id": capture_id,
-                    "audio_duration_ms": _audio_ms(bytes_sent),
-                    "packets_sent": packets_sent,
-                },
-            )
-            stopping.set()
-            await transcriber.finish()
-    if not stopping.is_set():
-        raise CaptureDisconnected()
-
-
-async def _events(
-    *,
-    transcriber: Transcriber,
-    send: Send,
-    stopping: asyncio.Event,
-    capture_id: str,
-    case_id: str,
-    started_at: datetime,
-    frames: list[FrameLevel],
-    store_observations: StoreObservations,
-    store_revisions: StoreRevisions,
-) -> None:
-    build = partial(
-        build_observations,
-        case_id=case_id,
-        session_id=transcriber.session_id,
-        started_at=started_at,
-        frames=frames,
-    )
-    last_partial_turn: int | None = None
-    observation_ids: dict[int, list[str]] = {}
-    async for event in transcriber.events():
-        if isinstance(event, TurnUpdate):
-            if event.final:
-                if event.turn_order in observation_ids:
-                    continue
-                observations = build(turn=event)
-                if observations:
-                    await store_observations(observations)
-                    observation_ids[event.turn_order] = [row.observation_id for row in observations]
-            if event.final or event.turn_order != last_partial_turn:
-                logger.info(
-                    "Final transcript received" if event.final else "Partial transcript received",
-                    extra={
-                        "event": "capture.transcript_received",
-                        "capture_id": capture_id,
-                        "turn_order": event.turn_order,
-                        "final": event.final,
-                        "speaker_id": event.speaker_id,
-                        "word_count": len(event.words),
-                        "character_count": len(event.transcript),
-                    },
-                )
-                last_partial_turn = event.turn_order
-            await send(_transcript_message(turn=event, revised=False))
-        elif isinstance(event, SpeakerRevised):
-            turns = [_final_turn(revision) for revision in event.turns]
-            await store_revisions(
-                [
-                    ObservationReplacement(
-                        replaced_observation_ids=_replaced_ids(
-                            observation_ids=observation_ids, turn_order=turn.turn_order
-                        ),
-                        observations=build(turn=turn),
-                    )
-                    for turn in turns
-                ]
-            )
-            logger.info(
-                "Speaker revisions received",
-                extra={
-                    "event": "capture.speaker_revisions",
-                    "capture_id": capture_id,
-                    "turn_orders": [turn.turn_order for turn in turns],
-                },
-            )
-            for turn in turns:
-                await send(_transcript_message(turn=turn, revised=True))
-        else:
-            logger.info(
-                "Speech detected by transcription service",
-                extra={"event": "capture.speech_started", "capture_id": capture_id},
-            )
-    if not stopping.is_set():
-        raise CaptureFailure("incomplete")
 
 
 async def _drain_timeout(stopping: asyncio.Event) -> None:

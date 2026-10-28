@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 
@@ -41,7 +41,7 @@ def test_stores_each_replacement_as_a_revision_with_its_corrected_speech(monkeyp
         case_id="case",
         replacements=[replacement],
         engine=object(),
-        now=lambda: datetime(1970, 1, 1, 0, 0, 5, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, 0, 0, 5, tzinfo=UTC),
     )
 
     assert [row.model_dump() for row in revisions] == [
@@ -74,7 +74,7 @@ def test_empty_revision_batch_does_not_open_storage(monkeypatch):
         case_id="case",
         replacements=[],
         engine=object(),
-        now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
     )
     write.assert_not_called()
 
@@ -113,6 +113,6 @@ def test_storage_failures_are_capture_failures(monkeypatch, owner, operation):
                 )
             ],
             engine=object(),
-            now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+            now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         )
     assert caught.value.code == "storageUnavailable"

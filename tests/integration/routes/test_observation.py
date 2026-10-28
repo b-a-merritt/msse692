@@ -1,7 +1,7 @@
 """Exercise ingestion through FastAPI with the real database and lifespan."""
 
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from unittest.mock import Mock
 from uuid import UUID
 
@@ -16,7 +16,7 @@ from normative_conformance.models.observation import Observation
 
 
 def test_ingestion_returns_committed_observation(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
@@ -55,7 +55,7 @@ def test_ingestion_returns_committed_observation(*, open_client):
 
 
 def test_duplicate_submission_returns_conflict(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
@@ -101,7 +101,7 @@ def test_duplicate_submission_returns_conflict(*, open_client):
     ],
 )
 def test_invalid_request_creates_no_records(*, open_client, changes):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
@@ -124,7 +124,7 @@ def test_invalid_request_creates_no_records(*, open_client, changes):
 
 
 def test_storage_error_returns_safe_message_and_rolls_back(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
@@ -159,7 +159,7 @@ def test_storage_error_returns_safe_message_and_rolls_back(*, open_client):
 
 
 def test_connection_failure_returns_service_unavailable(*, open_client, monkeypatch):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
@@ -193,7 +193,7 @@ def test_connection_failure_returns_service_unavailable(*, open_client, monkeypa
 
 
 def test_uninitialized_worker_does_not_block_storage(*, open_client, monkeypatch):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
@@ -217,7 +217,7 @@ def test_uninitialized_worker_does_not_block_storage(*, open_client, monkeypatch
 
 
 def test_openapi_describes_ingestion_responses(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         responses = client.get("/openapi.json").json()["paths"]["/api/v1/observations"]["post"][
             "responses"
@@ -229,7 +229,7 @@ def test_openapi_describes_ingestion_responses(*, open_client):
 
 
 def test_stopped_worker_does_not_block_storage(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
@@ -252,7 +252,7 @@ def test_stopped_worker_does_not_block_storage(*, open_client):
 
 
 def test_listing_returns_observations_newest_first(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         observation_data = {
             "case_id": "case",
@@ -284,7 +284,7 @@ def test_listing_returns_observations_newest_first(*, open_client):
 
 
 def test_listing_an_unknown_case_returns_empty_items(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         response = client.get("/api/v1/cases/missing-case/observations")
 
@@ -293,7 +293,7 @@ def test_listing_an_unknown_case_returns_empty_items(*, open_client):
 
 
 def test_openapi_describes_listing_response(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=timezone.utc)
+    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
         responses = client.get("/openapi.json").json()["paths"][
             "/api/v1/cases/{case_id}/observations"

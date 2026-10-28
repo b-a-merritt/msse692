@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 from normative_conformance.database import read_session
 from normative_conformance.database import write_session
@@ -78,7 +78,7 @@ def test_speech_is_read_as_ingested_in_sequence_order_without_corrections(engine
             )
         ],
         engine=engine,
-        now=lambda: datetime(1970, 1, 1, second=5, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, second=5, tzinfo=UTC),
     )
 
     with read_session(engine=engine) as session:

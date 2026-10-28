@@ -1,6 +1,6 @@
 """Observation input validation without database access."""
 
-from datetime import timezone
+from datetime import UTC
 
 import pytest
 from pydantic import ValidationError
@@ -23,10 +23,10 @@ def test_normalizes_source_times_and_preserves_labels_and_transcript(speaker_id)
     }
 
     observation = ObservationInput.model_validate(observation_data)
-    assert observation.start_at.tzinfo == timezone.utc
+    assert observation.start_at.tzinfo == UTC
     assert observation.start_at.hour == 9
     assert observation.start_at.microsecond == 123_456
-    assert observation.end_at.tzinfo == timezone.utc
+    assert observation.end_at.tzinfo == UTC
     assert observation.end_at.microsecond == 654_321
     assert observation.transcript == observation_data["transcript"]
     assert observation.speaker_id == speaker_id

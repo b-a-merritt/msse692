@@ -21,7 +21,7 @@ def run_worker(
     idle_seconds: int,
     context_seconds: int,
 ) -> None:
-    """Poll durable case progress with a 0.1-second idle wait."""
+    """Poll durable case progress with a 1-second idle wait."""
     try:
         while not stopped.is_set():
             try:
@@ -49,6 +49,6 @@ def run_worker(
                         )
             except Exception:
                 logger.exception("Database polling failed", extra={"event": "worker.poll_failed"})
-            stopped.wait(0.1)
+            stopped.wait(1)
     finally:
         stopped.set()

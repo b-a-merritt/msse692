@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 from pydantic import AwareDatetime
 from pydantic import Field
@@ -31,7 +31,7 @@ class ObservationInput(ContractModel):
     @field_validator("start_at", "end_at")
     @classmethod
     def normalize_timestamp(cls, value: datetime) -> datetime:
-        return value.astimezone(timezone.utc)
+        return value.astimezone(UTC)
 
     @model_validator(mode="after")
     def validate_chunk(self) -> "ObservationInput":

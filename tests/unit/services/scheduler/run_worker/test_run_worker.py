@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from importlib import import_module
 from threading import Event
 from unittest.mock import Mock
@@ -13,7 +13,7 @@ def test_polls_each_ready_case_once_per_pass(monkeypatch):
     client = object()
 
     def wait(seconds):
-        assert seconds == 0.1
+        assert seconds == 1
         polls.append(seconds)
         if len(polls) == 2:
             stopped.set()
@@ -25,7 +25,7 @@ def test_polls_each_ready_case_once_per_pass(monkeypatch):
     module.run_worker(
         stopped=stopped,
         engine=object(),
-        now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         client=client,
         max_batch_seconds=45,
         idle_seconds=15,
@@ -60,14 +60,14 @@ def test_failed_poll_is_retried_after_the_wait(monkeypatch):
     module.run_worker(
         stopped=stopped,
         engine=object(),
-        now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         client=object(),
         max_batch_seconds=60,
         idle_seconds=20,
         context_seconds=30,
     )
     assert visited == ["good"]
-    assert waits == [0.1, 0.1]
+    assert waits == [1, 1]
 
 
 def test_failed_case_does_not_stop_the_others(monkeypatch):
@@ -85,7 +85,7 @@ def test_failed_case_does_not_stop_the_others(monkeypatch):
     module.run_worker(
         stopped=stopped,
         engine=object(),
-        now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         client=object(),
         max_batch_seconds=60,
         idle_seconds=20,
@@ -102,7 +102,7 @@ def test_shutdown_finishes_current_case_without_starting_next(monkeypatch):
     module.run_worker(
         stopped=stopped,
         engine=object(),
-        now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         client=object(),
         max_batch_seconds=60,
         idle_seconds=20,

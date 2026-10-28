@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 import pytest
 
@@ -12,13 +12,13 @@ def _ingested(*, observation_id, sequence, start_second, end_second):
     return IngestedObservation(
         observation_key=sequence,
         sequence=sequence,
-        received_at=datetime.fromtimestamp(end_second, timezone.utc),
+        received_at=datetime.fromtimestamp(end_second, UTC),
         observation=ObservationInput(
             case_id="case",
             observation_id=observation_id,
             speaker_id="A",
-            start_at=datetime.fromtimestamp(start_second, timezone.utc),
-            end_at=datetime.fromtimestamp(end_second, timezone.utc),
+            start_at=datetime.fromtimestamp(start_second, UTC),
+            end_at=datetime.fromtimestamp(end_second, UTC),
             transcript="Hello",
             signal_level_min=-40,
             signal_level_avg=-30,
@@ -43,7 +43,7 @@ def test_snapshot_orders_the_batch_by_time_and_excludes_later_speech():
         after_sequence=1,
         through_sequence=3,
         context_seconds=30,
-        captured_at=datetime(1970, 1, 1, minute=2, tzinfo=timezone.utc),
+        captured_at=datetime(1970, 1, 1, minute=2, tzinfo=UTC),
     )
     assert snapshot.model_dump(include={"case_id", "target_speaker_id", "target_revision"}) == {
         "case_id": "case",
@@ -76,7 +76,7 @@ def test_context_is_handled_speech_ending_shortly_before_the_new_speech(context_
         after_sequence=2,
         through_sequence=3,
         context_seconds=context_seconds,
-        captured_at=datetime(1970, 1, 1, minute=2, tzinfo=timezone.utc),
+        captured_at=datetime(1970, 1, 1, minute=2, tzinfo=UTC),
     )
     assert [row.observation_id for row in snapshot.observations] == expected
     assert snapshot.new_observation_ids == ["new"]

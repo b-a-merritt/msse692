@@ -14,11 +14,11 @@ flowchart LR
     D --> A[Assessment API]
 ```
 
-One worker visits each ready case per pass, then waits 0.1 seconds. A resolved target and new ingested sequences or a changed target revision make a case ready; it is skipped while its batch is open. Calls are synchronous, so inference delays other cases.
+One worker visits each ready case per pass, then waits 1 second. A resolved target and new ingested sequences or a changed target revision make a case ready; it is skipped while its batch is open. Calls are synchronous, so inference delays other cases.
 
 `process_case` loads ingested speech and the target in a read transaction. `batch_end` ends a batch at the target's last observation once another speaker's observation arrives, or earlier when its speech spans `DECISION_MAX_BATCH_SECONDS` or nothing has arrived for `DECISION_IDLE_SECONDS`. `build_snapshot` adds speech ending within `DECISION_CONTEXT_SECONDS` before the batch as context. Decisions use the speaker labels speech arrived with; revisions are not read.
 
-Inference runs outside database transactions. On success, decisions and progress commit together. A target change during inference preserves the decision under its original assignment and leaves the new target pending. Failures leave progress unchanged and retry on later polls. There is no persisted attempt budget or interrupted-request recovery.
+Inference runs outside database transactions. On success, decisions and progress commit together. A target change during inference preserves the decision under its original assignment and leaves the new target pending. A request the provider rejects (400 or 422) is logged as `batch.rejected` and its batch skipped. Other failures leave progress unchanged and retry on the next poll, without an attempt limit, backoff, or interrupted-request recovery.
 
 ## Questions and results
 
@@ -36,7 +36,7 @@ Ingested observations have a sequence and receipt time. Corrected observations r
 
 `target_assignment` records speaker-label changes. Speaking order uses ingested speech; selecting a label clears that order. Assessments reference the assignment they used. Each stored intervention references one `intervene` assessment. Delivery marks it sent once, only while its target revision remains current.
 
-Capture stores each final turn and revision batch before notifying the browser. Finals and corrections share `build_observations`; IDs include session, turn, word span, and label. Storage runs in a thread pool. `LevelMeter` measures 20 ms frames; `PCMBuffer` preserves the provider's minimum packet size. The [API reference](api.md#live-capture-stream) defines the wire protocol.
+Capture stores each final turn and revision batch before notifying the browser. Opening the transcription session is retried after 1 s and 2 s when the provider is unavailable or times out; nothing streams until it opens. A dropped session is not reopened, because a new session restarts speaker labels. Finals and corrections share `build_observations`; IDs include session, turn, word span, and label. Storage runs in a thread pool. `LevelMeter` measures 20 ms frames; `PCMBuffer` preserves the provider's minimum packet size. The [API reference](api.md#live-capture-stream) defines the wire protocol.
 
 ## Tests
 

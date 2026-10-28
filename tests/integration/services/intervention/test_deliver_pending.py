@@ -1,8 +1,8 @@
 """Delivery marks pending interventions sent once, in the same transaction that reads them."""
 
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from threading import Barrier
 
 from normative_conformance import models
@@ -66,12 +66,10 @@ def test_pending_interventions_are_returned_sent_once(*, session, engine):
         delivered = deliver_pending(
             case_id="case",
             session=operation_session,
-            now=lambda: datetime.fromtimestamp(110, timezone.utc),
+            now=lambda: datetime.fromtimestamp(110, UTC),
         )
     assert delivered == [
-        pending.model_copy(
-            update={"status": "sent", "sent_at": datetime.fromtimestamp(110, timezone.utc)}
-        )
+        pending.model_copy(update={"status": "sent", "sent_at": datetime.fromtimestamp(110, UTC)})
     ]
     with read_session(engine=engine) as check:
         assert list_intervention_records(session=check) == delivered
@@ -80,7 +78,7 @@ def test_pending_interventions_are_returned_sent_once(*, session, engine):
             deliver_pending(
                 case_id="case",
                 session=operation_session,
-                now=lambda: datetime.fromtimestamp(111, timezone.utc),
+                now=lambda: datetime.fromtimestamp(111, UTC),
             )
             == []
         )
@@ -139,7 +137,7 @@ def test_concurrent_delivery_returns_each_intervention_once(*, session, engine):
             return deliver_pending(
                 case_id="case",
                 session=operation_session,
-                now=lambda: datetime.fromtimestamp(110, timezone.utc),
+                now=lambda: datetime.fromtimestamp(110, UTC),
             )
 
     with ThreadPoolExecutor(max_workers=2) as executor:

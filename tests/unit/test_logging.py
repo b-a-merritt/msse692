@@ -3,6 +3,7 @@
 import json
 import logging
 import sqlite3
+from datetime import UTC
 
 from sqlalchemy.exc import OperationalError
 
@@ -60,7 +61,6 @@ def test_exceptions_are_formatted_by_type_without_messages():
 
 def test_start_and_stop_manage_handlers_without_emitting_logs(*, monkeypatch):
     from datetime import datetime
-    from datetime import timezone
     from pathlib import Path
     from types import SimpleNamespace
     from unittest.mock import MagicMock
@@ -76,7 +76,7 @@ def test_start_and_stop_manage_handlers_without_emitting_logs(*, monkeypatch):
     fresh.stem = "20260101T000000000000Z-1"
     directory.__truediv__.side_effect = [existing, fresh]
     timestamp = Mock()
-    timestamp.now.return_value = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    timestamp.now.return_value = datetime(2026, 1, 1, tzinfo=UTC)
     monkeypatch.setattr(module, "datetime", timestamp)
     stdout_handler = Mock(spec=logging.StreamHandler)
     file_handler = Mock(spec=logging.FileHandler)

@@ -1,3 +1,5 @@
+from collections.abc import Awaitable
+from collections.abc import Callable
 from typing import Literal
 from typing import TypedDict
 
@@ -63,3 +65,4 @@ class ErrorMessage(TypedDict):
 
 
 OutgoingMessage = ReadyMessage | LevelsMessage | TranscriptMessage | StoppedMessage
+Send = Callable[[OutgoingMessage], Awaitable[None]]

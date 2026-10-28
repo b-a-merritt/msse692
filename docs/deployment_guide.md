@@ -36,6 +36,8 @@ Application logs go to stdout and `$LOG_DIR/<UTC start time>.jsonl`. Filter by `
 
 - `capture.audio_forwarded`, `capture.transcript_received`, `capture.observations_stored`: recording progress.
 - `capture.speaker_revisions`, `capture.completed`: corrections and successful completion.
+- `capture.provider_retry`: a transcription session that failed to open and is being retried.
 - `capture.failed`, `case.processing_failed`, `worker.poll_failed`: failures.
+- `batch.rejected`: a batch the decision-model provider rejected and the worker skipped.
 
 Application exception records contain type names, not exception messages. Inspect stored assessments for outcomes. See [limitations](known_issues.md) and [API errors](api.md#errors).

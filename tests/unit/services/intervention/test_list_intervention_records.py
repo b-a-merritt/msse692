@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from importlib import import_module
 from unittest.mock import Mock
 
@@ -47,7 +47,7 @@ def test_converts_delivery_status_and_source_assessment(*, monkeypatch):
     assert [row.assessment_id for row in results] == [4, 5]
     assert [row.status for row in results] == ["pending", "sent"]
     assert results[0].sent_at is None
-    assert results[1].sent_at == datetime(1970, 1, 1, 0, 0, 0, 110, tzinfo=timezone.utc)
+    assert results[1].sent_at == datetime(1970, 1, 1, 0, 0, 0, 110, tzinfo=UTC)
     assert [row.message for row in results] == ["First", "Second"]
     assert all(row.case_id == "case" for row in results)
     assert all(row.target_speaker_id == "subject" for row in results)

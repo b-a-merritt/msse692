@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 import pytest
 from sqlmodel import select
@@ -38,7 +38,7 @@ def test_revisions_link_replaced_speech_to_corrected_speech(engine):
                     signal_level_max=-30,
                 ),
                 session=session,
-                now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+                now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
             )
         session.commit()
 
@@ -63,7 +63,7 @@ def test_revisions_link_replaced_speech_to_corrected_speech(engine):
             )
         ],
         engine=engine,
-        now=lambda: datetime(1970, 1, 1, 0, 0, 5, tzinfo=timezone.utc),
+        now=lambda: datetime(1970, 1, 1, 0, 0, 5, tzinfo=UTC),
     )
 
     with read_session(engine=engine) as session:
@@ -108,7 +108,7 @@ def test_second_replacement_failure_rolls_back_batch(engine):
                     signal_level_max=-30,
                 ),
                 session=session,
-                now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+                now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
             )
         session.commit()
     with engine.begin() as connection:
@@ -144,7 +144,7 @@ def test_second_replacement_failure_rolls_back_batch(engine):
             case_id="case",
             replacements=replacements,
             engine=engine,
-            now=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc),
+            now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         )
     assert caught.value.code == "storageUnavailable"
     with read_session(engine=engine) as session:

@@ -1,7 +1,7 @@
 """Intervention records combine stored interventions with their source assessments."""
 
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 from normative_conformance import models
 from normative_conformance.services.intervention.list_intervention_records import (
@@ -85,15 +85,15 @@ def test_records_include_case_subject_source_and_delivery_status(*, session):
             "configured-subject",
             assessments[0].assessment_id,
             "sent",
-            datetime.fromtimestamp(102, timezone.utc),
-            datetime.fromtimestamp(106, timezone.utc),
+            datetime.fromtimestamp(102, UTC),
+            datetime.fromtimestamp(106, UTC),
         ),
         (
             "case",
             "configured-subject",
             assessments[1].assessment_id,
             "pending",
-            datetime.fromtimestamp(105, timezone.utc),
+            datetime.fromtimestamp(105, UTC),
             None,
         ),
     ]

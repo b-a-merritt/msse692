@@ -1,8 +1,9 @@
 import asyncio
 import logging
+from contextlib import AsyncExitStack
 from contextlib import asynccontextmanager
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -10,7 +11,6 @@ import pytest
 from normative_conformance.errors import CaptureDisconnected
 from normative_conformance.errors import CaptureFailure
 from normative_conformance.services.capture import run_capture as module
-from normative_conformance.services.capture.levels import FrameLevel
 from normative_conformance.services.capture.transcriber import SpeakerRevised
 from normative_conformance.services.capture.transcriber import SpeechStarted
 from normative_conformance.services.capture.transcriber import TurnRevision
@@ -90,7 +90,7 @@ async def run(*, case_id, messages, transcriber, now, store_observations, store_
 
 
 def test_streams_levels_and_transcripts_until_stopped(caplog):
-    caplog.set_level(logging.INFO, logger=module.__name__)
+    caplog.set_level(logging.INFO, logger="normative_conformance.services.capture")
     transcriber = FakeTranscriber(
         on_audio=[
             TurnUpdate(
@@ -128,7 +128,7 @@ def test_streams_levels_and_transcripts_until_stopped(caplog):
     sent = asyncio.run(
         run(
             case_id="capture-case",
-            now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
+            now=lambda: datetime(2026, 10, 26, tzinfo=UTC),
             store_observations=AsyncMock(),
             store_revisions=AsyncMock(),
             messages=browser(audio[:3200], audio[3200:], "stop"),
@@ -168,7 +168,9 @@ def test_streams_levels_and_transcripts_until_stopped(caplog):
         ],
     }
     # Logs are the requested diagnostic output here; capture behavior is asserted above.
-    records = [r for r in caplog.records if r.name == module.__name__]
+    records = [
+        r for r in caplog.records if r.name.startswith("normative_conformance.services.capture")
+    ]
     assert len({r.capture_id for r in records}) == 1
     assert {r.event for r in records} == {
         "capture.connected",
@@ -192,40 +194,6 @@ def test_streams_levels_and_transcripts_until_stopped(caplog):
     assert "Hello there." not in caplog.text
 
 
-@pytest.mark.parametrize("message", [b"", b"\x00", b"\x00" * 3202, "bad command"])
-def test_invalid_browser_input_is_rejected(message):
-    transcriber = FakeTranscriber()
-    with pytest.raises(CaptureFailure) as caught:
-        asyncio.run(
-            run(
-                case_id="capture-case",
-                now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
-                store_observations=AsyncMock(),
-                store_revisions=AsyncMock(),
-                messages=browser(message),
-                transcriber=transcriber,
-            )
-        )
-    assert caught.value.code == "invalidAudio"
-    assert transcriber.finished == 0
-
-
-def test_input_after_stop_is_rejected():
-    transcriber = FakeTranscriber(end_on_finish=False)
-    with pytest.raises(CaptureFailure) as caught:
-        asyncio.run(
-            run(
-                case_id="capture-case",
-                now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
-                store_observations=AsyncMock(),
-                store_revisions=AsyncMock(),
-                messages=browser("stop", b"\x00\x00" * 1600),
-                transcriber=transcriber,
-            )
-        )
-    assert caught.value.code == "invalidAudio"
-
-
 def test_browser_leaving_before_stop_is_a_disconnect_without_stopped():
     sent = []
 
@@ -236,7 +204,7 @@ def test_browser_leaving_before_stop_is_a_disconnect_without_stopped():
         asyncio.run(
             module.run_capture(
                 case_id="capture-case",
-                now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
+                now=lambda: datetime(2026, 10, 26, tzinfo=UTC),
                 store_observations=AsyncMock(),
                 store_revisions=AsyncMock(),
                 messages=browser(b"\x00\x00" * 1600),
@@ -271,7 +239,7 @@ def test_provider_failure_cancels_waiting_browser_input(event, expected):
         with pytest.raises(CaptureFailure) as caught:
             await run(
                 case_id="capture-case",
-                now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
+                now=lambda: datetime(2026, 10, 26, tzinfo=UTC),
                 store_observations=AsyncMock(),
                 store_revisions=AsyncMock(),
                 messages=waiting_browser(),
@@ -298,7 +266,7 @@ def test_connection_failure_sends_nothing():
         asyncio.run(
             module.run_capture(
                 case_id="capture-case",
-                now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
+                now=lambda: datetime(2026, 10, 26, tzinfo=UTC),
                 store_observations=AsyncMock(),
                 store_revisions=AsyncMock(),
                 messages=browser(),
@@ -332,287 +300,72 @@ def test_drain_deadline_is_started_only_after_stop(monkeypatch):
     asyncio.run(scenario())
 
 
-def test_audio_progress_is_periodic_and_stop_reports_total(caplog):
-    # Logging cadence is the observable behavior under test, not evidence of routing success.
-    caplog.set_level(logging.INFO, logger=module.__name__)
-    packet = b"\x00\x00" * 1600  # 100 ms of silence per message.
-    transcriber = FakeTranscriber(end_on_finish=False)
+def opening(*failures, transcriber):
+    """Fail to open with each failure in turn, then open `transcriber`; count the attempts."""
+    remaining = list(failures)
+    attempts = []
 
-    async def send(message):
-        pass
+    @asynccontextmanager
+    async def connect():
+        attempts.append(len(attempts) + 1)
+        if remaining:
+            raise remaining.pop(0)
+        yield transcriber
 
-    asyncio.run(
-        module._audio(
-            messages=browser(*[packet] * 60, "stop"),
-            send=send,
-            transcriber=transcriber,
-            stopping=asyncio.Event(),
-            capture_id="progress-test",
-            frames=[],
-        )
-    )
-
-    assert b"".join(transcriber.audio) == packet * 60
-    records = [r for r in caplog.records if r.name == module.__name__]
-    progress = [r for r in records if r.event == "capture.audio_forwarded"]
-    assert [r.audio_duration_ms for r in progress] == [100, 5100]
-    stopping = next(r for r in records if r.event == "capture.stopping")
-    assert stopping.audio_duration_ms == 6000
-    assert stopping.packets_sent == 60
+    return connect, attempts
 
 
-def test_partial_log_is_once_per_turn_but_every_update_reaches_browser(caplog):
-    # Assert diagnostic throttling directly; all transcript updates must still be delivered.
-    caplog.set_level(logging.INFO, logger=module.__name__)
+def open_transcriber(*, connect, slept, monkeypatch):
+    """Open with retries, recording each wait in `slept` instead of sleeping."""
+
+    async def sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr(module.asyncio, "sleep", sleep)
+
+    async def scenario():
+        async with AsyncExitStack() as stack:
+            return await module._open_transcriber(
+                stack=stack, connect_transcriber=connect, capture_id="capture"
+            )
+
+    return asyncio.run(scenario())
+
+
+def test_transient_open_failures_are_retried_with_growing_waits(monkeypatch):
     transcriber = FakeTranscriber()
-    transcriber.emit(
-        TurnUpdate(turn_order=0, final=False, speaker_id=None, transcript="Hi", words=()),
-        TurnUpdate(turn_order=0, final=False, speaker_id=None, transcript="Hi there", words=()),
-        TurnUpdate(
-            turn_order=0,
-            final=True,
-            speaker_id=None,
-            transcript="Hi there.",
-            words=(Word(text="Hi there.", start_ms=0, end_ms=20, speaker_id=None),),
-        ),
-        TurnUpdate(turn_order=1, final=False, speaker_id=None, transcript="Yes", words=()),
-        END,
+    connect, attempts = opening(
+        CaptureFailure("providerUnavailable"),
+        CaptureFailure("providerTimeout"),
+        transcriber=transcriber,
     )
-    sent = []
+    slept = []
 
-    async def send(message):
-        sent.append(message)
-
-    async def scenario():
-        stopping = asyncio.Event()
-        stopping.set()
-        await module._events(
-            transcriber=transcriber,
-            send=send,
-            stopping=stopping,
-            capture_id="partial-test",
-            store_observations=AsyncMock(),
-            store_revisions=AsyncMock(),
-            case_id="capture-case",
-            started_at=datetime(2026, 10, 26, tzinfo=timezone.utc),
-            frames=[FrameLevel(start_ms=0, end_ms=20, dbfs=-30)],
-        )
-
-    asyncio.run(scenario())
-    assert [m["transcript"] for m in sent] == ["Hi", "Hi there", "Hi there.", "Yes"]
-    records = [r for r in caplog.records if r.name == module.__name__]
-    assert [(r.turn_order, r.final) for r in records] == [(0, False), (0, True), (1, False)]
+    assert open_transcriber(connect=connect, slept=slept, monkeypatch=monkeypatch) is transcriber
+    assert attempts == [1, 2, 3]
+    assert slept == [1, 2]
 
 
-def test_persists_final_turn_once_before_reporting_it_and_stopping():
-    final = TurnUpdate(0, True, "A", "Hello", (Word("Hello", 0, 100, "A"),))
-    transcriber = FakeTranscriber(on_finish=[final, final])
-    sent = []
-    saved = []
-
-    async def store(observations):
-        saved.extend(observations)
-
-    async def send(message):
-        if message["type"] in {"transcript", "stopped"}:
-            assert len(saved) == 1
-        sent.append(message)
-
-    asyncio.run(
-        module.run_capture(
-            case_id="capture-case",
-            messages=browser(b"\x00\x00" * 1600, "stop"),
-            send=send,
-            connect_transcriber=connecting(transcriber),
-            now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
-            store_observations=store,
-            store_revisions=AsyncMock(),
-        )
+def test_opening_gives_up_after_three_attempts(monkeypatch):
+    connect, attempts = opening(
+        *[CaptureFailure("providerUnavailable")] * 3, transcriber=FakeTranscriber()
     )
-    assert sent[-1] == {"type": "stopped"}
-    assert saved[0].speaker_id == "A"
-    assert saved[0].transcript == "Hello"
-    assert saved[0].signal_level_avg == -120
-    assert saved[0].start_at == datetime(2026, 10, 26, tzinfo=timezone.utc)
-
-
-def test_storage_failure_ends_capture_without_claiming_completion():
-    final = TurnUpdate(0, True, "A", "Hello", (Word("Hello", 0, 100, "A"),))
-    transcriber = FakeTranscriber(on_finish=[final])
-    sent = []
-    send = AsyncMock(side_effect=lambda message: sent.append(message))
-    with pytest.raises(CaptureFailure) as caught:
-        asyncio.run(
-            module.run_capture(
-                case_id="capture-case",
-                messages=browser(b"\x00\x00" * 1600, "stop"),
-                send=send,
-                connect_transcriber=connecting(transcriber),
-                now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
-                store_observations=AsyncMock(side_effect=CaptureFailure("storageUnavailable")),
-                store_revisions=AsyncMock(),
-            )
-        )
-    assert caught.value.code == "storageUnavailable"
-    assert not any(m["type"] in {"transcript", "stopped"} for m in sent)
-
-
-def test_later_final_words_do_not_overwrite_or_represent_unsaved_speech():
-    original = TurnUpdate(0, True, "A", "Hello", (Word("Hello", 0, 100, "A"),))
-    changed = TurnUpdate(0, True, "B", "Hello", (Word("Hello", 0, 100, "B"),))
-    transcriber = FakeTranscriber(on_finish=[original, changed])
-    saved = []
-    sent = []
-
-    async def store(observations):
-        saved.extend(observations)
-
-    async def send(message):
-        sent.append(message)
-
-    asyncio.run(
-        module.run_capture(
-            case_id="capture-case",
-            messages=browser(b"\x00\x00" * 1600, "stop"),
-            send=send,
-            connect_transcriber=connecting(transcriber),
-            now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
-            store_observations=store,
-            store_revisions=AsyncMock(),
-        )
-    )
-    assert [(row.speaker_id, row.transcript) for row in saved] == [("A", "Hello")]
-    assert [message["speaker_id"] for message in sent if message["type"] == "transcript"] == ["A"]
-    assert sent[-1] == {"type": "stopped"}
-
-
-def test_revisions_commit_before_revised_messages_and_completion():
-    final = TurnUpdate(1, True, "A", "Hello", (Word("Hello", 0, 20, "A"),))
-    revision = SpeakerRevised((TurnRevision(1, "B", (Word("Hello", 0, 20, "B"),)),))
-    transcriber = FakeTranscriber(on_finish=[final, revision])
-    stored = []
-    sent = []
-    observations = AsyncMock()
-
-    async def store(replacements):
-        stored.extend(replacements)
-
-    async def send(message):
-        if message.get("revised") or message["type"] == "stopped":
-            assert len(stored) == 1
-            assert stored[0].observations[0].speaker_id == "B"
-        sent.append(message)
-
-    async def scenario():
-        await module.run_capture(
-            case_id="capture-case",
-            messages=browser(b"\x00\x00" * 1600, "stop"),
-            send=send,
-            connect_transcriber=connecting(transcriber),
-            now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
-            store_observations=observations,
-            store_revisions=store,
-        )
-
-    asyncio.run(scenario())
-    original_id = observations.await_args.args[0][0].observation_id
-    assert stored[0].replaced_observation_ids == [original_id]
-    assert sent[-2]["revised"] is True
-    assert sent[-1] == {"type": "stopped"}
-    observations.assert_awaited_once()
-
-
-def test_revision_storage_failure_sends_no_revision_or_completion():
-    final = TurnUpdate(1, True, "A", "Hello", (Word("Hello", 0, 20, "A"),))
-    revision = SpeakerRevised((TurnRevision(1, "B", (Word("Hello", 0, 20, "B"),)),))
-    transcriber = FakeTranscriber(on_finish=[final, revision])
-    sent = []
-    observations = AsyncMock()
-
-    async def send(message):
-        sent.append(message)
+    slept = []
 
     with pytest.raises(CaptureFailure) as caught:
-        asyncio.run(
-            module.run_capture(
-                case_id="capture-case",
-                messages=browser(b"\x00\x00" * 1600, "stop"),
-                send=send,
-                connect_transcriber=connecting(transcriber),
-                now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
-                store_observations=observations,
-                store_revisions=AsyncMock(side_effect=CaptureFailure("storageUnavailable")),
-            )
-        )
-    assert caught.value.code == "storageUnavailable"
-    assert not any(m.get("revised") or m["type"] == "stopped" for m in sent)
-    observations.assert_awaited_once()
+        open_transcriber(connect=connect, slept=slept, monkeypatch=monkeypatch)
+    assert caught.value.code == "providerUnavailable"
+    assert attempts == [1, 2, 3]
+    assert slept == [1, 2]
 
 
-def test_successive_revisions_regroup_with_utc_times_and_keep_original_links():
-    original = TurnUpdate(
-        0, True, "A", "Hello there", (Word("Hello", 0, 40, "A"), Word("there", 40, 100, "A"))
-    )
-    split = SpeakerRevised(
-        (TurnRevision(0, "A", (Word("Hello", 0, 40, "A"), Word("there", 40, 100, None))),)
-    )
-    merged = SpeakerRevised(
-        (TurnRevision(0, "B", (Word("Hello", 0, 40, "B"), Word("there", 40, 100, "B"))),)
-    )
-    transcriber = FakeTranscriber(on_finish=[original, split, merged])
-    originals = []
-    revisions = []
+@pytest.mark.parametrize("code", ["notConfigured", "providerAuth", "providerProtocol"])
+def test_other_open_failures_are_not_retried(monkeypatch, code):
+    connect, attempts = opening(CaptureFailure(code), transcriber=FakeTranscriber())
+    slept = []
 
-    async def store_observations(rows):
-        originals.extend(rows)
-
-    async def store_revisions(replacements):
-        revisions.extend(replacements)
-
-    asyncio.run(
-        module.run_capture(
-            case_id="case",
-            messages=browser(b"\x00\x00" * 640 + b"\x00\x40" * 960, "stop"),
-            send=AsyncMock(),
-            connect_transcriber=connecting(transcriber),
-            now=lambda: datetime(2026, 10, 26, 12, tzinfo=timezone.utc),
-            store_observations=store_observations,
-            store_revisions=store_revisions,
-        )
-    )
-
-    assert len(originals) == 1
-    assert [r.replaced_observation_ids for r in revisions] == [[originals[0].observation_id]] * 2
-    assert [r.speaker_id for r in revisions[0].observations] == ["A", "PENDING"]
-    assert [r.transcript for r in revisions[0].observations] == ["Hello", "there"]
-    assert revisions[0].observations[0].signal_level_avg == -120
-    assert revisions[0].observations[1].signal_level_avg == pytest.approx(-6.020599913279624)
-    assert revisions[0].observations[0].start_at == datetime(2026, 10, 26, 12, tzinfo=timezone.utc)
-    assert revisions[0].observations[1].start_at == datetime(
-        2026, 10, 26, 12, 0, 0, 40000, tzinfo=timezone.utc
-    )
-    assert revisions[1].observations[0].end_at == datetime(
-        2026, 10, 26, 12, 0, 0, 100000, tzinfo=timezone.utc
-    )
-    assert [r.transcript for r in revisions[1].observations] == ["Hello there"]
-    assert revisions[1].observations[0].signal_level_avg == originals[0].signal_level_avg
-
-
-def test_revision_without_an_original_turn_cannot_create_unlinked_context():
-    revision = SpeakerRevised((TurnRevision(99, "B", (Word("Hello", 0, 20, "B"),)),))
-    transcriber = FakeTranscriber(on_finish=[revision])
-    store = AsyncMock()
     with pytest.raises(CaptureFailure) as caught:
-        asyncio.run(
-            module.run_capture(
-                case_id="case",
-                messages=browser("stop"),
-                send=AsyncMock(),
-                connect_transcriber=connecting(transcriber),
-                now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc),
-                store_observations=AsyncMock(),
-                store_revisions=store,
-            )
-        )
-    assert caught.value.code == "providerProtocol"
-    store.assert_not_awaited()
+        open_transcriber(connect=connect, slept=slept, monkeypatch=monkeypatch)
+    assert caught.value.code == code
+    assert attempts == [1]
+    assert slept == []

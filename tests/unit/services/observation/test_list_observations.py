@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from unittest.mock import Mock
 
 from sqlmodel import Session
@@ -30,10 +30,10 @@ def test_converts_stored_microseconds_without_changing_transcript():
         "case_id": "case",
         "observation_id": "chunk",
         "sequence": 2,
-        "received_at": datetime(1970, 1, 1, 0, 0, 0, 10, tzinfo=timezone.utc),
+        "received_at": datetime(1970, 1, 1, 0, 0, 0, 10, tzinfo=UTC),
         "speaker_id": "subject",
-        "start_at": datetime(1969, 12, 31, 23, 59, 59, 999999, tzinfo=timezone.utc),
-        "end_at": datetime(1970, 1, 1, 0, 0, 0, 1, tzinfo=timezone.utc),
+        "start_at": datetime(1969, 12, 31, 23, 59, 59, 999999, tzinfo=UTC),
+        "end_at": datetime(1970, 1, 1, 0, 0, 0, 1, tzinfo=UTC),
         "transcript": " Hello ",
         "signal_level_min": -50,
         "signal_level_avg": -30,

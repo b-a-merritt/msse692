@@ -1,5 +1,5 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 from sqlmodel import select
 
@@ -12,7 +12,7 @@ from normative_conformance.models.observation import Observation
 
 
 def test_lists_structured_decisions_for_the_requested_case(open_client):
-    now = datetime(1970, 1, 1, minute=1, tzinfo=timezone.utc)
+    now = datetime(1970, 1, 1, minute=1, tzinfo=UTC)
     with open_client(now=lambda: now) as client:
         assert (
             client.put("/api/v1/cases/case/target", json={"target_speaker_id": "A"}).status_code

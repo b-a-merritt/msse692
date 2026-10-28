@@ -1,7 +1,7 @@
 import json
 from contextlib import contextmanager
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from threading import Thread
 from unittest.mock import Mock
 
@@ -32,7 +32,7 @@ def provider_server(handler):
 
 
 def test_serves_the_capture_page_and_its_javascript(open_client):
-    with open_client(now=lambda: datetime(2026, 10, 24, tzinfo=timezone.utc)) as client:
+    with open_client(now=lambda: datetime(2026, 10, 24, tzinfo=UTC)) as client:
         page = client.get("/capture")
         assert page.status_code == 200
         assert "Start microphone" in page.text
@@ -106,7 +106,7 @@ def test_pcm_and_final_revisions_cross_both_websockets(open_client, monkeypatch)
 
     with (
         provider_server(provider) as url,
-        open_client(now=lambda: datetime(2026, 10, 24, tzinfo=timezone.utc)) as client,
+        open_client(now=lambda: datetime(2026, 10, 24, tzinfo=UTC)) as client,
     ):
         monkeypatch.setattr(module, "PROVIDER_URL", url)
         client.app.state.settings.assembly_api_key = "integration-key"
@@ -143,9 +143,7 @@ def test_pcm_and_final_revisions_cross_both_websockets(open_client, monkeypatch)
                         replaced_ids = session.exec(
                             select(Observation.observation_id).join(ReplacedObservation)
                         ).all()
-                        start_us = to_microseconds(
-                            value=datetime(2026, 10, 24, tzinfo=timezone.utc)
-                        )
+                        start_us = to_microseconds(value=datetime(2026, 10, 24, tzinfo=UTC))
                         for row in corrections:
                             assert row.observation_id not in replaced_ids
                             assert row.case_id == "capture-case"
@@ -186,7 +184,7 @@ def test_pcm_and_final_revisions_cross_both_websockets(open_client, monkeypatch)
     assert b"".join(packet for packet in received if isinstance(packet, bytes)) == audio
     assert received[-1] == module.TERMINATE
     with (
-        open_client(now=lambda: datetime(2026, 10, 24, tzinfo=timezone.utc)) as client,
+        open_client(now=lambda: datetime(2026, 10, 24, tzinfo=UTC)) as client,
         read_session(engine=client.app.state.engine) as session,
     ):
         replaced = session.exec(
@@ -209,7 +207,7 @@ def test_malformed_pcm_closes_both_connections(open_client, monkeypatch):
 
     with (
         provider_server(provider) as url,
-        open_client(now=lambda: datetime(2026, 10, 24, tzinfo=timezone.utc)) as client,
+        open_client(now=lambda: datetime(2026, 10, 24, tzinfo=UTC)) as client,
     ):
         monkeypatch.setattr(module, "PROVIDER_URL", url)
         client.app.state.settings.assembly_api_key = "integration-key"
@@ -234,7 +232,7 @@ def test_provider_disconnect_does_not_report_success(open_client, monkeypatch):
 
     with (
         provider_server(provider) as url,
-        open_client(now=lambda: datetime(2026, 10, 24, tzinfo=timezone.utc)) as client,
+        open_client(now=lambda: datetime(2026, 10, 24, tzinfo=UTC)) as client,
     ):
         monkeypatch.setattr(module, "PROVIDER_URL", url)
         client.app.state.settings.assembly_api_key = "integration-key"
@@ -251,7 +249,7 @@ def test_provider_disconnect_does_not_report_success(open_client, monkeypatch):
 
 
 def test_missing_key_is_reported_on_capture_without_breaking_http(open_client):
-    with open_client(now=lambda: datetime(2026, 10, 24, tzinfo=timezone.utc)) as client:
+    with open_client(now=lambda: datetime(2026, 10, 24, tzinfo=UTC)) as client:
         client.app.state.settings.assembly_api_key = ""
         assert client.get("/health/live").status_code == 200
         configured = client.put(
@@ -269,7 +267,7 @@ def test_missing_key_is_reported_on_capture_without_breaking_http(open_client):
 def test_capture_requires_an_existing_case_before_opening_provider(open_client, monkeypatch, query):
     connect = Mock(side_effect=AssertionError("Provider must not be opened"))
     monkeypatch.setattr(module, "connect_transcriber", connect)
-    with open_client(now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc)) as client:
+    with open_client(now=lambda: datetime(2026, 10, 26, tzinfo=UTC)) as client:
         with (
             pytest.raises(WebSocketDisconnect) as closed,
             client.websocket_connect(f"/api/v1/capture/audio{query}"),
@@ -304,7 +302,7 @@ def test_live_final_turn_is_stored_once_and_resolves_target_before_stop(open_cli
 
     with (
         provider_server(provider) as url,
-        open_client(now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc)) as client,
+        open_client(now=lambda: datetime(2026, 10, 26, tzinfo=UTC)) as client,
     ):
         monkeypatch.setattr(module, "PROVIDER_URL", url)
         client.app.state.settings.assembly_api_key = "integration-key"
@@ -337,5 +335,5 @@ def test_live_final_turn_is_stored_once_and_resolves_target_before_stop(open_cli
             socket.send_text("stop")
             while (message := socket.receive_json())["type"] != "stopped":
                 assert message["type"] != "error"
-    with open_client(now=lambda: datetime(2026, 10, 26, tzinfo=timezone.utc)) as client:
+    with open_client(now=lambda: datetime(2026, 10, 26, tzinfo=UTC)) as client:
         assert len(client.get("/api/v1/cases/live/observations").json()["items"]) == 3

@@ -1,9 +1,9 @@
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 
 
 def test_http_configuration_ingestion_and_restart_preserve_case_targets(open_client):
-    now = datetime(2026, 10, 24, tzinfo=timezone.utc)
+    now = datetime(2026, 10, 24, tzinfo=UTC)
     with open_client(now=lambda: now) as client:
         assert client.get("/api/v1/cases/missing").status_code == 404
         assert (
