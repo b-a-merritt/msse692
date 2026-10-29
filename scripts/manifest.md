@@ -23,9 +23,15 @@ Configure the target explicitly:
 uv run python scripts/send_observations.py scripts/cases/case-3.jsonl --target-speaker-id speaker-2
 ```
 
-Use fresh storage or new case IDs. The decision model assesses topics for all new speech and behaviors for the target. These inputs have no fixed expected model scores or actions. Interventions are not created automatically.
+Use fresh storage or new case IDs. The decision model assesses topics for all new speech and behaviors for the target. `cases/predictions.md` lists the expected behaviors and interventions; model scores are not fixed.
 
 ## Additional inputs
+
+`cases/control/` is AI-written dialogue between one couple, a control test for process discovery: 8 training and 6 held-out conversations, one file each, a week apart. `cases/predictions.md` lists the planted pattern and expected outcomes. Replay the training conversations before discovery and each held-out conversation on fresh storage:
+
+```bash
+uv run python scripts/send_observations.py scripts/cases/control/control-test-01.jsonl --target-speaker-id speaker-2
+```
 
 `cases/stress.jsonl` is AI-generated synthetic speech for 330 interleaved cases, increasing the offered rate across six phases. Recorded gaps take approximately 11.5 minutes to replay; HTTP response time adds to that duration.
 
