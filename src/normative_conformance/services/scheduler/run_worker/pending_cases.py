@@ -8,8 +8,8 @@ from normative_conformance.database import read_session
 from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
 from normative_conformance.models.observation import Observation
+from normative_conformance.services.case.progress import handled_through
 from normative_conformance.services.case.target import current_revision
-from normative_conformance.services.scheduler.run_worker.progress import handled_through
 
 
 def pending_cases(*, engine: Engine) -> list[str]:

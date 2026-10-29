@@ -57,7 +57,7 @@ def test_stores_decisions_as_queryable_rows_without_committing():
         action_confidence=0.8,
         action_probabilities={"reflect_later": 0.8, "intervene": 0.2},
     )
-    assessment = store_assessment(
+    assessment_id = store_assessment(
         session=session,
         snapshot=snapshot,
         answers=result,
@@ -65,6 +65,8 @@ def test_stores_decisions_as_queryable_rows_without_committing():
         observation_keys={"revised": 5, "unused": 6},
         completed_at_us=20,
     )
+    assert assessment_id == 7
+    [assessment] = [row for row in added if isinstance(row, Assessment)]
     assert assessment.action == "reflect_later"
     assert assessment.target_revision == 2
     assert (assessment.after_sequence, assessment.through_sequence) == (3, 4)

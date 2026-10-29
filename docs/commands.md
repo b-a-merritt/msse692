@@ -6,6 +6,7 @@ Run from the repository root. Server startup requires a decision-model credentia
 |---|---|
 | Install development dependencies | `uv sync --locked` |
 | Start development server | `uv run fastapi dev src/normative_conformance/main.py` |
+| Discover a model from the stored conversations | `uv run discover-model` |
 | Install commit hooks | `uv run pre-commit install` |
 | Unit tests and fresh coverage | `uv run pytest tests/unit --cov=normative_conformance --cov-report=term-missing --cov-report=html:htmlcov/unit` |
 | Integration tests | `uv run pytest tests/integration --no-cov` |

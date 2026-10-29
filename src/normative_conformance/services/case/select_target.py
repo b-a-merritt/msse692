@@ -38,7 +38,8 @@ def select_target(
             )
         else:
             refresh_target(
-                case=case,
+                case_id=case_id,
+                target_speaker_order=selection.target_speaker_order,
                 labels=speaker_labels(case_id=case_id, session=session),
                 session=session,
                 assigned_at_us=selected_at_us,

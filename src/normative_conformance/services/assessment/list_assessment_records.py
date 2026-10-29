@@ -12,6 +12,7 @@ from normative_conformance.schemas.assessment import Assessment
 from normative_conformance.schemas.assessment import ObservationDecision
 from normative_conformance.schemas.decision import Action
 from normative_conformance.services.assessment.report_observation import report_observation
+from normative_conformance.services.case.list_targets import list_targets
 from normative_conformance.services.decision.turns import turns
 from normative_conformance.services.observation.load_case_speech import IngestedObservation
 from normative_conformance.services.observation.load_case_speech import load_case_speech
@@ -21,14 +22,14 @@ from normative_conformance.timestamps import from_microseconds
 def list_assessment_records(*, case_id: str, session: Session) -> list[Assessment]:
     """Read the retained decisions and classifications, in assessment ID order."""
     assessments = session.exec(
-        select(models.Assessment, models.TargetAssignment.speaker_id)
-        .join(models.TargetAssignment)
+        select(models.Assessment)
         .where(models.Assessment.case_id == case_id)
         .order_by(col(models.Assessment.assessment_id))
     ).all()
+    targets = list_targets(case_id=case_id, session=session)
 
     thresholds = {
-        assessment.assessment_id: assessment.selection_threshold for assessment, _ in assessments
+        assessment.assessment_id: assessment.selection_threshold for assessment in assessments
     }
     probabilities = _scores(
         session=session,
@@ -40,18 +41,23 @@ def list_assessment_records(*, case_id: str, session: Session) -> list[Assessmen
     speech = load_case_speech(case_id=case_id, session=session)
     turn_ids = {
         assessment.assessment_id: _turn_ids(assessment=assessment, speech=speech)
-        for assessment, _ in assessments
+        for assessment in assessments
     }
-    decisions = _decisions(session=session, thresholds=thresholds, turn_ids=turn_ids)
+    decisions = _decisions(
+        session=session,
+        thresholds=thresholds,
+        turn_ids=turn_ids,
+        observation_ids={row.observation_key: row.observation.observation_id for row in speech},
+    )
 
     return [
         _record(
             assessment=assessment,
-            speaker_id=speaker_id,
+            speaker_id=targets[assessment.target_revision],
             decisions=decisions,
             probabilities=probabilities,
         )
-        for assessment, speaker_id in assessments
+        for assessment in assessments
     ]
 
 
@@ -102,11 +108,11 @@ def _decisions(
     session: Session,
     thresholds: dict[int | None, float],
     turn_ids: dict[int | None, dict[str, list[str]]],
+    observation_ids: dict[int, str],
 ) -> dict[int, list[ObservationDecision]]:
     """Report each assessment's classifications under the threshold it was made with."""
     classifications = session.exec(
-        select(models.Classification, models.Observation.observation_id)
-        .join(models.Observation)
+        select(models.Classification)
         .where(col(models.Classification.assessment_id).in_(list(thresholds)))
         # Classifications are stored in the order their snapshot listed the speech.
         .order_by(
@@ -114,7 +120,7 @@ def _decisions(
         )
     ).all()
 
-    classification_ids = [row.classification_id for row, _ in classifications]
+    classification_ids = [row.classification_id for row in classifications]
     topic_scores = _scores(
         session=session,
         owner=col(models.ClassificationTopicScore.classification_id),
@@ -134,16 +140,15 @@ def _decisions(
         assessment_id: [
             _decision(
                 classification=classification,
-                observation_id=observation_id,
-                # Earlier prompt versions classified observations that may not start a turn.
-                observation_ids=turn_ids[assessment_id].get(observation_id, [observation_id]),
+                observation_id=observation_ids[classification.observation_key],
+                turn_ids=turn_ids[assessment_id],
                 topic_scores=topic_scores,
                 behavior_scores=behavior_scores,
                 threshold=thresholds[assessment_id],
             )
-            for classification, observation_id in rows
+            for classification in rows
         ]
-        for assessment_id, rows in groupby(classifications, key=lambda row: row[0].assessment_id)
+        for assessment_id, rows in groupby(classifications, key=lambda row: row.assessment_id)
     }
 
 
@@ -151,7 +156,7 @@ def _decision(
     *,
     classification: models.Classification,
     observation_id: str,
-    observation_ids: list[str],
+    turn_ids: dict[str, list[str]],
     topic_scores: dict[int, dict[str, float]],
     behavior_scores: dict[int, dict[str, float]],
     threshold: float,
@@ -159,7 +164,8 @@ def _decision(
     assert classification.classification_id is not None
     return report_observation(
         observation_id=observation_id,
-        observation_ids=observation_ids,
+        # Earlier prompt versions classified observations that may not start a turn.
+        observation_ids=turn_ids.get(observation_id, [observation_id]),
         topic_scores=topic_scores.get(classification.classification_id, {}),
         primary_topic=classification.primary_topic,
         behavior_scores=behavior_scores.get(classification.classification_id, {}),

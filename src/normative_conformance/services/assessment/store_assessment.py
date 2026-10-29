@@ -20,7 +20,8 @@ def store_assessment(
     request_json: str,
     observation_keys: dict[str, int],
     completed_at_us: int,
-) -> Assessment:
+) -> int:
+    """Add the assessment and its answers without committing, and return its ID."""
     assessment = _assessment(
         snapshot=snapshot,
         answers=answers,
@@ -60,7 +61,7 @@ def store_assessment(
         ]
     )
 
-    return assessment
+    return assessment.assessment_id
 
 
 def _assessment(

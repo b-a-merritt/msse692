@@ -4,6 +4,9 @@ revision: str = "0001"
 down_revision: str | None = None
 
 TABLES = (
+    "normative_model_assessment",
+    "normative_model_topic",
+    "normative_model",
     "intervention",
     "assessment_action_probability",
     "classification_topic_score",
@@ -161,6 +164,27 @@ CREATE TABLE intervention (
     message TEXT NOT NULL,
     created_at_us INTEGER NOT NULL,
     sent_at_us INTEGER CHECK (sent_at_us IS NULL OR sent_at_us >= created_at_us)
+) STRICT
+""")
+    # Each discovery stores a new model; the worker uses the newest.
+    op.execute("""
+CREATE TABLE normative_model (
+    normative_model_id INTEGER PRIMARY KEY CHECK (normative_model_id > 0),
+    discovered_at_us INTEGER NOT NULL
+) STRICT
+""")
+    op.execute("""
+CREATE TABLE normative_model_topic (
+    normative_model_id INTEGER NOT NULL REFERENCES normative_model(normative_model_id),
+    topic TEXT NOT NULL,
+    PRIMARY KEY (normative_model_id, topic)
+) STRICT
+""")
+    op.execute("""
+CREATE TABLE normative_model_assessment (
+    normative_model_id INTEGER NOT NULL REFERENCES normative_model(normative_model_id),
+    assessment_id INTEGER NOT NULL REFERENCES assessment(assessment_id),
+    PRIMARY KEY (normative_model_id, assessment_id)
 ) STRICT
 """)
     op.execute("CREATE INDEX speaker_revision_case ON speaker_revision (case_id)")

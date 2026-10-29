@@ -8,7 +8,6 @@ from sqlmodel import Session
 from sqlmodel import col
 from sqlmodel import select
 
-from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
 
 
@@ -62,14 +61,19 @@ def set_target_label(
 
 
 def refresh_target(
-    *, case: ConversationCase, labels: Iterable[str | None], session: Session, assigned_at_us: int
+    *,
+    case_id: str,
+    target_speaker_order: int | None,
+    labels: Iterable[str | None],
+    session: Session,
+    assigned_at_us: int,
 ) -> None:
     """Recompute order-based mappings without overriding an explicit selection."""
-    if case.target_speaker_order is None:
+    if target_speaker_order is None:
         return
     set_target_label(
-        case_id=case.case_id,
-        label=resolve_speaker_order(labels=labels, order=case.target_speaker_order),
+        case_id=case_id,
+        label=resolve_speaker_order(labels=labels, order=target_speaker_order),
         session=session,
         assigned_at_us=assigned_at_us,
     )

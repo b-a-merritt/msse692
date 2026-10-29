@@ -30,7 +30,7 @@ The decision-model adapter calls a pinned model version through the provider SDK
 
 ## Storage and capture
 
-See the [schema](schema.md). Times are UTC microseconds in storage and aware timestamps in responses. Append-only triggers protect observations, revisions, target assignments, assessments, and classifications.
+See the [schema](schema.md). Times are UTC microseconds in storage and aware timestamps in responses. Append-only triggers protect observations, revisions, target assignments, assessments, classifications, and discovered models.
 
 Ingested observations have a sequence and receipt time. Corrected observations reference a speaker revision; `replaced_observation` links it to the ingested rows it replaces. Classifications reference exact observation keys. Revisions are records only; decisions, target selection, and polling ignore them.
 

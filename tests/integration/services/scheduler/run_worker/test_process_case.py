@@ -137,7 +137,7 @@ def test_saves_the_target_turn_as_first_labeled_and_advances_only_its_current_ta
         )
 
     monkeypatch.setattr(module.jev, "evaluate", ask)
-    saved = module.process_case(
+    assessment_id = module.process_case(
         case_id="case",
         max_batch_seconds=60,
         idle_seconds=20,
@@ -149,7 +149,7 @@ def test_saves_the_target_turn_as_first_labeled_and_advances_only_its_current_ta
     with read_session(engine=engine) as check:
         rows = check.exec(select(Assessment)).all()
         assert len(rows) == 1
-        assert rows[0].assessment_id == saved.assessment_id
+        assert rows[0].assessment_id == assessment_id
         assert rows[0].target_revision == 1
         assert (rows[0].after_sequence, rows[0].through_sequence) == (1, 2)
         state = json.loads(rows[0].request_json)["state"]

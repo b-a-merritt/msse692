@@ -34,7 +34,7 @@ def test_configures_case_and_commits_selection(
     session.get.return_value = (
         ConversationCase(case_id="case", created_at_us=5) if existing else None
     )
-    session.exec.return_value.all.return_value = labels
+    monkeypatch.setattr(select_target, "speaker_labels", lambda **kwargs: labels)
     session.add.side_effect = lambda row: (
         assignments if isinstance(row, TargetAssignment) else cases
     ).append(row)
@@ -67,7 +67,7 @@ def test_selecting_order_replaces_a_label_selection(monkeypatch):
     ]
     session = Mock(spec=Session)
     session.get.return_value = ConversationCase(case_id="case", created_at_us=0)
-    session.exec.return_value.all.return_value = ["A", "B"]
+    monkeypatch.setattr(select_target, "speaker_labels", lambda **kwargs: ["A", "B"])
     session.add.side_effect = assignments.append
     monkeypatch.setattr(target, "current_assignment", lambda **kwargs: assignments[-1])
     monkeypatch.setattr(records, "current_assignment", lambda **kwargs: assignments[-1])
@@ -83,11 +83,11 @@ def test_selecting_order_replaces_a_label_selection(monkeypatch):
     assert result.target_revision == 2
 
 
-@pytest.mark.parametrize("stage", ["connection", "exec", "commit"])
+@pytest.mark.parametrize("stage", ["connection", "add", "commit"])
 def test_storage_failure_rolls_back(monkeypatch, stage):
     session = Mock(spec=Session)
     session.get.return_value = ConversationCase(case_id="case", created_at_us=0)
-    session.exec.return_value.all.return_value = ["A"]
+    monkeypatch.setattr(select_target, "speaker_labels", lambda **kwargs: ["A"])
     monkeypatch.setattr(target, "current_assignment", Mock(return_value=None))
     monkeypatch.setattr(records, "current_assignment", Mock(return_value=None))
     error = SQLAlchemyError("database failed")

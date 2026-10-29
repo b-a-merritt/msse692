@@ -5,8 +5,7 @@ from sqlmodel import Session
 
 from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
-from normative_conformance.schemas.decision import DecisionSnapshot
-from normative_conformance.services.scheduler.run_worker import progress
+from normative_conformance.services.case import progress
 
 
 @pytest.mark.parametrize(
@@ -36,18 +35,7 @@ def test_progress_advances_only_for_the_target_the_batch_was_assessed_for(
             )
         ),
     )
-    snapshot = DecisionSnapshot(
-        case_id="case",
-        target_speaker_id="A",
-        target_revision=2,
-        after_sequence=1,
-        through_sequence=4,
-        captured_at="1970-01-01T00:00:00Z",
-        observations=[],
-        new_observation_ids=[],
-    )
-
-    progress.mark_handled(snapshot=snapshot, session=session)
+    progress.mark_handled(case_id="case", target_revision=2, through_sequence=4, session=session)
 
     assert (
         conversation.last_handled_sequence,

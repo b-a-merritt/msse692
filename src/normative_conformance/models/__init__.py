@@ -6,6 +6,9 @@ from normative_conformance.models.assessment import ClassificationTopicScore
 from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
 from normative_conformance.models.intervention import Intervention
+from normative_conformance.models.normative_model import NormativeModel
+from normative_conformance.models.normative_model import NormativeModelAssessment
+from normative_conformance.models.normative_model import NormativeModelTopic
 from normative_conformance.models.observation import Observation
 from normative_conformance.models.speaker_revision import ReplacedObservation
 from normative_conformance.models.speaker_revision import SpeakerRevision
@@ -18,6 +21,9 @@ __all__ = [
     "ClassificationTopicScore",
     "ConversationCase",
     "Intervention",
+    "NormativeModel",
+    "NormativeModelAssessment",
+    "NormativeModelTopic",
     "Observation",
     "ReplacedObservation",
     "SpeakerRevision",

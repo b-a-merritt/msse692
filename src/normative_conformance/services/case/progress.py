@@ -7,7 +7,6 @@ from sqlmodel import col
 from sqlmodel import select
 
 from normative_conformance.models.case import ConversationCase
-from normative_conformance.schemas.decision import DecisionSnapshot
 from normative_conformance.services.case.target import current_assignment
 from normative_conformance.services.case.target import current_revision
 
@@ -28,12 +27,14 @@ def read_handled_through(*, case_id: str, session: Session) -> int:
     return session.exec(select(handled_through()).where(ConversationCase.case_id == case_id)).one()
 
 
-def mark_handled(*, snapshot: DecisionSnapshot, session: Session) -> None:
+def mark_handled(
+    *, case_id: str, target_revision: int, through_sequence: int, session: Session
+) -> None:
     """Advance progress unless the target changed while the batch was being assessed."""
-    conversation = session.get(ConversationCase, snapshot.case_id)
-    current = current_assignment(case_id=snapshot.case_id, session=session)
+    conversation = session.get(ConversationCase, case_id)
+    current = current_assignment(case_id=case_id, session=session)
     assert conversation is not None and current is not None
-    if current.target_revision == snapshot.target_revision:
-        conversation.last_handled_sequence = snapshot.through_sequence
-        conversation.last_handled_target_revision = snapshot.target_revision
+    if current.target_revision == target_revision:
+        conversation.last_handled_sequence = through_sequence
+        conversation.last_handled_target_revision = target_revision
         session.add(conversation)

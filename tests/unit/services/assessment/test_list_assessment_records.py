@@ -35,46 +35,38 @@ def ingested(*, sequence, observation_id, speaker_id, second):
 def test_reads_structured_decisions_and_applies_the_stored_threshold(monkeypatch):
     records = {
         models.Assessment: [
-            (
-                models.Assessment(
-                    assessment_id=7,
-                    case_id="case",
-                    target_revision=2,
-                    model_id="jev-1.14.0",
-                    prompt_version="conversation-1",
-                    evaluated_at_us=10,
-                    completed_at_us=20,
-                    after_sequence=3,
-                    through_sequence=6,
-                    action="reflect_later",
-                    action_confidence=0.8,
-                    selection_threshold=0.7,
-                    request_json="{}",
-                ),
-                "B",
+            models.Assessment(
+                assessment_id=7,
+                case_id="case",
+                target_revision=2,
+                model_id="jev-1.14.0",
+                prompt_version="conversation-1",
+                evaluated_at_us=10,
+                completed_at_us=20,
+                after_sequence=3,
+                through_sequence=6,
+                action="reflect_later",
+                action_confidence=0.8,
+                selection_threshold=0.7,
+                request_json="{}",
             )
         ],
         models.AssessmentActionProbability: [(7, "reflect_later", 1)],
+        # Observation keys 4 and 6 are the "revised" and "other" speech below.
         models.Classification: [
-            (
-                models.Classification(
-                    classification_id=1,
-                    assessment_id=7,
-                    observation_key=10,
-                    primary_topic="chores",
-                    intensity=1.5,
-                ),
-                "revised",
+            models.Classification(
+                classification_id=1,
+                assessment_id=7,
+                observation_key=4,
+                primary_topic="chores",
+                intensity=1.5,
             ),
-            (
-                models.Classification(
-                    classification_id=2,
-                    assessment_id=7,
-                    observation_key=11,
-                    primary_topic="money",
-                    intensity=None,
-                ),
-                "other",
+            models.Classification(
+                classification_id=2,
+                assessment_id=7,
+                observation_key=6,
+                primary_topic="money",
+                intensity=None,
             ),
         ],
         # Score queries select (owner ID, name, score) columns.
@@ -98,6 +90,7 @@ def test_reads_structured_decisions_and_applies_the_stored_threshold(monkeypatch
         ingested(sequence=6, observation_id="other", speaker_id="B", second=3),
     ]
     monkeypatch.setattr(module, "load_case_speech", Mock(return_value=speech))
+    monkeypatch.setattr(module, "list_targets", Mock(return_value={2: "B"}))
     [assessment] = module.list_assessment_records(case_id="case", session=session)
     assert assessment.target_speaker_id == "B"
     assert assessment.action == "reflect_later"

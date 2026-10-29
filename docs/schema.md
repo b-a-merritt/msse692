@@ -83,6 +83,18 @@ erDiagram
         INTEGER created_at_us
         INTEGER sent_at_us "nullable"
     }
+    normative_model {
+        INTEGER normative_model_id PK
+        INTEGER discovered_at_us
+    }
+    normative_model_topic {
+        INTEGER normative_model_id PK
+        TEXT topic PK
+    }
+    normative_model_assessment {
+        INTEGER normative_model_id PK
+        INTEGER assessment_id PK
+    }
     conversation_case ||--o{ target_assignment : "case_id"
     conversation_case ||--o{ observation : "case_id"
     conversation_case ||--o{ speaker_revision : "case_id"
@@ -97,4 +109,7 @@ erDiagram
     classification ||--|{ classification_topic_score : "classification_id"
     classification ||--o{ classification_behavior_score : "classification_id"
     assessment ||--o| intervention : "assessment_id"
+    normative_model ||--o{ normative_model_topic : "normative_model_id"
+    normative_model ||--|{ normative_model_assessment : "normative_model_id"
+    assessment ||--o{ normative_model_assessment : "assessment_id"
 ```

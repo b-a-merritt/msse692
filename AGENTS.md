@@ -25,6 +25,20 @@ shared by several operations (`records.py`, `timestamps.py`).
 **Why:** When a module and its export share a name, each operation is easy to
 find and its tests map one-to-one to a source module.
 
+## Query a table only through its owning service
+
+Each table belongs to the service package of the same domain: `case` owns cases
+and target assignments, `observation` owns observations, `assessment` owns
+assessments and classifications, `intervention` owns interventions, `capture`
+owns speaker revisions, and `discovery` owns normative models. Other services
+call the owner's functions, which return schemas or plain values, never table
+rows or query fragments. Two joins are known exceptions: the worker's
+`pending_cases` and intervention status (`is_pending`, `list_interventions`,
+`deliver_pending`).
+
+**Why:** A service that queries another's tables depends on its columns, so a
+schema change in one service silently breaks another.
+
 ## Mirror source directories in tests
 
 Organize tests relative to `tests/unit/` or `tests/integration/` the same way code

@@ -49,7 +49,8 @@ def test_intervene_assessment_stores_an_eligible_pending_intervention(*, session
     session.flush()
 
     create_intervention(
-        assessment=assessment,
+        assessment_id=assessment.assessment_id,
+        created_at_us=assessment.completed_at_us,
         answers=DecisionAnswers(
             model="jev-1.14.0",
             prompt_version="conversation-1",

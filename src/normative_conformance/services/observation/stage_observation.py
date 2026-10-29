@@ -3,11 +3,11 @@ from sqlmodel import col
 from sqlmodel import select
 
 from normative_conformance.errors import ObservationExists
-from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.observation import Observation
 from normative_conformance.schemas.internal import Clock
 from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.schemas.observation import ObservationRecord
+from normative_conformance.services.case.ensure_case import ensure_case
 from normative_conformance.services.case.speaker_labels import speaker_labels
 from normative_conformance.services.case.target import refresh_target
 from normative_conformance.services.observation.get_case_sequence import get_case_sequence
@@ -33,20 +33,6 @@ def _check_uniqueness(
         raise ObservationExists("An observation with this identity already exists")
 
 
-def _create_case_if_missing(
-    *,
-    case_id: str,
-    received_at_us: int,
-    session: Session,
-) -> ConversationCase:
-    case = session.get(ConversationCase, case_id)
-    if case is None:
-        case = ConversationCase(case_id=case_id, created_at_us=received_at_us)
-        session.add(case)
-        session.flush()
-    return case
-
-
 def stage_observation(
     *,
     input: ObservationInput,
@@ -61,11 +47,7 @@ def stage_observation(
     session.connection()
     received_at_us = to_microseconds(value=now())
     _check_uniqueness(case_id=input.case_id, observation_id=input.observation_id, session=session)
-    case = _create_case_if_missing(
-        case_id=input.case_id,
-        received_at_us=received_at_us,
-        session=session,
-    )
+    case = ensure_case(case_id=input.case_id, created_at_us=received_at_us, session=session)
     observation = to_row(
         observation=input,
         sequence=get_case_sequence(case_id=input.case_id, session=session) + 1,
@@ -74,7 +56,8 @@ def stage_observation(
     session.add(observation)
     if case.target_speaker_order is not None:
         refresh_target(
-            case=case,
+            case_id=input.case_id,
+            target_speaker_order=case.target_speaker_order,
             labels=speaker_labels(case_id=input.case_id, session=session),
             session=session,
             assigned_at_us=received_at_us,

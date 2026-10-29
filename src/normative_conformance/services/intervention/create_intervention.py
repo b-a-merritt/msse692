@@ -1,6 +1,5 @@
 from sqlmodel import Session
 
-from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.intervention import Intervention
 from normative_conformance.schemas.decision import DecisionAnswers
 from normative_conformance.services.assessment.report_observation import SELECTION_THRESHOLD
@@ -19,19 +18,18 @@ GENERAL_MESSAGE = "The conversation may be getting tense. Take a moment before y
 
 
 def create_intervention(
-    *, assessment: Assessment, answers: DecisionAnswers, session: Session
+    *, assessment_id: int, created_at_us: int, answers: DecisionAnswers, session: Session
 ) -> Intervention | None:
     """Add a prompt for an `intervene` recommendation, worded for its strongest target behavior.
 
-    The intervention is created when its stored assessment completed.
+    `created_at_us` is when the assessment completed.
     """
     if answers.action != "intervene":
         return None
-    assert assessment.assessment_id is not None
     intervention = Intervention(
-        assessment_id=assessment.assessment_id,
+        assessment_id=assessment_id,
         message=_message(answers),
-        created_at_us=assessment.completed_at_us,
+        created_at_us=created_at_us,
     )
     session.add(intervention)
     return intervention

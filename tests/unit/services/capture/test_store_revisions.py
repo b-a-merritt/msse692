@@ -8,16 +8,18 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
 from normative_conformance.errors import CaptureFailure
+from normative_conformance.models.speaker_revision import ReplacedObservation
 from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.schemas.observation import ObservationReplacement
 from normative_conformance.services.capture import store_revisions as module
+from normative_conformance.services.observation.load_case_speech import IngestedObservation
 
 
 def test_stores_each_replacement_as_a_revision_with_its_corrected_speech(monkeypatch):
-    observation = ObservationInput(
+    original = ObservationInput(
         case_id="case",
-        observation_id="regrouped",
-        speaker_id="B",
+        observation_id="original-a",
+        speaker_id="A",
         start_at="1970-01-01T00:00:01Z",
         end_at="1970-01-01T00:00:01.100000Z",
         transcript="Hello",
@@ -25,9 +27,25 @@ def test_stores_each_replacement_as_a_revision_with_its_corrected_speech(monkeyp
         signal_level_avg=-30,
         signal_level_max=-10,
     )
+    observation = original.model_copy(update={"observation_id": "regrouped", "speaker_id": "B"})
+    # Only "original-a" was ingested, so the unknown "original-b" is not recorded as replaced.
     replacement = ObservationReplacement(
         replaced_observation_ids=["original-a", "original-b"], observations=[observation]
     )
+    monkeypatch.setattr(
+        module,
+        "load_case_speech",
+        lambda **kwargs: [
+            IngestedObservation(
+                observation_key=3,
+                sequence=1,
+                received_at=datetime(1970, 1, 1, 0, 0, 2, tzinfo=UTC),
+                observation=original,
+            )
+        ],
+    )
+    corrections = []
+    monkeypatch.setattr(module, "stage_correction", lambda **kwargs: corrections.append(kwargs))
     revisions = []
     session = Mock(spec=Session)
     session.add.side_effect = revisions.append
@@ -47,23 +65,12 @@ def test_stores_each_replacement_as_a_revision_with_its_corrected_speech(monkeyp
     assert [row.model_dump() for row in revisions] == [
         {"speaker_revision_id": 7, "case_id": "case", "received_at_us": 5_000_000}
     ]
-    session.execute.assert_called_once()
-    [corrected] = session.add_all.call_args.args[0]
-    assert corrected.model_dump() == {
-        "observation_key": None,
-        "case_id": "case",
-        "observation_id": "regrouped",
-        "speaker_revision_id": 7,
-        "sequence": None,
-        "received_at_us": None,
-        "speaker_id": "B",
-        "start_at_us": 1_000_000,
-        "end_at_us": 1_100_000,
-        "transcript": "Hello",
-        "signal_level_min": -50,
-        "signal_level_avg": -30,
-        "signal_level_max": -10,
-    }
+    assert session.add_all.call_args.args[0] == [
+        ReplacedObservation(speaker_revision_id=7, observation_key=3)
+    ]
+    assert corrections == [
+        {"observation": observation, "speaker_revision_id": 7, "session": session}
+    ]
     session.commit.assert_called_once()
 
 
@@ -91,8 +98,13 @@ def test_storage_failures_are_capture_failures(monkeypatch, owner, operation):
     context = MagicMock()
     context.__enter__.return_value = session
     failure = SQLAlchemyError("private storage details")
+    session.flush.side_effect = lambda: setattr(
+        session.add.call_args.args[0], "speaker_revision_id", 7
+    )
     getattr({"context": context, "session": session}[owner], operation).side_effect = failure
     monkeypatch.setattr(module, "write_session", Mock(return_value=context))
+    monkeypatch.setattr(module, "load_case_speech", lambda **kwargs: [])
+    monkeypatch.setattr(module, "stage_correction", Mock())
     observation = ObservationInput(
         case_id="case",
         observation_id="replacement",

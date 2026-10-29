@@ -2,7 +2,7 @@ import pytest
 
 from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
-from normative_conformance.services.scheduler.run_worker.progress import read_handled_through
+from normative_conformance.services.case.progress import read_handled_through
 
 
 @pytest.mark.parametrize(

@@ -3,7 +3,6 @@ from unittest.mock import Mock
 import pytest
 from sqlmodel import Session
 
-from normative_conformance.models.assessment import Assessment
 from normative_conformance.schemas.decision import DecisionAnswers
 from normative_conformance.schemas.decision import ObservationAnswers
 from normative_conformance.services.intervention import create_intervention as module
@@ -36,7 +35,8 @@ def test_other_actions_create_nothing(action):
 
     assert (
         module.create_intervention(
-            assessment=Assessment(assessment_id=7, completed_at_us=100),
+            assessment_id=7,
+            created_at_us=100,
             answers=answers,
             session=session,
         )
@@ -69,7 +69,8 @@ def test_intervene_adds_a_prompt_for_the_strongest_behavior(behavior_scores, exp
     answers = _answers(action="intervene", behavior_scores=behavior_scores)
 
     intervention = module.create_intervention(
-        assessment=Assessment(assessment_id=7, completed_at_us=100),
+        assessment_id=7,
+        created_at_us=100,
         answers=answers,
         session=session,
     )

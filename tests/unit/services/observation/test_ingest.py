@@ -54,7 +54,10 @@ def test_assigns_receipt_sequence_and_commits(
     session.get.return_value = existing_case
     session.exec.return_value.first.return_value = None
     session.exec.return_value.one.return_value = last_sequence
-    session.exec.return_value.all.return_value = ["A", "A", "B"]
+    monkeypatch.setattr(
+        "normative_conformance.services.observation.stage_observation.speaker_labels",
+        lambda **kwargs: ["A", "A", "B"],
+    )
     order = []
     session.connection.side_effect = lambda: order.append("lock")
     session.commit.side_effect = lambda: order.append("commit")

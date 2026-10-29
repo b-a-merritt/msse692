@@ -3,7 +3,6 @@ from unittest.mock import Mock
 import pytest
 from sqlmodel import Session
 
-from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
 from normative_conformance.services.case import target
 from normative_conformance.services.case.target import refresh_target
@@ -38,11 +37,23 @@ def test_recomputes_mapping_when_earlier_speaker_labels_change(monkeypatch):
     session = Mock(spec=Session)
     session.add.side_effect = assignments.append
     monkeypatch.setattr(target, "current_assignment", lambda **kwargs: assignments[-1])
-    case = ConversationCase(case_id="case", created_at_us=0, target_speaker_order=2)
-
-    refresh_target(case=case, labels=["B", "A"], session=session, assigned_at_us=5)
-    refresh_target(case=case, labels=["B", "A", "A"], session=session, assigned_at_us=6)
-    refresh_target(case=case, labels=["B", "PENDING"], session=session, assigned_at_us=7)
+    refresh_target(
+        case_id="case", target_speaker_order=2, labels=["B", "A"], session=session, assigned_at_us=5
+    )
+    refresh_target(
+        case_id="case",
+        target_speaker_order=2,
+        labels=["B", "A", "A"],
+        session=session,
+        assigned_at_us=6,
+    )
+    refresh_target(
+        case_id="case",
+        target_speaker_order=2,
+        labels=["B", "PENDING"],
+        session=session,
+        assigned_at_us=7,
+    )
 
     assert [(row.target_revision, row.assigned_at_us, row.speaker_id) for row in assignments] == [
         (1, 0, "B"),
@@ -54,9 +65,13 @@ def test_recomputes_mapping_when_earlier_speaker_labels_change(monkeypatch):
 def test_case_without_speaking_order_keeps_its_target(monkeypatch):
     session = Mock(spec=Session)
     monkeypatch.setattr(target, "current_assignment", Mock())
-    case = ConversationCase(case_id="case", created_at_us=0)
-
-    refresh_target(case=case, labels=["A", "B"], session=session, assigned_at_us=5)
+    refresh_target(
+        case_id="case",
+        target_speaker_order=None,
+        labels=["A", "B"],
+        session=session,
+        assigned_at_us=5,
+    )
 
     session.add.assert_not_called()
 
