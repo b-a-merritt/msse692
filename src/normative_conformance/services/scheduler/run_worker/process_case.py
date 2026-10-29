@@ -17,6 +17,7 @@ from normative_conformance.services.case.progress import mark_handled
 from normative_conformance.services.case.progress import read_handled_through
 from normative_conformance.services.decision.batch import batch_end
 from normative_conformance.services.decision.context import build_snapshot
+from normative_conformance.services.discovery.find_evidence import find_evidence
 from normative_conformance.services.intervention.create_intervention import create_intervention
 from normative_conformance.services.observation.load_case_speech import load_case_speech
 from normative_conformance.timestamps import to_microseconds
@@ -69,11 +70,16 @@ def process_case(
         context_seconds=context_seconds,
         captured_at=captured_at,
     )
+    # Checked only once a batch closes, not on every poll of an open batch.
+    with read_session(engine=engine) as session:
+        evidence = find_evidence(
+            case_id=case_id, target_revision=case.target_revision, session=session
+        )
     # The provider runs outside both database transactions; the input is already fixed.
     try:
         answers, request_json = jev.evaluate(
             snapshot=snapshot,
-            evidence=None,
+            evidence=evidence,
             client=client,
         )
     except (TypeSafeBadRequestError, TypeSafeUnprocessableEntityError) as error:

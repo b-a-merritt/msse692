@@ -10,13 +10,17 @@ from normative_conformance.database import read_session
 from normative_conformance.database import write_session
 from normative_conformance.models.assessment import Assessment
 from normative_conformance.models.assessment import Classification
+from normative_conformance.models.assessment import ClassificationTopicScore
 from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
+from normative_conformance.models.normative_model import NormativeModel
+from normative_conformance.models.normative_model import NormativeModelTopic
 from normative_conformance.models.observation import Observation
 from normative_conformance.models.speaker_revision import ReplacedObservation
 from normative_conformance.models.speaker_revision import SpeakerRevision
 from normative_conformance.schemas.decision import DecisionAnswers
 from normative_conformance.schemas.decision import ObservationAnswers
+from normative_conformance.schemas.decision import PatternEvidence
 from normative_conformance.services.assessment.list_assessment_records import (
     list_assessment_records,
 )
@@ -167,3 +171,114 @@ def test_saves_the_target_turn_as_first_labeled_and_advances_only_its_current_ta
         assert record.observations[0].topics == ["chores"]
         assert record.observations[0].primary_topic == "chores"
         assert record.target_speaker_id == "B"
+
+
+def test_earlier_classifications_matching_the_newest_model_send_evidence(
+    engine, session, monkeypatch
+):
+    session.add(
+        ConversationCase(
+            case_id="case",
+            created_at_us=0,
+            last_handled_sequence=1,
+            last_handled_target_revision=1,
+        )
+    )
+    session.flush()
+    speech = {
+        identity: Observation(
+            case_id="case",
+            observation_id=identity,
+            sequence=sequence,
+            start_at_us=sequence * 1_000_000,
+            end_at_us=sequence * 1_000_000 + 500_000,
+            received_at_us=sequence * 1_000_000,
+            speaker_id=speaker,
+            transcript=transcript,
+            signal_level_min=-40,
+            signal_level_avg=-30,
+            signal_level_max=-20,
+        )
+        for identity, sequence, speaker, transcript in [
+            ("one", 1, "A", "My mom wants six hundred from our savings."),
+            ("two", 2, "B", "Of course she does."),
+            ("three", 3, "A", "Please."),
+        ]
+    }
+    model = NormativeModel(discovered_at_us=0)
+    session.add_all(
+        [
+            *speech.values(),
+            TargetAssignment(case_id="case", target_revision=1, assigned_at_us=0, speaker_id="B"),
+            model,
+        ]
+    )
+    session.flush()
+    # The earlier batch covered both required topics.
+    earlier = Assessment(
+        case_id="case",
+        target_revision=1,
+        model_id="jev-1.14.0",
+        prompt_version="conversation-3",
+        evaluated_at_us=1,
+        completed_at_us=1,
+        after_sequence=0,
+        through_sequence=1,
+        selection_threshold=0.7,
+        request_json="{}",
+    )
+    session.add_all(
+        [earlier]
+        + [
+            NormativeModelTopic(normative_model_id=model.normative_model_id, topic=topic)
+            for topic in ["budgeting", "extended_family"]
+        ]
+    )
+    session.flush()
+    classification = Classification(
+        assessment_id=earlier.assessment_id,
+        observation_key=speech["one"].observation_key,
+        primary_topic="budgeting",
+        intensity=None,
+    )
+    session.add(classification)
+    session.flush()
+    session.add_all(
+        [
+            ClassificationTopicScore(
+                classification_id=classification.classification_id, topic=topic, score=0.9
+            )
+            for topic in ["budgeting", "extended_family"]
+        ]
+    )
+    session.commit()
+    sent = []
+
+    def ask(*, snapshot, evidence, client):
+        sent.append(evidence)
+        answers = DecisionAnswers(
+            model="jev-1.14.0",
+            prompt_version="conversation-3",
+            observations=[],
+            action="await_context",
+            action_probabilities={"await_context": 1.0},
+            action_confidence=1.0,
+        )
+        return answers, "{}"
+
+    monkeypatch.setattr(module.jev, "evaluate", ask)
+    module.process_case(
+        case_id="case",
+        max_batch_seconds=60,
+        idle_seconds=20,
+        context_seconds=30,
+        engine=engine,
+        client=object(),
+        now=lambda: datetime(1970, 1, 1, second=4, tzinfo=UTC),
+    )
+
+    assert sent == [
+        PatternEvidence(
+            normative_model_id=model.normative_model_id, topics=["budgeting", "extended_family"]
+        )
+    ]

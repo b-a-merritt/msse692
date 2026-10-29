@@ -14,6 +14,7 @@ from typesafe_sdk import TypeSafeUnprocessableEntityError
 
 from normative_conformance.schemas.case import CaseRecord
 from normative_conformance.schemas.decision import DecisionAnswers
+from normative_conformance.schemas.decision import PatternEvidence
 from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.services.observation.load_case_speech import IngestedObservation
 
@@ -138,11 +139,15 @@ def test_cases_without_a_closed_batch_for_a_resolved_target_are_skipped(
     )
     evaluate = Mock()
     monkeypatch.setattr(module.jev, "evaluate", evaluate)
+    find_evidence = Mock()
+    monkeypatch.setattr(module, "find_evidence", find_evidence)
     mark_handled = Mock()
     monkeypatch.setattr(module, "mark_handled", mark_handled)
 
     assert module.process_case(**KWARGS) is None
 
+    # Evidence is not checked while a batch is still open.
+    find_evidence.assert_not_called()
     evaluate.assert_not_called()
     mark_handled.assert_not_called()
     writer.commit.assert_not_called()
@@ -152,7 +157,8 @@ def test_snapshot_is_taken_outside_transactions_and_progress_commits_with_the_re
     monkeypatch,
 ):
     writer = Mock(spec=Session)
-    open_transactions = _sessions(monkeypatch=monkeypatch, reader=Mock(spec=Session), writer=writer)
+    reader = Mock(spec=Session)
+    open_transactions = _sessions(monkeypatch=monkeypatch, reader=reader, writer=writer)
     monkeypatch.setattr(
         module,
         "get_case",
@@ -171,9 +177,13 @@ def test_snapshot_is_taken_outside_transactions_and_progress_commits_with_the_re
         ),
     )
     snapshots = []
+    found = PatternEvidence(normative_model_id=3, topics=["budgeting"])
+    find_evidence = Mock(return_value=found)
+    monkeypatch.setattr(module, "find_evidence", find_evidence)
 
     def evaluate(*, snapshot, evidence, client):
         assert open_transactions == set()
+        assert evidence is found
         snapshots.append(snapshot)
         return ANSWERS, '{"state":{}}'
 
@@ -188,6 +198,7 @@ def test_snapshot_is_taken_outside_transactions_and_progress_commits_with_the_re
     assert module.process_case(**KWARGS) == 9
 
     [snapshot] = snapshots
+    find_evidence.assert_called_once_with(case_id="case", target_revision=2, session=reader)
     assert (snapshot.target_speaker_id, snapshot.target_revision) == ("A", 2)
     assert (snapshot.after_sequence, snapshot.through_sequence) == (1, 2)
     assert store.call_args.kwargs["snapshot"] is snapshot
@@ -232,6 +243,7 @@ def test_failures_leave_progress_unchanged(monkeypatch, provider_error, storage_
             ]
         ),
     )
+    monkeypatch.setattr(module, "find_evidence", Mock(return_value=None))
     monkeypatch.setattr(
         module.jev, "evaluate", Mock(return_value=(ANSWERS, "{}"), side_effect=provider_error)
     )
@@ -273,6 +285,7 @@ def test_rejected_batch_is_skipped_without_an_assessment(monkeypatch, error):
             ]
         ),
     )
+    monkeypatch.setattr(module, "find_evidence", Mock(return_value=None))
     monkeypatch.setattr(module.jev, "evaluate", Mock(side_effect=error))
     store = Mock()
     monkeypatch.setattr(module, "store_assessment", store)

@@ -30,7 +30,8 @@ find and its tests map one-to-one to a source module.
 Each table belongs to the service package of the same domain: `case` owns cases
 and target assignments, `observation` owns observations, `assessment` owns
 assessments and classifications, `intervention` owns interventions, `capture`
-owns speaker revisions, and `discovery` owns normative models. Other services
+owns speaker revisions, and `model` owns discovered normative models; `discovery`
+computes models but stores and reads them through `model`. Other services
 call the owner's functions, which return schemas or plain values, never table
 rows or query fragments. Two joins are known exceptions: the worker's
 `pending_cases` and intervention status (`is_pending`, `list_interventions`,

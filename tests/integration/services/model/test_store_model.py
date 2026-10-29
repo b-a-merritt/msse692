@@ -3,7 +3,7 @@
 from sqlmodel import select
 
 from normative_conformance import models
-from normative_conformance.services.discovery.store_model import store_model
+from normative_conformance.services.model.store_model import store_model
 
 
 def test_stores_a_model_with_topics_and_source_assessments(*, session):

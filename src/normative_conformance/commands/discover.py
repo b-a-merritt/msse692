@@ -5,8 +5,8 @@ from normative_conformance.database import read_session
 from normative_conformance.database import write_session
 from normative_conformance.services.discovery.discover_rules import discover_rules
 from normative_conformance.services.discovery.load_traces import load_traces
-from normative_conformance.services.discovery.store_model import store_model
 from normative_conformance.services.discovery.trace import UNDESIRED_BEHAVIOR
+from normative_conformance.services.model.store_model import store_model
 from normative_conformance.timestamps import to_microseconds
 from normative_conformance.timestamps import utc_now
 
