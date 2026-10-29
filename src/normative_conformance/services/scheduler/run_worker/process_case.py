@@ -71,7 +71,11 @@ def process_case(
     )
     # The provider runs outside both database transactions; the input is already fixed.
     try:
-        answers, request_json = jev.evaluate(snapshot=snapshot, client=client)
+        answers, request_json = jev.evaluate(
+            snapshot=snapshot,
+            evidence=None,
+            client=client,
+        )
     except (TypeSafeBadRequestError, TypeSafeUnprocessableEntityError) as error:
         _skip_rejected(snapshot=snapshot, status=error.status, engine=engine)
         return None

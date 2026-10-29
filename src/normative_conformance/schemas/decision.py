@@ -19,6 +19,13 @@ class DecisionSnapshot(ContractModel):
     new_observation_ids: list[str]
 
 
+class PatternEvidence(ContractModel):
+    """Topics that came before undesired behavior in every earlier conversation that had it."""
+
+    normative_model_id: int
+    topics: list[str]
+
+
 class ObservationAnswers(ContractModel):
     """The model's answers about one turn of new speech, before any threshold is applied.
 

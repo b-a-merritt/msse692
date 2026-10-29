@@ -172,7 +172,7 @@ def test_snapshot_is_taken_outside_transactions_and_progress_commits_with_the_re
     )
     snapshots = []
 
-    def evaluate(*, snapshot, client):
+    def evaluate(*, snapshot, evidence, client):
         assert open_transactions == set()
         snapshots.append(snapshot)
         return ANSWERS, '{"state":{}}'

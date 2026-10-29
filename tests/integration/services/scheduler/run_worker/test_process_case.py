@@ -96,7 +96,7 @@ def test_saves_the_target_turn_as_first_labeled_and_advances_only_its_current_ta
     session.commit()
     captured = []
 
-    def ask(*, snapshot, client):
+    def ask(*, snapshot, evidence, client):
         captured.append(snapshot)
         assert [(row.observation_id, row.speaker_id) for row in snapshot.observations] == [
             ("one", "A"),

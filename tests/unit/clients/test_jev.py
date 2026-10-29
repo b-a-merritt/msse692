@@ -6,6 +6,7 @@ from typesafe_sdk import TypeSafeClient
 
 from normative_conformance.clients import jev
 from normative_conformance.schemas.decision import DecisionSnapshot
+from normative_conformance.schemas.decision import PatternEvidence
 from normative_conformance.schemas.observation import ObservationInput
 
 
@@ -33,14 +34,18 @@ def test_sends_snapshot_and_questions_then_reads_answers_and_returns_the_request
         new_observation_ids=["one"],
     )
     questions = {"0.topic.chores": Noul(instructions="Is this about chores?")}
-    monkeypatch.setattr(jev, "build_questions", Mock(return_value=questions))
+    build_questions = Mock(return_value=questions)
+    monkeypatch.setattr(jev, "build_questions", build_questions)
+    evidence = PatternEvidence(normative_model_id=3, topics=["budgeting", "extended_family"])
     answers = object()
     read_answers = Mock(return_value=answers)
     monkeypatch.setattr(jev, "read_answers", read_answers)
     client = Mock(spec=TypeSafeClient)
 
-    result, request = jev.evaluate(snapshot=snapshot, client=client)
+    result, request = jev.evaluate(snapshot=snapshot, evidence=evidence, client=client)
 
+    build_questions.assert_called_once_with(snapshot=snapshot, evidence=evidence)
+    # Evidence stays out of the state that every question sees.
     state = snapshot.model_dump(mode="json")
     client.system_one.assert_called_once_with(model="jev-1.14.0", state=state, questions=questions)
     read_answers.assert_called_once_with(
@@ -51,4 +56,5 @@ def test_sends_snapshot_and_questions_then_reads_answers_and_returns_the_request
         "model": "jev-1.14.0",
         "state": state,
         "questions": {"0.topic.chores": {"type": "noul", "instructions": "Is this about chores?"}},
+        "evidence": {"normative_model_id": 3, "topics": ["budgeting", "extended_family"]},
     }

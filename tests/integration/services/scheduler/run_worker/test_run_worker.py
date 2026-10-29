@@ -44,7 +44,7 @@ def test_worker_assesses_stored_speech_and_advances_progress(engine, session, mo
     session.commit()
     session.rollback()
 
-    def evaluate(*, snapshot, client):
+    def evaluate(*, snapshot, evidence, client):
         assert snapshot.new_observation_ids == ["one"]
         result = DecisionAnswers(
             model="jev-1.14.0",

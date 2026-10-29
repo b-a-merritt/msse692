@@ -3,13 +3,16 @@ from typesafe_sdk import Noul
 from typesafe_sdk import Score
 
 from normative_conformance.schemas.decision import DecisionSnapshot
+from normative_conformance.schemas.decision import PatternEvidence
 from normative_conformance.services.decision.topics import TOPICS
 from normative_conformance.services.decision.turns import turns
 from normative_conformance.services.decision.wording import ACTION_QUESTION
 from normative_conformance.services.decision.wording import ACTIONS
 from normative_conformance.services.decision.wording import BEHAVIOR_QUESTIONS
+from normative_conformance.services.decision.wording import EVIDENCE
 from normative_conformance.services.decision.wording import HOSTILITY_LEVELS
 from normative_conformance.services.decision.wording import HOSTILITY_QUESTION
+from normative_conformance.services.decision.wording import INTERVENE_WITH_EVIDENCE
 from normative_conformance.services.decision.wording import PREAMBLE
 from normative_conformance.services.decision.wording import PRIMARY_TOPIC_QUESTION
 from normative_conformance.services.decision.wording import ROW_REFERENCE
@@ -25,8 +28,13 @@ def question_key(index: int, *names: str) -> str:
     return ".".join((str(index), *names))
 
 
-def build_questions(*, snapshot: DecisionSnapshot) -> dict[str, Question]:
-    """Ask about each turn of new speech, keyed by the row index of its first observation."""
+def build_questions(
+    *, snapshot: DecisionSnapshot, evidence: PatternEvidence | None
+) -> dict[str, Question]:
+    """Ask about each turn of new speech, keyed by the row index of its first observation.
+
+    Only the action question sees evidence, so the classifications that feed discovery do not.
+    """
     indexes = {row.observation_id: index for index, row in enumerate(snapshot.observations)}
     new = [
         row for row in snapshot.observations if row.observation_id in snapshot.new_observation_ids
@@ -40,9 +48,19 @@ def build_questions(*, snapshot: DecisionSnapshot) -> dict[str, Question]:
 
     # Only new target speech can change what the target should be prompted about.
     if any(row.speaker_id == snapshot.target_speaker_id for row in new):
-        questions[ACTION_KEY] = Choice(instructions=PREAMBLE + ACTION_QUESTION, criteria=ACTIONS)
+        questions[ACTION_KEY] = _action_question(evidence=evidence)
 
     return questions
+
+
+def _action_question(*, evidence: PatternEvidence | None) -> Choice:
+    if evidence is None:
+        return Choice(instructions=PREAMBLE + ACTION_QUESTION, criteria=ACTIONS)
+    topics = ", ".join(_label(topic) for topic in evidence.topics)
+    return Choice(
+        instructions=PREAMBLE + ACTION_QUESTION + " " + EVIDENCE.format(topics=topics),
+        criteria={**ACTIONS, "intervene": INTERVENE_WITH_EVIDENCE},
+    )
 
 
 def _topic_questions(*, rows: list[int]) -> dict[str, Question]:

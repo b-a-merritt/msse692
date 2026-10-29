@@ -82,7 +82,7 @@ def test_sdk_serializes_questions_and_decodes_actual_http_response():
         compression=False,
         retry=RetryPolicy(max_retries=0),
     ) as client:
-        result, _ = evaluate(snapshot=snapshot, client=client)
+        result, _ = evaluate(snapshot=snapshot, evidence=None, client=client)
     assert len(requests) == 1
     assert result.action == "remain_silent"
     assert result.observations[0].primary_topic == "unknown"
