@@ -78,7 +78,7 @@ The query-based results from the post-fix rerun in `docs/quality_assurance_repor
 | `control-train-07` | Budget review only | None |
 | `control-train-08` | Mother's visit only | None |
 
-Discovery should produce a model in which the mother, then savings, precedes `undesired_behavior`, and in which neither topic alone does.
+Discovery should require both `extended_family` (the mother) and `budgeting` (the savings) before `undesired_behavior`, in either order; neither topic alone gives evidence.
 
 | Held out | Content | Without evidence | With evidence |
 |---|---|---|---|
