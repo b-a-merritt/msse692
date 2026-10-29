@@ -40,7 +40,7 @@ The response adds server-assigned `sequence` and `received_at`. **201 confirms s
 
 ## Assessments and interventions
 
-Assessments include the model and prompt version, target revision and `target_speaker_id`, sequence range `(after_sequence, through_sequence]`, evaluation/completion times, classifications, and action probabilities. Classifications contain observation IDs, topic/behavior scores, selected labels, primary topic, and target-only intensity (0–3).
+Assessments include the model and prompt version, target revision and `target_speaker_id`, sequence range `(after_sequence, through_sequence]`, evaluation/completion times, classifications, and action probabilities. Each classification covers one speaker turn: `observation_ids` lists its observations in time order and `observation_id` is the first. Classifications contain topic/behavior scores, selected labels, primary topic, and target-only intensity (0–3).
 
 Scores meeting the stored `selection_threshold` are selected in name order. A primary topic outside that set is reported as `unknown`. Actions are `remain_silent`, `await_context`, `reflect_later`, or `intervene`. An `intervene` action creates one intervention with a fixed message chosen by the strongest selected target behavior. A batch without new target speech has a null `action` and `action_confidence` and empty `action_probabilities`.
 

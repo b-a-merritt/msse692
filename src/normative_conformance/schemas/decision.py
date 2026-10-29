@@ -20,7 +20,10 @@ class DecisionSnapshot(ContractModel):
 
 
 class ObservationAnswers(ContractModel):
-    """The model's answers about one new observation, before any threshold is applied."""
+    """The model's answers about one turn of new speech, before any threshold is applied.
+
+    `observation_id` is the turn's first observation.
+    """
 
     observation_id: str
     topic_scores: dict[str, float]

@@ -7,6 +7,7 @@ SELECTION_THRESHOLD = 0.7
 def report_observation(
     *,
     observation_id: str,
+    observation_ids: list[str],
     topic_scores: dict[str, float],
     primary_topic: str,
     behavior_scores: dict[str, float],
@@ -17,6 +18,7 @@ def report_observation(
     topics = _selected(scores=topic_scores, threshold=threshold)
     return ObservationDecision(
         observation_id=observation_id,
+        observation_ids=observation_ids,
         topic_scores=topic_scores,
         topics=topics,
         # A primary topic is only reported when its own score selects it.

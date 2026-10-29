@@ -20,7 +20,7 @@ def read_answers(
     questions: dict[str, Question],
     response: SystemOneResponse,
 ) -> DecisionAnswers:
-    """Read answers about each observation that was asked about, then any action."""
+    """Read answers about each turn that was asked about, then any action."""
     action = response.choices[ACTION_KEY] if ACTION_KEY in questions else None
     return DecisionAnswers(
         model=response.model,

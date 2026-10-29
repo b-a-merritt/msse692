@@ -24,7 +24,7 @@ Inference runs outside database transactions. On success, decisions and progress
 
 The decision-model adapter calls a pinned model version through the provider SDK with a 30-second HTTP timeout and no SDK retries. `services/decision/` contains batching, context, question construction, answer conversion, and prompt wording. The adapter trusts typed SDK responses.
 
-Every new observation gets topic scores and a primary-topic choice. Only target speech gets the seven behavior scores and hostility intensity. When the batch has new target speech, one action question considers the surrounding conversation, including apologies and clarification. Other batches get no action question.
+`turns` groups new speech into turns: consecutive observations from one speaker in time order. Each turn gets topic scores and a primary-topic choice; only target turns get the seven behavior scores and hostility intensity. Question keys and classifications use the turn's first observation, and the listing rebuilds turns from the assessment's sequence range. When the batch has new target speech, one action question considers the surrounding conversation, including apologies and clarification. Other batches get no action question.
 
 `store_assessment` retains raw answers in relational tables and the request as JSON. `report_observation` selects scores at the assessment's stored threshold (0.7), sorts labels, and reports an unselected primary topic as `unknown`. An `intervene` action also stores an intervention in the same transaction. `create_intervention` takes its message from a fixed table keyed by the strongest target behavior at the threshold, or a general message when none qualifies.
 

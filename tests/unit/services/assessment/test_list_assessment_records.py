@@ -1,15 +1,38 @@
+from datetime import UTC
+from datetime import datetime
+from importlib import import_module
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 
 from sqlmodel import Session
 
 from normative_conformance import models
-from normative_conformance.services.assessment.list_assessment_records import (
-    list_assessment_records,
-)
+from normative_conformance.schemas.observation import ObservationInput
+from normative_conformance.services.observation.load_case_speech import IngestedObservation
+
+module = import_module("normative_conformance.services.assessment.list_assessment_records")
 
 
-def test_reads_structured_decisions_and_applies_the_stored_threshold():
+def ingested(*, sequence, observation_id, speaker_id, second):
+    return IngestedObservation(
+        observation_key=sequence,
+        sequence=sequence,
+        received_at=datetime(1970, 1, 1, tzinfo=UTC),
+        observation=ObservationInput(
+            case_id="case",
+            observation_id=observation_id,
+            speaker_id=speaker_id,
+            start_at=datetime(1970, 1, 1, second=second, tzinfo=UTC),
+            end_at=datetime(1970, 1, 1, second=second + 1, tzinfo=UTC),
+            transcript="Hello",
+            signal_level_min=-40,
+            signal_level_avg=-30,
+            signal_level_max=-20,
+        ),
+    )
+
+
+def test_reads_structured_decisions_and_applies_the_stored_threshold(monkeypatch):
     records = {
         models.Assessment: [
             (
@@ -22,7 +45,7 @@ def test_reads_structured_decisions_and_applies_the_stored_threshold():
                     evaluated_at_us=10,
                     completed_at_us=20,
                     after_sequence=3,
-                    through_sequence=4,
+                    through_sequence=6,
                     action="reflect_later",
                     action_confidence=0.8,
                     selection_threshold=0.7,
@@ -68,7 +91,14 @@ def test_reads_structured_decisions_and_applies_the_stored_threshold():
         return result
 
     session.exec.side_effect = execute
-    [assessment] = list_assessment_records(case_id="case", session=session)
+    speech = [
+        ingested(sequence=3, observation_id="earlier", speaker_id="A", second=0),
+        ingested(sequence=4, observation_id="revised", speaker_id="A", second=1),
+        ingested(sequence=5, observation_id="continued", speaker_id="A", second=2),
+        ingested(sequence=6, observation_id="other", speaker_id="B", second=3),
+    ]
+    monkeypatch.setattr(module, "load_case_speech", Mock(return_value=speech))
+    [assessment] = module.list_assessment_records(case_id="case", session=session)
     assert assessment.target_speaker_id == "B"
     assert assessment.action == "reflect_later"
     assert assessment.action_probabilities == {"reflect_later": 1}
@@ -76,6 +106,9 @@ def test_reads_structured_decisions_and_applies_the_stored_threshold():
     assert assessment.after_sequence == 3
     revised, other = assessment.observations
     assert revised.observation_id == "revised"
+    # Turns come from the assessment's sequence range, so earlier speech is not included.
+    assert revised.observation_ids == ["revised", "continued"]
+    assert other.observation_ids == ["other"]
     assert revised.topics == ["chores"]
     assert revised.primary_topic == "chores"
     assert revised.behaviors == ["criticism"]
@@ -87,4 +120,4 @@ def test_reads_structured_decisions_and_applies_the_stored_threshold():
     assert other.intensity is None
     for model in records:
         records[model] = []
-    assert list_assessment_records(case_id="missing", session=session) == []
+    assert module.list_assessment_records(case_id="missing", session=session) == []

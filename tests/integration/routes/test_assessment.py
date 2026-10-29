@@ -35,6 +35,23 @@ def test_lists_structured_decisions_for_the_requested_case(open_client):
             ).status_code
             == 201
         )
+        assert (
+            client.post(
+                "/api/v1/observations",
+                json={
+                    "case_id": "case",
+                    "observation_id": "two",
+                    "speaker_id": "A",
+                    "start_at": "1970-01-01T00:00:02Z",
+                    "end_at": "1970-01-01T00:00:03Z",
+                    "transcript": "with this",
+                    "signal_level_min": -40,
+                    "signal_level_avg": -30,
+                    "signal_level_max": -20,
+                },
+            ).status_code
+            == 201
+        )
         with write_session(engine=client.app.state.engine) as session:
             observation_key = session.exec(
                 select(Observation.observation_key).where(Observation.observation_id == "one")
@@ -47,7 +64,7 @@ def test_lists_structured_decisions_for_the_requested_case(open_client):
                 evaluated_at_us=3_000_000,
                 completed_at_us=4_000_000,
                 after_sequence=0,
-                through_sequence=1,
+                through_sequence=2,
                 action="remain_silent",
                 action_confidence=0.9,
                 selection_threshold=0.7,
@@ -84,6 +101,8 @@ def test_lists_structured_decisions_for_the_requested_case(open_client):
         assert record["observations"] == [
             {
                 "observation_id": "one",
+                # The classification covers the target's whole turn.
+                "observation_ids": ["one", "two"],
                 "topic_scores": {"chores": 0.8},
                 "topics": ["chores"],
                 "primary_topic": "chores",
@@ -93,7 +112,7 @@ def test_lists_structured_decisions_for_the_requested_case(open_client):
             }
         ]
         assert record["after_sequence"] == 0
-        assert record["through_sequence"] == 1
+        assert record["through_sequence"] == 2
         assert record["evaluated_at"] == "1970-01-01T00:00:03Z"
         assert record["completed_at"] == "1970-01-01T00:00:04Z"
         assert "request_json" not in record

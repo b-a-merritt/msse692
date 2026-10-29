@@ -99,7 +99,7 @@ def test_reads_raw_answers_for_only_the_questions_that_were_asked(monkeypatch):
             intensity=None,
         ),
     ]
-    assert (result.model, result.prompt_version) == ("jev-1.14.0", "conversation-1")
+    assert (result.model, result.prompt_version) == ("jev-1.14.0", "conversation-2")
     assert (result.action, result.action_probabilities, result.action_confidence) == (
         "intervene",
         {"intervene": 0.7},

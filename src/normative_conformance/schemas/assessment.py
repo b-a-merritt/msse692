@@ -5,7 +5,10 @@ from normative_conformance.schemas.decision import Action
 
 
 class ObservationDecision(ContractModel):
+    """A classification of one turn; `observation_id` is its first observation."""
+
     observation_id: str
+    observation_ids: list[str]
     topic_scores: dict[str, float]
     topics: list[str]
     primary_topic: str

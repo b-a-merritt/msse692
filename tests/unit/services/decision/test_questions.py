@@ -1,3 +1,6 @@
+from datetime import UTC
+from datetime import datetime
+
 from typesafe_sdk import Choice
 from typesafe_sdk import Noul
 from typesafe_sdk import Score
@@ -7,7 +10,7 @@ from normative_conformance.schemas.observation import ObservationInput
 from normative_conformance.services.decision.questions import build_questions
 
 
-def test_questions_reference_explicit_rows_and_classify_only_new_speech():
+def test_questions_reference_explicit_rows_and_classify_only_new_turns():
     context = ObservationInput(
         case_id="case",
         observation_id="context",
@@ -19,27 +22,52 @@ def test_questions_reference_explicit_rows_and_classify_only_new_speech():
         signal_level_avg=-30,
         signal_level_max=-20,
     )
-    target = context.model_copy(update={"observation_id": "target"})
-    other = context.model_copy(update={"observation_id": "other", "speaker_id": "B"})
+    target = context.model_copy(
+        update={
+            "observation_id": "target",
+            "start_at": datetime(1970, 1, 1, second=1, tzinfo=UTC),
+            "end_at": datetime(1970, 1, 1, second=2, tzinfo=UTC),
+        }
+    )
+    continued = context.model_copy(
+        update={
+            "observation_id": "continued",
+            "start_at": datetime(1970, 1, 1, second=2, tzinfo=UTC),
+            "end_at": datetime(1970, 1, 1, second=3, tzinfo=UTC),
+        }
+    )
+    other = context.model_copy(
+        update={
+            "observation_id": "other",
+            "speaker_id": "B",
+            "start_at": datetime(1970, 1, 1, second=3, tzinfo=UTC),
+            "end_at": datetime(1970, 1, 1, second=4, tzinfo=UTC),
+        }
+    )
     snapshot = DecisionSnapshot(
         case_id="case",
         target_speaker_id="A",
         target_revision=1,
         after_sequence=1,
-        through_sequence=3,
+        through_sequence=4,
         captured_at="1970-01-01T00:01:00Z",
-        observations=[context, target, other],
-        new_observation_ids=["target", "other"],
+        observations=[context, target, continued, other],
+        new_observation_ids=["target", "continued", "other"],
     )
     questions = build_questions(snapshot=snapshot)
-    assert not any(key.startswith("0.") for key in questions)
+    # Context (0) is not asked about, and the target's turn (1-2) is asked about once.
+    assert {key.split(".")[0] for key in questions} == {"1", "3", "action"}
     assert isinstance(questions["1.topic.chores"], Noul)
-    assert "observations[1]" in questions["1.topic.chores"].instructions
-    assert isinstance(questions["2.primary"], Choice)
-    assert "unknown" in questions["2.primary"].criteria
+    assert (
+        "For the turn spoken in `observations[1]`, `observations[2]`: Is this turn about chores?"
+        in questions["1.topic.chores"].instructions
+    )
+    assert "`observations[3]`: " in questions["3.primary"].instructions
+    assert isinstance(questions["3.primary"], Choice)
+    assert "unknown" in questions["3.primary"].criteria
     assert isinstance(questions["1.intensity"], Score)
-    assert "2.intensity" not in questions
-    assert not any(key.startswith("2.behavior.") for key in questions)
+    assert "3.intensity" not in questions
+    assert not any(key.startswith("3.behavior.") for key in questions)
     assert set(questions["action"].criteria) == {
         "remain_silent",
         "await_context",

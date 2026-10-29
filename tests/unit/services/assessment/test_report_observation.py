@@ -15,6 +15,7 @@ def test_selects_scores_reaching_the_threshold_in_name_order(
 ):
     decision = report_observation(
         observation_id="one",
+        observation_ids=["one", "two"],
         topic_scores={"money": 0.9, "chores": 0.7, "work": 0.69},
         primary_topic="chores",
         behavior_scores={"swearing": 0.1, "criticism": 0.7},
@@ -27,3 +28,4 @@ def test_selects_scores_reaching_the_threshold_in_name_order(
     assert decision.topic_scores == {"money": 0.9, "chores": 0.7, "work": 0.69}
     assert decision.behavior_scores == {"swearing": 0.1, "criticism": 0.7}
     assert decision.intensity == 1.5
+    assert decision.observation_ids == ["one", "two"]

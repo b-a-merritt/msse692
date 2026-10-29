@@ -12,6 +12,9 @@ from normative_conformance.schemas.assessment import Assessment
 from normative_conformance.schemas.assessment import ObservationDecision
 from normative_conformance.schemas.decision import Action
 from normative_conformance.services.assessment.report_observation import report_observation
+from normative_conformance.services.decision.turns import turns
+from normative_conformance.services.observation.load_case_speech import IngestedObservation
+from normative_conformance.services.observation.load_case_speech import load_case_speech
 from normative_conformance.timestamps import from_microseconds
 
 
@@ -34,7 +37,12 @@ def list_assessment_records(*, case_id: str, session: Session) -> list[Assessmen
         value=col(models.AssessmentActionProbability.probability),
         owner_ids=list(thresholds),
     )
-    decisions = _decisions(session=session, thresholds=thresholds)
+    speech = load_case_speech(case_id=case_id, session=session)
+    turn_ids = {
+        assessment.assessment_id: _turn_ids(assessment=assessment, speech=speech)
+        for assessment, _ in assessments
+    }
+    decisions = _decisions(session=session, thresholds=thresholds, turn_ids=turn_ids)
 
     return [
         _record(
@@ -74,10 +82,26 @@ def _record(
     )
 
 
+def _turn_ids(
+    *, assessment: models.Assessment, speech: list[IngestedObservation]
+) -> dict[str, list[str]]:
+    """Map the first observation ID of each turn in the assessment's new speech to the turn."""
+    new = [
+        row.observation
+        for row in speech
+        if assessment.after_sequence < row.sequence <= assessment.through_sequence
+    ]
+    return {
+        turn[0].observation_id: [row.observation_id for row in turn]
+        for turn in turns(observations=new)
+    }
+
+
 def _decisions(
     *,
     session: Session,
     thresholds: dict[int | None, float],
+    turn_ids: dict[int | None, dict[str, list[str]]],
 ) -> dict[int, list[ObservationDecision]]:
     """Report each assessment's classifications under the threshold it was made with."""
     classifications = session.exec(
@@ -111,6 +135,8 @@ def _decisions(
             _decision(
                 classification=classification,
                 observation_id=observation_id,
+                # Earlier prompt versions classified observations that may not start a turn.
+                observation_ids=turn_ids[assessment_id].get(observation_id, [observation_id]),
                 topic_scores=topic_scores,
                 behavior_scores=behavior_scores,
                 threshold=thresholds[assessment_id],
@@ -125,6 +151,7 @@ def _decision(
     *,
     classification: models.Classification,
     observation_id: str,
+    observation_ids: list[str],
     topic_scores: dict[int, dict[str, float]],
     behavior_scores: dict[int, dict[str, float]],
     threshold: float,
@@ -132,6 +159,7 @@ def _decision(
     assert classification.classification_id is not None
     return report_observation(
         observation_id=observation_id,
+        observation_ids=observation_ids,
         topic_scores=topic_scores.get(classification.classification_id, {}),
         primary_topic=classification.primary_topic,
         behavior_scores=behavior_scores.get(classification.classification_id, {}),
