@@ -12,6 +12,7 @@ flowchart LR
     M --> W
     W -->|Decisions and progress| D
     D --> A[Assessment API]
+    D <-->|Traces and models| X[discover-model]
 ```
 
 One worker visits each ready case per pass, then waits 1 second. A resolved target and new ingested sequences or a changed target revision make a case ready; it is skipped while its batch is open. Calls are synchronous, so inference delays other cases.
@@ -27,6 +28,14 @@ The decision-model adapter calls a pinned model version through the provider SDK
 `turns` groups new speech into turns: consecutive observations from one speaker in time order. Each turn gets topic scores and a primary-topic choice; only target turns get the seven behavior scores and hostility intensity. Question keys and classifications use the turn's first observation, and the listing rebuilds turns from the assessment's sequence range. When the batch has new target speech, one action question considers the surrounding conversation, including apologies and clarification. Other batches get no action question.
 
 `store_assessment` retains raw answers in relational tables and the request as JSON. `report_observation` selects scores at the assessment's stored threshold (0.7), sorts labels, and reports an unselected primary topic as `unknown`. An `intervene` action also stores an intervention in the same transaction. `create_intervention` takes its message from a fixed table keyed by the strongest target behavior at the threshold, or a general message when none qualifies.
+
+## Discovery
+
+`uv run discover-model` runs outside the server against the configured database (ADR 016). `services/discovery/` computes; `services/model/` stores and reads models.
+
+`trace` turns a case's assessments for its current target revision into events: each topic at the threshold the first time it appears, then `undesired_behavior` at the first assessment with criticism, contempt, cruelty, defensiveness, stonewalling, or interruption, without that assessment's topics. It also returns the assessments it used. `discover_rules` runs pm4py Declare discovery on the traces that end in `undesired_behavior` and keeps the topics that preceded it in all of them; fewer than 3 such traces give no model. The command computes outside its single write transaction, and each run stores a new model.
+
+Once a batch closes, `find_evidence` reads the newest model and checks the case's trace from earlier assessments with `matches_rules`, which adds `undesired_behavior` and runs Declare conformance. A model without topics, a partial match, or an ended trace gives no evidence. The adapter puts evidence only in the action question, with a wider `intervene` option, and records it under `evidence` in the stored request rather than in the shared state.
 
 ## Storage and capture
 

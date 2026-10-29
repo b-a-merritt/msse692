@@ -27,7 +27,7 @@ Use fresh storage or new case IDs. The decision model assesses topics for all ne
 
 ## Additional inputs
 
-`cases/control/` is AI-written dialogue between one couple, a control test for process discovery: 8 training and 6 held-out conversations, one file each, a week apart. `cases/predictions.md` lists the planted pattern and expected outcomes. Replay the training conversations before discovery and each held-out conversation on fresh storage:
+`cases/control/` is AI-written dialogue between one couple, a control test for process discovery: 8 training and 6 held-out conversations, one file each, a week apart. `cases/predictions.md` lists the planted pattern and expected outcomes. Replay the 8 training conversations into one database, then run `uv run discover-model` with the same `APP_DB_PATH`. For each held-out run with evidence, start the server on a copy of that database, so held-out conversations are never discovered from; for each run without evidence, use an empty database:
 
 ```bash
 uv run python scripts/send_observations.py scripts/cases/control/control-test-01.jsonl --target-speaker-id speaker-2

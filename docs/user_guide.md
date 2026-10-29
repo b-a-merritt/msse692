@@ -39,3 +39,13 @@ Read **GET /api/v1/cases/{case_id}/assessments**. Results contain topics, target
 An empty list can mean the target's turn is still open, inference is pending, the target is unresolved, or processing failed. Check **GET /api/v1/cases/{case_id}**, readiness, and server logs. Change the target through PUT using either `target_speaker_order` (1 or 2) or `target_speaker_id`; selecting a label clears the order.
 
 For validation and storage errors, see the [API reference](api.md#errors).
+
+## Pattern evidence
+
+After replaying conversations, discover the topics that preceded undesired behavior in all of them:
+
+```bash
+uv run discover-model
+```
+
+It prints the stored model's topics, or reports that fewer than 3 conversations ended in undesired behavior. Use the same `APP_DB_PATH` as the server. Later decisions check each conversation against the newest model; when every listed topic has come up, the action question is told so. Evidence never triggers an intervention by itself, and a run without a model is unaffected. The stored request in `assessment.request_json` records any evidence; the assessments API does not show it.
