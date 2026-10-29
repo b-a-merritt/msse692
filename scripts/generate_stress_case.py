@@ -2,9 +2,9 @@
 import argparse
 import json
 import random
+from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
 from pathlib import Path
 from typing import Literal
 
@@ -14,7 +14,7 @@ Line = tuple[str, str | None, Kind]
 SUBJECT = "speaker-2"
 OTHER = "speaker-1"
 SEED = 692
-START_AT = datetime(2026, 10, 3, tzinfo=timezone.utc)
+START_AT = datetime(2026, 10, 3, tzinfo=UTC)
 SESSIONS_PER_PHASE = [10, 20, 30, 60, 90, 120]
 UTTERANCES = 30
 PHASE_SEC = 90  # Nominal session length at about 3 s per utterance
