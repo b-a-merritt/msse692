@@ -15,7 +15,8 @@ def find_evidence(
     """Check the case's earlier classifications against the newest model."""
     model = newest_model(session=session)
 
-    if model is None:
+    # A model without topics never matches.
+    if model is None or not model.topics:
         return None
 
     # The batch about to be assessed is not stored yet, so only earlier batches count.

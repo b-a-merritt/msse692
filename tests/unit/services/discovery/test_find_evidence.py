@@ -80,8 +80,20 @@ def test_evidence_needs_every_required_topic_in_earlier_classifications(
     assert module.find_evidence(case_id="case", target_revision=1, session=object()) == expected
 
 
-def test_no_model_gives_no_evidence_without_reading_the_case(monkeypatch):
-    monkeypatch.setattr(module, "newest_model", Mock(return_value=None))
+@pytest.mark.parametrize(
+    "model",
+    [
+        pytest.param(None, id="no-model"),
+        pytest.param(
+            DiscoveredModel(
+                normative_model_id=4, discovered_at=datetime(2026, 1, 1, tzinfo=UTC), topics=[]
+            ),
+            id="model-without-topics",
+        ),
+    ],
+)
+def test_no_rules_give_no_evidence_without_reading_the_case(monkeypatch, model):
+    monkeypatch.setattr(module, "newest_model", Mock(return_value=model))
     listing = Mock()
     monkeypatch.setattr(module, "list_assessment_records", listing)
 

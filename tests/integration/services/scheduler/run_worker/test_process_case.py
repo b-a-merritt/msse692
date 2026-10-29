@@ -3,8 +3,11 @@ from datetime import UTC
 from datetime import datetime
 from importlib import import_module
 
+import httpx2
 import pytest
 from sqlmodel import select
+from typesafe_sdk import RetryPolicy
+from typesafe_sdk import TypeSafeClient
 
 from normative_conformance.database import read_session
 from normative_conformance.database import write_session
@@ -20,7 +23,6 @@ from normative_conformance.models.speaker_revision import ReplacedObservation
 from normative_conformance.models.speaker_revision import SpeakerRevision
 from normative_conformance.schemas.decision import DecisionAnswers
 from normative_conformance.schemas.decision import ObservationAnswers
-from normative_conformance.schemas.decision import PatternEvidence
 from normative_conformance.services.assessment.list_assessment_records import (
     list_assessment_records,
 )
@@ -252,33 +254,60 @@ def test_earlier_classifications_matching_the_newest_model_send_evidence(
         ]
     )
     session.commit()
-    sent = []
+    requests = []
 
-    def ask(*, snapshot, evidence, client):
-        sent.append(evidence)
-        answers = DecisionAnswers(
-            model="jev-1.14.0",
-            prompt_version="conversation-3",
-            observations=[],
-            action="await_context",
-            action_probabilities={"await_context": 1.0},
-            action_confidence=1.0,
+    def respond(request):
+        payload = json.loads(request.content)
+        requests.append(payload)
+        # Neutral answers; only keys and option labels are copied from the request.
+        answers = {}
+        for key, question in payload["questions"].items():
+            if question["type"] == "noul":
+                answers[key] = {"type": "noul", "noul": 0.1}
+            elif question["type"] == "choice":
+                choice = "await_context" if key == "action" else "unknown"
+                answers[key] = {
+                    "type": "choice",
+                    "choice": choice,
+                    "confidence": 1.0,
+                    "probabilities": {
+                        option: 1.0 if option == choice else 0.0 for option in question["criteria"]
+                    },
+                }
+            else:
+                answers[key] = {
+                    "type": "score",
+                    "score": 0.0,
+                    "confidence": 1.0,
+                    "legend": {str(i): level for i, level in enumerate(question["criteria"])},
+                    "probabilities": {"0": 1.0, "1": 0.0, "2": 0.0, "3": 0.0},
+                }
+        return httpx2.Response(200, json={"model": "jev-1.14.0", "answers": answers, "usage": {}})
+
+    with TypeSafeClient(
+        api_key="integration-key",
+        transport=httpx2.MockTransport(respond),
+        base_url="https://api.typesafe.ai",
+        compression=False,
+        retry=RetryPolicy(max_retries=0),
+    ) as client:
+        assessment_id = module.process_case(
+            case_id="case",
+            max_batch_seconds=60,
+            idle_seconds=20,
+            context_seconds=30,
+            engine=engine,
+            client=client,
+            now=lambda: datetime(1970, 1, 1, second=4, tzinfo=UTC),
         )
-        return answers, "{}"
 
-    monkeypatch.setattr(module.jev, "evaluate", ask)
-    module.process_case(
-        case_id="case",
-        max_batch_seconds=60,
-        idle_seconds=20,
-        context_seconds=30,
-        engine=engine,
-        client=object(),
-        now=lambda: datetime(1970, 1, 1, second=4, tzinfo=UTC),
-    )
-
-    assert sent == [
-        PatternEvidence(
-            normative_model_id=model.normative_model_id, topics=["budgeting", "extended_family"]
-        )
-    ]
+    # Only the action question was told about the evidence, and the stored request records it.
+    [payload] = requests
+    assert "budgeting, extended family" in payload["questions"]["action"]["instructions"]
+    assert "evidence" not in payload["state"]
+    with read_session(engine=engine) as check:
+        stored = check.get(Assessment, assessment_id)
+        assert json.loads(stored.request_json)["evidence"] == {
+            "normative_model_id": model.normative_model_id,
+            "topics": ["budgeting", "extended_family"],
+        }

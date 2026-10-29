@@ -50,7 +50,7 @@ ACTION_QUESTION = (
     "speech or attribution is uncertain, prefer waiting for context over intervention."
 )
 EVIDENCE = (
-    "In earlier conversations between these speakers, each one with undesired behavior first "
+    "In the conversations used to discover this pattern, each one with undesired behavior first "
     "covered these topics, and all of them have now come up in this conversation: {topics}. "
     "This is not a probability of conflict and never justifies intervention by itself, "
     "but it can make tension that is emerging now more concerning."

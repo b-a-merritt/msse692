@@ -141,7 +141,7 @@ def test_evidence_reaches_only_the_action_question_and_widens_intervene():
     assert "never justifies intervention by itself" in action.instructions
     assert action.criteria == {**ACTIONS, "intervene": INTERVENE_WITH_EVIDENCE}
     assert not any(
-        "earlier conversations" in question.instructions
+        "used to discover this pattern" in question.instructions
         for key, question in questions.items()
         if key != "action"
     )
