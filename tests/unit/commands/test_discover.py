@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from datetime import UTC
 from datetime import datetime
 from importlib import import_module
+from pathlib import Path
 from unittest.mock import Mock
 
 from normative_conformance.config import Settings
@@ -11,7 +12,7 @@ from normative_conformance.schemas.discovery import DiscoveredModel
 module = import_module("normative_conformance.commands.discover")
 
 
-def _patch_storage(*, monkeypatch, tmp_path, traces):
+def _patch_storage(*, monkeypatch, traces):
     """Replace the database with test doubles that hand out one session."""
     engine = Mock()
     session = Mock()
@@ -21,7 +22,9 @@ def _patch_storage(*, monkeypatch, tmp_path, traces):
         yield session
 
     monkeypatch.setattr(
-        module, "get_settings", lambda: Settings(_env_file=None, app_db_path=tmp_path / "db")
+        module,
+        "get_settings",
+        lambda: Settings(_env_file=None, app_db_path=Path("prototype.sqlite3")),
     )
     monkeypatch.setattr(module, "create_database_engine", Mock(return_value=engine))
     monkeypatch.setattr(module, "initialize_database", Mock())
@@ -31,14 +34,14 @@ def _patch_storage(*, monkeypatch, tmp_path, traces):
     return engine, session
 
 
-def test_stores_a_model_from_the_traces_that_ended(*, monkeypatch, tmp_path, capsys):
+def test_stores_a_model_from_the_traces_that_ended(*, monkeypatch, capsys):
     traces = [
         CaseTrace(events=["budgeting", "undesired_behavior"], assessment_ids=[1, 2]),
         CaseTrace(events=["budgeting", "chores"], assessment_ids=[3]),
         CaseTrace(events=["budgeting", "undesired_behavior"], assessment_ids=[4]),
         CaseTrace(events=["work", "budgeting", "undesired_behavior"], assessment_ids=[5]),
     ]
-    engine, session = _patch_storage(monkeypatch=monkeypatch, tmp_path=tmp_path, traces=traces)
+    engine, session = _patch_storage(monkeypatch=monkeypatch, traces=traces)
     model = DiscoveredModel(
         normative_model_id=1, discovered_at=datetime(2026, 1, 1, tzinfo=UTC), topics=["budgeting"]
     )
@@ -54,9 +57,9 @@ def test_stores_a_model_from_the_traces_that_ended(*, monkeypatch, tmp_path, cap
     engine.dispose.assert_called_once()
 
 
-def test_too_few_ended_traces_store_nothing(*, monkeypatch, tmp_path, capsys):
+def test_too_few_ended_traces_store_nothing(*, monkeypatch, capsys):
     traces = [CaseTrace(events=["budgeting", "undesired_behavior"], assessment_ids=[1])]
-    engine, _ = _patch_storage(monkeypatch=monkeypatch, tmp_path=tmp_path, traces=traces)
+    engine, _ = _patch_storage(monkeypatch=monkeypatch, traces=traces)
     store = Mock()
     monkeypatch.setattr(module, "store_model", store)
 

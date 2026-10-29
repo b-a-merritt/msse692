@@ -5,6 +5,7 @@ import pytest
 
 from normative_conformance.schemas.assessment import Assessment
 from normative_conformance.schemas.assessment import ObservationDecision
+from normative_conformance.schemas.discovery import CaseTrace
 from normative_conformance.services.discovery.trace import trace
 
 
@@ -52,18 +53,16 @@ def test_lists_each_topic_once_in_assessment_and_turn_order():
         target_revision=1,
         turns=[(["budgeting", "chores"], [])],
     )
-    assert trace(assessments=[second, first], target_revision=1) == [
-        "chores",
-        "planning",
-        "budgeting",
-    ]
+    assert trace(assessments=[second, first], target_revision=1) == CaseTrace(
+        events=["chores", "planning", "budgeting"], assessment_ids=[1, 2]
+    )
 
 
 @pytest.mark.parametrize(
     "behavior",
     ["criticism", "contempt", "cruelty", "defensiveness", "stonewalling", "interruption"],
 )
-def test_first_undesired_behavior_ends_the_trace_before_its_assessment(behavior):
+def test_first_undesired_behavior_ends_the_trace_with_its_assessment(behavior):
     before = _assessment(assessment_id=1, target_revision=1, turns=[(["extended_family"], [])])
     # The other speaker's turn in the same batch was not known before the request either.
     attack = _assessment(
@@ -72,15 +71,15 @@ def test_first_undesired_behavior_ends_the_trace_before_its_assessment(behavior)
         turns=[(["budgeting"], []), (["interpersonal_conflict"], [behavior])],
     )
     after = _assessment(assessment_id=3, target_revision=1, turns=[(["chores"], [])])
-    assert trace(assessments=[before, attack, after], target_revision=1) == [
-        "extended_family",
-        "undesired_behavior",
-    ]
+    # The ending assessment is a source; later ones contributed nothing.
+    assert trace(assessments=[before, attack, after], target_revision=1) == CaseTrace(
+        events=["extended_family", "undesired_behavior"], assessment_ids=[1, 2]
+    )
 
 
 def test_swearing_alone_does_not_end_the_trace():
     swearing = _assessment(assessment_id=1, target_revision=1, turns=[(["work"], ["swearing"])])
-    assert trace(assessments=[swearing], target_revision=1) == ["work"]
+    assert trace(assessments=[swearing], target_revision=1).events == ["work"]
 
 
 def test_only_the_given_target_revision_counts():
@@ -88,8 +87,10 @@ def test_only_the_given_target_revision_counts():
         assessment_id=1, target_revision=1, turns=[(["budgeting"], ["contempt"])]
     )
     current_target = _assessment(assessment_id=2, target_revision=2, turns=[(["chores"], [])])
-    assert trace(assessments=[earlier_target, current_target], target_revision=2) == ["chores"]
+    assert trace(assessments=[earlier_target, current_target], target_revision=2) == CaseTrace(
+        events=["chores"], assessment_ids=[2]
+    )
 
 
 def test_no_assessments_have_no_topics():
-    assert trace(assessments=[], target_revision=1) == []
+    assert trace(assessments=[], target_revision=1) == CaseTrace(events=[], assessment_ids=[])
