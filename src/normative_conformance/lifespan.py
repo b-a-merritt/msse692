@@ -31,6 +31,7 @@ def _worker_lifespan(
     engine: Engine,
     client: TypeSafeClient,
     max_batch_seconds: int,
+    max_batch_turns: int,
     idle_seconds: int,
     context_seconds: int,
 ) -> Iterator[None]:
@@ -44,6 +45,7 @@ def _worker_lifespan(
             "now": app.state.clock,
             "client": client,
             "max_batch_seconds": max_batch_seconds,
+            "max_batch_turns": max_batch_turns,
             "idle_seconds": idle_seconds,
             "context_seconds": context_seconds,
         },
@@ -75,6 +77,7 @@ def _log_started(
             "log_file": str(log_path),
             "schema_revision": get_schema_revision(engine=engine),
             "decision_max_batch_seconds": settings.decision_max_batch_seconds,
+            "decision_max_batch_turns": settings.decision_max_batch_turns,
             "decision_idle_seconds": settings.decision_idle_seconds,
             "decision_context_seconds": settings.decision_context_seconds,
         },
@@ -106,6 +109,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     engine=engine,
                     client=client,
                     max_batch_seconds=settings.decision_max_batch_seconds,
+                    max_batch_turns=settings.decision_max_batch_turns,
                     idle_seconds=settings.decision_idle_seconds,
                     context_seconds=settings.decision_context_seconds,
                 ):

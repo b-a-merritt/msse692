@@ -73,6 +73,7 @@ KWARGS = {
     "engine": object(),
     "client": object(),
     "max_batch_seconds": 60,
+    "max_batch_turns": 3,
     "idle_seconds": 20,
     "context_seconds": 30,
     # Speech is received after this time, so a batch only ends with the target's turn.

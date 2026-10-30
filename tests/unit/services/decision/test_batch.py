@@ -53,6 +53,7 @@ def test_batch_ends_when_the_target_stops_speaking(after_sequence, expected):
             target_speaker_id="A",
             after_sequence=after_sequence,
             max_seconds=60,
+            max_turns=3,
             idle_seconds=20,
             now=datetime.fromtimestamp(41, UTC),
         )
@@ -79,6 +80,7 @@ def test_batch_ends_once_its_speech_spans_the_limit(max_seconds, expected):
             target_speaker_id="A",
             after_sequence=0,
             max_seconds=max_seconds,
+            max_turns=3,
             idle_seconds=20,
             now=datetime.fromtimestamp(22, UTC),
         )
@@ -104,6 +106,7 @@ def test_batch_ends_when_no_speech_has_arrived_for_the_idle_time(now_second, exp
             target_speaker_id="A",
             after_sequence=0,
             max_seconds=60,
+            max_turns=3,
             idle_seconds=20,
             now=datetime.fromtimestamp(now_second, UTC),
         )
@@ -119,8 +122,37 @@ def test_nothing_new_has_no_batch():
             target_speaker_id="A",
             after_sequence=1,
             max_seconds=60,
+            max_turns=3,
             idle_seconds=20,
             now=datetime.fromtimestamp(100, UTC),
         )
         is None
+    )
+
+
+@pytest.mark.parametrize(
+    "target_speaker_id,expected",
+    [
+        pytest.param("Z", 3, id="other-speakers-reach-the-limit"),
+        pytest.param("B", 2, id="target-turn-ends-first"),
+    ],
+)
+def test_batch_ends_after_the_turn_limit(target_speaker_id, expected):
+    ingested = [
+        _ingested(sequence=1, speaker_id="A", start_second=0, end_second=1),
+        _ingested(sequence=2, speaker_id="B", start_second=1, end_second=2),
+        _ingested(sequence=3, speaker_id="C", start_second=2, end_second=3),
+        _ingested(sequence=4, speaker_id="D", start_second=3, end_second=4),
+    ]
+    assert (
+        batch_end(
+            ingested=ingested,
+            target_speaker_id=target_speaker_id,
+            after_sequence=0,
+            max_seconds=60,
+            max_turns=3,
+            idle_seconds=20,
+            now=datetime.fromtimestamp(5, UTC),
+        )
+        == expected
     )

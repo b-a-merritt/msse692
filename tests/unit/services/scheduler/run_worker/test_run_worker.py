@@ -28,6 +28,7 @@ def test_polls_each_ready_case_once_per_pass(monkeypatch):
         now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         client=client,
         max_batch_seconds=45,
+        max_batch_turns=4,
         idle_seconds=15,
         context_seconds=20,
     )
@@ -39,6 +40,7 @@ def test_polls_each_ready_case_once_per_pass(monkeypatch):
     ]
     assert process.call_args.kwargs["client"] is client
     assert process.call_args.kwargs["max_batch_seconds"] == 45
+    assert process.call_args.kwargs["max_batch_turns"] == 4
     assert process.call_args.kwargs["idle_seconds"] == 15
     assert process.call_args.kwargs["context_seconds"] == 20
 
@@ -63,6 +65,7 @@ def test_failed_poll_is_retried_after_the_wait(monkeypatch):
         now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         client=object(),
         max_batch_seconds=60,
+        max_batch_turns=3,
         idle_seconds=20,
         context_seconds=30,
     )
@@ -88,6 +91,7 @@ def test_failed_case_does_not_stop_the_others(monkeypatch):
         now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         client=object(),
         max_batch_seconds=60,
+        max_batch_turns=3,
         idle_seconds=20,
         context_seconds=30,
     )
@@ -105,6 +109,7 @@ def test_shutdown_finishes_current_case_without_starting_next(monkeypatch):
         now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         client=object(),
         max_batch_seconds=60,
+        max_batch_turns=3,
         idle_seconds=20,
         context_seconds=30,
     )

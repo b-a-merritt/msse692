@@ -58,6 +58,7 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(*, tmp_path, mo
             _env_file=None,
             type_safe_api_key="integration-key",
             decision_max_batch_seconds=45,
+            decision_max_batch_turns=4,
             decision_idle_seconds=15,
             decision_context_seconds=10,
             app_db_path=tmp_path / "app.sqlite3",
@@ -82,6 +83,7 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(*, tmp_path, mo
     assert calls[0]["case_id"] == "case"
     assert isinstance(calls[0]["client"], TypeSafeClient)
     assert calls[0]["max_batch_seconds"] == 45
+    assert calls[0]["max_batch_turns"] == 4
     assert calls[0]["idle_seconds"] == 15
     assert calls[0]["context_seconds"] == 10
     assert calls[0]["now"]() == received_at

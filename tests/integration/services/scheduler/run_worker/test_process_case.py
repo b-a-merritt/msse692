@@ -146,6 +146,7 @@ def test_saves_the_target_turn_as_first_labeled_and_advances_only_its_current_ta
     assessment_id = module.process_case(
         case_id="case",
         max_batch_seconds=60,
+        max_batch_turns=3,
         idle_seconds=20,
         context_seconds=30,
         engine=engine,
@@ -294,6 +295,7 @@ def test_earlier_classifications_matching_the_newest_model_send_evidence(
         assessment_id = module.process_case(
             case_id="case",
             max_batch_seconds=60,
+            max_batch_turns=3,
             idle_seconds=20,
             context_seconds=30,
             engine=engine,

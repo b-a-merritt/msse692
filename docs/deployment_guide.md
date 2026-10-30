@@ -11,6 +11,7 @@ Run from the repository root with writable local storage. Environment variables 
 | `APP_DB_PATH` | `data/prototype.sqlite3` | SQLite database |
 | `LOG_DIR` | `data/logs` | JSONL logs |
 | `DECISION_MAX_BATCH_SECONDS` | `60` | Positive speech duration that ends a batch before the target's turn ends |
+| `DECISION_MAX_BATCH_TURNS` | `3` | Positive number of turns that ends a batch before the target's turn ends; each turn adds topic questions to the request |
 | `DECISION_IDLE_SECONDS` | `20` | Positive time without new speech that ends a batch |
 | `DECISION_CONTEXT_SECONDS` | `30` | Nonnegative duration of earlier speech sent as context |
 | `DEBUG` | `false` | Framework debug mode |

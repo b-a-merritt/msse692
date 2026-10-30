@@ -18,6 +18,7 @@ def run_worker(
     now: Clock,
     client: TypeSafeClient,
     max_batch_seconds: int,
+    max_batch_turns: int,
     idle_seconds: int,
     context_seconds: int,
 ) -> None:
@@ -33,6 +34,7 @@ def run_worker(
                         process_case(
                             case_id=case_id,
                             max_batch_seconds=max_batch_seconds,
+                            max_batch_turns=max_batch_turns,
                             idle_seconds=idle_seconds,
                             context_seconds=context_seconds,
                             engine=engine,

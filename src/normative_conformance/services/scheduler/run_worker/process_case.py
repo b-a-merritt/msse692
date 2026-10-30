@@ -29,6 +29,7 @@ def process_case(
     *,
     case_id: str,
     max_batch_seconds: int,
+    max_batch_turns: int,
     idle_seconds: int,
     context_seconds: int,
     engine: Engine,
@@ -53,6 +54,7 @@ def process_case(
         target_speaker_id=case.target_speaker_id,
         after_sequence=after_sequence,
         max_seconds=max_batch_seconds,
+        max_turns=max_batch_turns,
         idle_seconds=idle_seconds,
         now=captured_at,
     )

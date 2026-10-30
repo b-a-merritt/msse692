@@ -84,6 +84,7 @@ def test_worker_assesses_stored_speech_and_advances_progress(engine, session, mo
             "now": lambda: datetime(1970, 1, 1, minute=1, tzinfo=UTC),
             "client": object(),
             "max_batch_seconds": 60,
+            "max_batch_turns": 3,
             "idle_seconds": 20,
             "context_seconds": 30,
         },

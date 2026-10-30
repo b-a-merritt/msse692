@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     app_db_path: Path = Path("data/prototype.sqlite3")
     log_dir: Path = Path("data/logs")
     decision_max_batch_seconds: int = Field(default=60, gt=0)
+    decision_max_batch_turns: int = Field(default=3, gt=0)
     decision_idle_seconds: int = Field(default=20, gt=0)
     decision_context_seconds: int = Field(default=30, ge=0)
 
