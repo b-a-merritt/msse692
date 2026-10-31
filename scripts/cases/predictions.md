@@ -115,22 +115,3 @@ Discovery should require both `extended_family` (the mother) and `budgeting` (th
 | `control-test-06` | Unrelated topic, criticism and stonewalling | Intervene | Intervene, unchanged |
 
 Evidence helps if the first intervention in 01 and 02 comes earlier, 03–06 are unchanged, and behavior scores do not differ between the two runs. Run each held-out case at least three times per condition; answers vary between runs.
-
-## Breaking Bad: Walt and Skyler
-
-Ten scenes between the same couple across the series, captured by playing each clip's audio into the capture page. Unlike the control dialogue, any pattern is the writers', not planted. The target is Walt in every scene. These predictions were written before capture, from scene summaries and remembered lines; captures may correct the reasoning, not the call.
-
-| Scene | Source | Intervene | Expected Walt behaviors | Reason |
-|---|---|---|---|---|
-| S1E2 ultrasound | https://www.youtube.com/watch?v=Ii4z-LIwLls | No | None | Evasive about Jesse; evasion and lying are not attacks |
-| S1E5 treatment fight | https://www.youtube.com/watch?v=3mzaH1wEZhs | No | None | Anger at a specific act, Skyler telling Elliott, is a complaint |
-| S2E4 "Tell you what?" | https://www.youtube.com/watch?v=mWjN1nUezTM | No | None | Feigned ignorance is evasion; Skyler does the shouting |
-| S3E3 "I.F.T." | https://www.youtube.com/watch?v=nAOMDamN2Pg | No | None | Insists on staying; receives the blow |
-| S4E6 "I am the danger" | https://www.youtube.com/watch?v=31Voz1H40zI | Yes | contempt, cruelty | "You clearly don't know who you're talking to", "I am the one who knocks"; the same scene as case 8 |
-| S4E11 "Crawl Space" | https://www.youtube.com/watch?v=QG2DVSAGz0w | No | None | Screams in panic, then laughs; loud but not aimed to intimidate |
-| S5E4 "Waiting for the cancer" | https://www.youtube.com/watch?v=tQV5FXcScrc | Yes | contempt, cruelty | Dismantles her plans to leave and uses her breakdown against her |
-| S5E4 pool scene | https://www.youtube.com/watch?v=uJ9LX6sNYKs | No | None | His account is told to Hank and Marie, not aimed at Skyler |
-| S5E14 knife fight | https://www.youtube.com/watch?v=G0g84xapiCM | Yes | criticism, defensiveness | "What the hell is wrong with you?", "We're a family!" during a struggle he started |
-| S5E14 phone call | https://www.youtube.com/watch?v=O3qQYhoY2YQ | Yes | contempt, criticism, cruelty | Name-calling, blame, and threats; that it is partly staged does not change what the words do |
-
-Expected: the couple's fights share themes (secrets, money, family safety), so required topics are likely to come up in No scenes as well. Evidence is expected in most No scenes and is not expected to bring the first intervention in Yes scenes earlier.
