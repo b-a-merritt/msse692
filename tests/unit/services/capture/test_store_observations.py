@@ -45,8 +45,7 @@ def test_commits_whole_turn(monkeypatch):
     assert committed == [observation, other]
 
 
-@pytest.mark.parametrize("stage,expected", [("write", "storageUnavailable")])
-def test_write_failure_is_reported(monkeypatch, stage, expected):
+def test_write_failure_is_reported_without_committing(monkeypatch):
     observation = ObservationInput(
         case_id="case",
         observation_id="one",
@@ -62,8 +61,7 @@ def test_write_failure_is_reported(monkeypatch, stage, expected):
     context = MagicMock()
     context.__enter__.return_value = session
     monkeypatch.setattr(module, "write_session", Mock(return_value=context))
-    insert = Mock(side_effect=SQLAlchemyError("private") if stage == "write" else None)
-    monkeypatch.setattr(module, "stage_observation", insert)
+    monkeypatch.setattr(module, "stage_observation", Mock(side_effect=SQLAlchemyError("private")))
     with pytest.raises(CaptureFailure) as caught:
         module.store_observations(
             case_id="case",
@@ -71,7 +69,7 @@ def test_write_failure_is_reported(monkeypatch, stage, expected):
             engine=object(),
             now=lambda: datetime(1970, 1, 1, tzinfo=UTC),
         )
-    assert caught.value.code == expected
+    assert caught.value.code == "storageUnavailable"
     session.commit.assert_not_called()
 
 

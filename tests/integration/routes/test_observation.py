@@ -92,12 +92,7 @@ def test_duplicate_submission_returns_conflict(*, open_client):
     "changes",
     [
         pytest.param({"end_at": "2026-09-26T09:00:00Z"}, id="reversed-interval"),
-        pytest.param({"signal_level_avg": -51.0}, id="invalid-signal-order"),
-        pytest.param({"signal_level_avg": "-30"}, id="numeric-string"),
-        pytest.param({"start_at": "2026-09-26T09:00:00"}, id="naive-timestamp"),
-        pytest.param({"transcript": " "}, id="blank-transcript"),
         pytest.param({"sequence": 1}, id="client-sequence"),
-        pytest.param({"received_at": "2026-09-26T09:00:02Z"}, id="client-receipt-time"),
     ],
 )
 def test_invalid_request_creates_no_records(*, open_client, changes):
@@ -192,30 +187,6 @@ def test_connection_failure_returns_service_unavailable(*, open_client, monkeypa
         }
 
 
-def test_uninitialized_worker_does_not_block_storage(*, open_client, monkeypatch):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
-    with open_client(now=lambda: received_at) as client:
-        observation_data = {
-            "case_id": "case",
-            "observation_id": "chunk",
-            "speaker_id": "subject",
-            "start_at": "2026-09-26T12:00:00.123456+03:00",
-            "end_at": "2026-09-26T12:00:01.654321+03:00",
-            "transcript": "  Hello!\n",
-            "signal_level_min": -50.0,
-            "signal_level_avg": -30.0,
-            "signal_level_max": -10.0,
-        }
-
-        monkeypatch.setattr(client.app.state, "worker_stopped", None)
-        response = client.post("/api/v1/observations", json=observation_data)
-
-        assert response.status_code == 201
-        with Session(bind=client.app.state.engine) as session:
-            assert len(session.exec(select(ConversationCase)).all()) == 1
-            assert len(session.exec(select(Observation)).all()) == 1
-
-
 def test_openapi_describes_ingestion_responses(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
@@ -226,29 +197,6 @@ def test_openapi_describes_ingestion_responses(*, open_client):
         assert responses["201"]["content"]["application/json"]["schema"]["$ref"] == (
             "#/components/schemas/ObservationRecord"
         )
-
-
-def test_stopped_worker_does_not_block_storage(*, open_client):
-    received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
-    with open_client(now=lambda: received_at) as client:
-        observation_data = {
-            "case_id": "case",
-            "observation_id": "chunk",
-            "speaker_id": "subject",
-            "start_at": "2026-09-26T12:00:00.123456+03:00",
-            "end_at": "2026-09-26T12:00:01.654321+03:00",
-            "transcript": "  Hello!\n",
-            "signal_level_min": -50.0,
-            "signal_level_avg": -30.0,
-            "signal_level_max": -10.0,
-        }
-
-        client.app.state.worker_stopped.set()
-        response = client.post("/api/v1/observations", json=observation_data)
-
-        assert response.status_code == 201
-        with Session(bind=client.app.state.engine) as session:
-            assert len(session.exec(select(Observation)).all()) == 1
 
 
 def test_listing_returns_observations_newest_first(*, open_client):

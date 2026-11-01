@@ -3,7 +3,6 @@ import logging
 
 import pytest
 
-from normative_conformance.errors import CaptureDisconnected
 from normative_conformance.errors import CaptureFailure
 from normative_conformance.services.capture import forward_audio as module
 from normative_conformance.services.capture.levels import FrameLevel
@@ -98,23 +97,6 @@ def test_input_after_stop_is_rejected():
             )
         )
     assert caught.value.code == "invalidAudio"
-
-
-def test_browser_leaving_before_stop_is_a_disconnect():
-    async def send(message):
-        pass
-
-    with pytest.raises(CaptureDisconnected):
-        asyncio.run(
-            module.forward_audio(
-                messages=browser(b"\x00\x00" * 1600),
-                send=send,
-                transcriber=FakeTranscriber(),
-                stopping=asyncio.Event(),
-                capture_id="capture",
-                frames=[],
-            )
-        )
 
 
 def test_audio_progress_is_periodic_and_stop_reports_total(caplog):

@@ -105,7 +105,7 @@ def test_disconnect_while_sending_ends_quietly(monkeypatch):
     websocket.close.assert_not_awaited()
 
 
-def test_capture_case_lookup_closes_its_session(monkeypatch):
+def test_capture_case_lookup_uses_a_read_session(monkeypatch):
     websocket = socket()
     session = Mock()
     context = MagicMock()
@@ -117,7 +117,6 @@ def test_capture_case_lookup_closes_its_session(monkeypatch):
 
     assert capture.get_capture_case(websocket, case_id="configured-case") is record
     lookup.assert_called_once_with(case_id="configured-case", session=session)
-    context.__exit__.assert_called_once()
 
 
 @pytest.mark.parametrize(

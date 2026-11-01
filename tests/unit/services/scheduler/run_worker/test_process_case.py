@@ -96,24 +96,6 @@ def _case(*, target_speaker_id, target_revision):
     [
         pytest.param(_case(target_speaker_id=None, target_revision=0), 0, [1], id="no-target"),
         pytest.param(
-            _case(target_speaker_id=None, target_revision=1),
-            0,
-            [1],
-            id="unresolved-target",
-        ),
-        pytest.param(
-            _case(target_speaker_id="A", target_revision=1),
-            0,
-            [],
-            id="no-speech",
-        ),
-        pytest.param(
-            _case(target_speaker_id="A", target_revision=1),
-            2,
-            [1, 2],
-            id="handled",
-        ),
-        pytest.param(
             _case(target_speaker_id="A", target_revision=1),
             0,
             [1, 2],

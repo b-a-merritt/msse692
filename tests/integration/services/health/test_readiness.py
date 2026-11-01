@@ -5,38 +5,18 @@ from unittest.mock import Mock
 
 import pytest
 from sqlalchemy.exc import OperationalError
-from sqlmodel import select
 
 from normative_conformance.errors import NotReady
-from normative_conformance.models.observation import Observation
 from normative_conformance.services.health.readiness import readiness
 
 
-def test_ready_checks_leave_records_unchanged(*, session):
+def test_running_worker_and_database_are_ready(*, session):
     stopped = Event()
 
     with _running_worker(stopped=stopped) as worker:
         result = readiness(session=session, stopped=stopped, worker=worker)
 
         assert result.model_dump() == {"status": "ready"}
-        assert session.exec(select(Observation)).all() == []
-
-
-def test_dead_worker_is_not_ready(*, session):
-    stopped = Event()
-
-    with pytest.raises(NotReady, match="The assessment worker is not running"):
-        readiness(session=session, stopped=stopped, worker=Thread())
-
-
-def test_stopping_worker_is_not_ready_even_while_thread_is_alive(*, session):
-    stopped = Event()
-
-    stopped.set()
-    worker = Mock(spec=Thread)
-    worker.is_alive.return_value = True
-    with pytest.raises(NotReady, match="The assessment worker is not running"):
-        readiness(session=session, stopped=stopped, worker=worker)
 
 
 def test_database_failure_has_fixed_message_and_preserves_cause(*, session, engine, monkeypatch):

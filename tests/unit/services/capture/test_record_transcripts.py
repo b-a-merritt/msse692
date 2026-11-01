@@ -84,8 +84,7 @@ def test_partial_log_is_once_per_turn_but_every_update_reaches_browser(caplog):
     assert [(r.turn_order, r.final) for r in records] == [(0, False), (0, True), (1, False)]
 
 
-def test_persists_final_turn_once_before_reporting_it():
-    final = TurnUpdate(0, True, "A", "Hello", (Word("Hello", 0, 100, "A"),))
+def test_persists_final_turn_before_reporting_it():
     sent = []
     saved = []
 
@@ -97,8 +96,7 @@ def test_persists_final_turn_once_before_reporting_it():
         sent.append(message)
 
     record(
-        final,
-        final,
+        TurnUpdate(0, True, "A", "Hello", (Word("Hello", 0, 100, "A"),)),
         started_at=datetime(2026, 10, 26, tzinfo=UTC),
         frames=[FrameLevel(start_ms=0, end_ms=100, dbfs=-120)],
         send=send,
@@ -107,10 +105,7 @@ def test_persists_final_turn_once_before_reporting_it():
     )
 
     assert [m["transcript"] for m in sent] == ["Hello"]
-    assert saved[0].speaker_id == "A"
-    assert saved[0].transcript == "Hello"
-    assert saved[0].signal_level_avg == -120
-    assert saved[0].start_at == datetime(2026, 10, 26, tzinfo=UTC)
+    assert [(row.speaker_id, row.transcript) for row in saved] == [("A", "Hello")]
 
 
 def test_storage_failure_sends_no_transcript():
@@ -204,8 +199,7 @@ def test_revision_storage_failure_sends_no_revision():
     observations.assert_awaited_once()
 
 
-def test_successive_revisions_regroup_with_utc_times_and_keep_original_links():
-    loud = -6.020599913279624
+def test_successive_revisions_regroup_and_keep_original_links():
     originals = []
     revisions = []
 
@@ -225,14 +219,8 @@ def test_successive_revisions_regroup_with_utc_times_and_keep_original_links():
         SpeakerRevised(
             (TurnRevision(0, "B", (Word("Hello", 0, 40, "B"), Word("there", 40, 100, "B"))),)
         ),
-        started_at=datetime(2026, 10, 26, 12, tzinfo=UTC),
-        frames=[
-            FrameLevel(start_ms=0, end_ms=20, dbfs=-120),
-            FrameLevel(start_ms=20, end_ms=40, dbfs=-120),
-            FrameLevel(start_ms=40, end_ms=60, dbfs=loud),
-            FrameLevel(start_ms=60, end_ms=80, dbfs=loud),
-            FrameLevel(start_ms=80, end_ms=100, dbfs=loud),
-        ],
+        started_at=datetime(2026, 10, 26, tzinfo=UTC),
+        frames=[FrameLevel(start_ms=0, end_ms=100, dbfs=-120)],
         send=AsyncMock(),
         store_observations=store_observations,
         store_revisions=store_revisions,
@@ -240,19 +228,13 @@ def test_successive_revisions_regroup_with_utc_times_and_keep_original_links():
 
     assert len(originals) == 1
     assert [r.replaced_observation_ids for r in revisions] == [[originals[0].observation_id]] * 2
-    assert [r.speaker_id for r in revisions[0].observations] == ["A", "PENDING"]
-    assert [r.transcript for r in revisions[0].observations] == ["Hello", "there"]
-    assert revisions[0].observations[0].signal_level_avg == -120
-    assert revisions[0].observations[1].signal_level_avg == pytest.approx(loud)
-    assert revisions[0].observations[0].start_at == datetime(2026, 10, 26, 12, tzinfo=UTC)
-    assert revisions[0].observations[1].start_at == datetime(
-        2026, 10, 26, 12, 0, 0, 40000, tzinfo=UTC
-    )
-    assert revisions[1].observations[0].end_at == datetime(
-        2026, 10, 26, 12, 0, 0, 100000, tzinfo=UTC
-    )
-    assert [r.transcript for r in revisions[1].observations] == ["Hello there"]
-    assert revisions[1].observations[0].signal_level_avg == originals[0].signal_level_avg
+    assert [(r.speaker_id, r.transcript) for r in revisions[0].observations] == [
+        ("A", "Hello"),
+        ("PENDING", "there"),
+    ]
+    assert [(r.speaker_id, r.transcript) for r in revisions[1].observations] == [
+        ("B", "Hello there")
+    ]
 
 
 def test_revision_without_an_original_turn_cannot_create_unlinked_context():

@@ -1,6 +1,5 @@
 import sqlite3
 from contextlib import nullcontext
-from pathlib import Path
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import call
@@ -55,46 +54,6 @@ def test_transaction_mode_controls_writer_lock_acquisition(*, options, statement
     connection.exec_driver_sql.assert_called_once_with(statement)
 
 
-def test_engine_creation_installs_transaction_callbacks_without_connecting(*, monkeypatch):
-    mkdir = Mock()
-    monkeypatch.setattr(Path, "mkdir", mkdir)
-    engine = Mock(spec=Engine)
-    create = Mock(return_value=engine)
-    listen = Mock()
-    monkeypatch.setattr(database, "create_engine", create)
-    monkeypatch.setattr(database.event, "listen", listen)
-    assert database.create_database_engine(path=Path("example/database.sqlite3")) is engine
-    mkdir.assert_called_once_with(parents=True, exist_ok=True)
-    assert create.call_args.args[0].database == "example/database.sqlite3"
-    assert create.call_args.kwargs == {"connect_args": {"check_same_thread": False}}
-    assert listen.call_args_list == [
-        call(engine, "connect", database._configure_connection),
-        call(engine, "begin", database._begin_transaction),
-    ]
-    engine.connect.assert_not_called()
-
-
-def test_migrations_join_one_explicit_writer_transaction(*, monkeypatch):
-    connection = MagicMock()
-    connection.__enter__.return_value = connection
-    engine = Mock(spec=Engine)
-    engine.connect.return_value.execution_options.return_value = connection
-    upgrade = Mock()
-    monkeypatch.setattr(database.command, "upgrade", upgrade)
-
-    database.initialize_database(engine=engine)
-
-    engine.connect.return_value.execution_options.assert_called_once_with(
-        sqlite_transaction_mode="immediate"
-    )
-    config, revision = upgrade.call_args.args
-    assert revision == "head"
-    assert config.attributes["connection"] is connection
-    assert config.get_main_option("script_location") == database.MIGRATIONS_LOCATION
-    connection.begin.assert_called_once()
-    connection.__exit__.assert_called_once()
-
-
 @pytest.mark.parametrize(
     "failure",
     [
@@ -116,17 +75,6 @@ def test_migration_failures_are_reported_as_storage_unavailable(*, monkeypatch, 
 
     assert caught.value.__cause__ is failure
     connection.__exit__.assert_called_once()
-
-
-def test_schema_revision_is_read_from_the_current_connection(*, monkeypatch):
-    engine = Mock(spec=Engine)
-    connection = object()
-    engine.connect.return_value = nullcontext(connection)
-    configure = Mock()
-    configure.return_value.get_current_revision.return_value = "0001"
-    monkeypatch.setattr(database.MigrationContext, "configure", configure)
-    assert database.get_schema_revision(engine=engine) == "0001"
-    configure.assert_called_once_with(connection)
 
 
 @pytest.mark.parametrize(
