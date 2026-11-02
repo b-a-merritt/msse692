@@ -118,6 +118,31 @@ def test_invalid_request_creates_no_records(*, open_client, changes):
             assert session.exec(select(Observation)).all() == []
 
 
+def test_oversized_request_is_refused_before_anything_is_stored(*, open_client):
+    with open_client(now=lambda: datetime(2026, 11, 2, tzinfo=UTC)) as client:
+        response = client.post(
+            "/api/v1/observations",
+            json={
+                "case_id": "case",
+                "observation_id": "chunk",
+                "speaker_id": "subject",
+                "start_at": "2026-11-02T00:00:00Z",
+                "end_at": "2026-11-02T00:00:01Z",
+                "transcript": "x" * (128 * 1024),
+                "signal_level_min": -50.0,
+                "signal_level_avg": -30.0,
+                "signal_level_max": -10.0,
+            },
+        )
+
+        assert response.status_code == 413
+        body = response.json()
+        assert body["error"]["code"] == "BODY_TOO_LARGE"
+        assert body["error"]["request_id"] == response.headers["X-Request-ID"]
+        with Session(bind=client.app.state.engine) as session:
+            assert session.exec(select(Observation)).all() == []
+
+
 def test_storage_error_returns_safe_message_and_rolls_back(*, open_client):
     received_at = datetime(2026, 9, 26, 9, 2, 3, 456_789, tzinfo=UTC)
     with open_client(now=lambda: received_at) as client:
@@ -193,7 +218,7 @@ def test_openapi_describes_ingestion_responses(*, open_client):
         responses = client.get("/openapi.json").json()["paths"]["/api/v1/observations"]["post"][
             "responses"
         ]
-        assert set(responses) == {"201", "409", "422", "503"}
+        assert set(responses) == {"201", "403", "409", "413", "422", "503"}
         assert responses["201"]["content"]["application/json"]["schema"]["$ref"] == (
             "#/components/schemas/ObservationRecord"
         )

@@ -57,6 +57,7 @@ def test_lifespan_runs_submitted_assessment_and_closes_resources(*, tmp_path, mo
         settings=Settings(
             _env_file=None,
             type_safe_api_key="integration-key",
+            allowed_hosts=["testserver"],
             decision_max_batch_seconds=45,
             decision_max_batch_turns=4,
             decision_idle_seconds=15,

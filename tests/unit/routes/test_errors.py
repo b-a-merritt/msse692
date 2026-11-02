@@ -7,6 +7,7 @@ import pytest
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 
+from normative_conformance.errors import ForeignRequest
 from normative_conformance.errors import NotFound
 from normative_conformance.errors import NotReady
 from normative_conformance.errors import ObservationExists
@@ -19,6 +20,7 @@ from normative_conformance.routes.errors import validation_error
 @pytest.mark.parametrize(
     "error,status,code",
     [
+        (ForeignRequest("Another site"), 403, "FOREIGN_REQUEST"),
         (NotFound("Missing record"), 404, "NOT_FOUND"),
         (ObservationExists("Already stored"), 409, "OBSERVATION_EXISTS"),
         (NotReady("Not running"), 503, "NOT_READY"),
@@ -58,6 +60,7 @@ def test_registers_domain_and_validation_handlers():
     }
     assert registered == {
         RequestValidationError: validation_error,
+        ForeignRequest: service_error,
         NotFound: service_error,
         ObservationExists: service_error,
         NotReady: service_error,

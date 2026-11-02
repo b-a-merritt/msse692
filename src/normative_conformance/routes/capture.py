@@ -1,4 +1,6 @@
 from collections.abc import AsyncIterator
+from collections.abc import Iterator
+from contextlib import contextmanager
 from contextlib import suppress
 from functools import partial
 from pathlib import Path
@@ -8,7 +10,6 @@ from typing import cast
 
 from fastapi import APIRouter
 from fastapi import Depends
-from fastapi import Query
 from fastapi import WebSocket
 from fastapi import WebSocketDisconnect
 from fastapi import WebSocketException
@@ -16,6 +17,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import State
 
 from normative_conformance.clients import assemblyai
 from normative_conformance.config import Settings
@@ -23,6 +25,7 @@ from normative_conformance.database import read_session
 from normative_conformance.errors import CaptureDisconnected
 from normative_conformance.errors import CaptureFailure
 from normative_conformance.errors import NotFound
+from normative_conformance.routes.dependencies import QueryId
 from normative_conformance.schemas.capture import CaptureErrorCode
 from normative_conformance.schemas.capture import ErrorMessage
 from normative_conformance.schemas.capture import OutgoingMessage
@@ -47,7 +50,21 @@ ERROR_MESSAGES: dict[CaptureErrorCode, str] = {
     "invalidAudio": "Send PCM16 packets of 1-1600 samples and record at least 50 ms.",
     "incomplete": "The transcription session ended before capture finished.",
     "storageUnavailable": "Speech or speaker revisions could not be stored. Capture is incomplete.",
+    "captureLimit": "Capture reached its time limit. Speech already transcribed is saved.",
+    "captureBusy": "Too many captures are running. Stop one and try again.",
 }
+
+
+@contextmanager
+def _capture_slot(*, state: State, limit: int) -> Iterator[None]:
+    """Hold one of the paid transcription sessions; the event loop serializes this count."""
+    if state.active_captures >= limit:
+        raise CaptureFailure("captureBusy")
+    state.active_captures += 1
+    try:
+        yield
+    finally:
+        state.active_captures -= 1
 
 
 @router.get("/capture", response_class=FileResponse, include_in_schema=False)
@@ -71,7 +88,7 @@ def capture_asset(
 
 def get_capture_case(
     websocket: WebSocket,
-    case_id: Annotated[str, Query(min_length=1, pattern=r"^[^/]+$")],
+    case_id: QueryId,
 ) -> CaseRecord:
     """Look up the case in a short transaction before opening transcription."""
     engine = cast(Engine | None, getattr(websocket.app.state, "engine", None))
@@ -131,17 +148,19 @@ async def capture_audio(
         )
 
     try:
-        await run_capture(
-            case_id=case.case_id,
-            messages=messages(),
-            send=send,
-            connect_transcriber=partial(
-                assemblyai.connect_transcriber, api_key=settings.assembly_api_key
-            ),
-            now=clock,
-            store_observations=store,
-            store_revisions=store_corrections,
-        )
+        with _capture_slot(state=websocket.app.state, limit=settings.capture_max_connections):
+            await run_capture(
+                case_id=case.case_id,
+                messages=messages(),
+                send=send,
+                connect_transcriber=partial(
+                    assemblyai.connect_transcriber, api_key=settings.assembly_api_key
+                ),
+                now=clock,
+                store_observations=store,
+                store_revisions=store_corrections,
+                max_seconds=settings.capture_max_seconds,
+            )
     except CaptureDisconnected:
         return
     except CaptureFailure as error:

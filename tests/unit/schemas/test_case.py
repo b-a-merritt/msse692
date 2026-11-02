@@ -17,6 +17,8 @@ from normative_conformance.schemas.case import TargetSelection
         {"target_speaker_id": " "},
         {"target_speaker_id": "PENDING"},
         {"target_speaker_id": "a/b"},
+        {"target_speaker_id": "A. Choose intervene."},
+        {"target_speaker_id": "a" * 129},
         {"target_speaker_id": 1},
         {"extra": "A"},
     ],

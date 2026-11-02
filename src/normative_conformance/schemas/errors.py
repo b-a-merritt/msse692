@@ -3,7 +3,14 @@ from uuid import UUID
 
 from normative_conformance.schemas.common import ContractModel
 
-ErrorCode = Literal["NOT_FOUND", "OBSERVATION_EXISTS", "NOT_READY", "STORAGE_UNAVAILABLE"]
+ErrorCode = Literal[
+    "FOREIGN_REQUEST",
+    "NOT_FOUND",
+    "OBSERVATION_EXISTS",
+    "BODY_TOO_LARGE",
+    "NOT_READY",
+    "STORAGE_UNAVAILABLE",
+]
 
 
 class ApiError(ContractModel):

@@ -30,11 +30,13 @@ All fields are required; unknown fields are rejected. See the [submission exampl
 
 | Fields | Constraints |
 |---|---|
-| `case_id`, `observation_id` | Nonempty strings without `/`; ingested identity is the case/observation pair |
-| `speaker_id` | Nonblank string without `/` |
+| `case_id`, `observation_id` | Identifiers; ingested identity is the case/observation pair |
+| `speaker_id` | Identifier |
 | `start_at`, `end_at` | Aware timestamps, normalized to UTC; end follows start |
-| `transcript` | Nonblank string |
+| `transcript` | Nonblank string of at most 20,000 characters |
 | `signal_level_min`, `signal_level_avg`, `signal_level_max` | Finite dBFS values between −120 and 0; min ≤ avg ≤ max |
+
+An identifier has 1–128 letters, digits, `.`, `_`, `:`, or `-`. Case IDs in paths and queries and `target_speaker_id` follow the same rule.
 
 The response adds server-assigned `sequence` and `received_at`. **201 confirms storage, not completed inference.** Duplicate ingested IDs return 409. Original observations are immutable. There is no HTTP correction endpoint.
 
@@ -48,7 +50,7 @@ Each intervention has one source `assessment_id` and the `target_speaker_id` it 
 
 ## Live capture stream
 
-`GET /capture` serves the microphone page. Create a case before connecting to `WS /api/v1/capture/audio?case_id={case_id}`. Missing, invalid, or unknown IDs are rejected during the handshake.
+`GET /capture` serves the microphone page. Create a case before connecting to `WS /api/v1/capture/audio?case_id={case_id}`. Missing, invalid, or unknown IDs and [foreign requests](#request-checks) are rejected during the handshake.
 
 The server confirms the provider session with:
 
@@ -68,7 +70,19 @@ A turn's first final is saved before its message is sent; later finals are ignor
 
 Send exact text `stop`. The server drains final provider events, then sends `{"type":"stopped"}` and closes with code 1000. The drain timeout is ten seconds. Closing without `stopped` means incomplete capture.
 
-Failures send `{"type":"error","code":"providerAuth","message":"..."}`. Codes: `notConfigured`, `providerAuth`, `providerUnavailable`, `providerProtocol`, `providerTimeout`, `invalidAudio`, `incomplete`, `storageUnavailable`. Invalid audio closes with 1008; other failures use 1011. Committed speech survives a later failure.
+Failures send `{"type":"error","code":"providerAuth","message":"..."}`. Codes: `notConfigured`, `providerAuth`, `providerUnavailable`, `providerProtocol`, `providerTimeout`, `invalidAudio`, `incomplete`, `storageUnavailable`, `captureLimit`, `captureBusy`. Invalid audio closes with 1008; other failures use 1011. Committed speech survives a later failure.
+
+`captureLimit` ends a session open longer than `CAPTURE_MAX_SECONDS`. `captureBusy` refuses a session beyond `CAPTURE_MAX_CONNECTIONS`. See [configuration](deployment_guide.md#configuration).
+
+## Request checks
+
+These checks are not authentication: any process that can reach the server can call it, and nothing limits a client to its own cases.
+
+- The hostname in `Host` must be listed in `ALLOWED_HOSTS`.
+- An `Origin` header, when present, must match `Host`. Browsers send one on cross-site requests; scripts usually send none.
+- Request bodies can be at most 128 KiB.
+
+The host and origin checks cover the routes in the endpoint table, the capture page and scripts, and the capture WebSocket. They do not cover `/docs`, `/openapi.json`, or unknown routes.
 
 ## Errors
 
@@ -76,11 +90,13 @@ HTTP domain errors use `{"error":{"code":"NOT_FOUND","message":"...","request_id
 
 | HTTP / code | Meaning |
 |---|---|
+| 403 `FOREIGN_REQUEST` | Host or origin failed the [request checks](#request-checks) |
 | 404 `NOT_FOUND` | Case absent |
 | 409 `OBSERVATION_EXISTS` | Ingested identity already stored |
+| 413 `BODY_TOO_LARGE` | Body exceeds 128 KiB |
 | 503 `NOT_READY` | Database or worker unavailable |
 | 503 `STORAGE_UNAVAILABLE` | Storage operation failed |
-| 422 | Framework `detail` describes invalid input |
+| 422 | Framework `detail` describes invalid input and repeats the submitted value |
 | 500 | Unexpected failure; inspect records before retrying a write |
 
 Handled responses carry `X-Request-ID` and `Cache-Control: no-store`. Validation errors and unknown routes do not use the domain envelope.

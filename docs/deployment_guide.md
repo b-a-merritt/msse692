@@ -10,6 +10,9 @@ Run from the repository root with writable local storage. Environment variables 
 | `ASSEMBLY_API_KEY` | Empty | Transcription credential; required for live capture |
 | `APP_DB_PATH` | `data/prototype.sqlite3` | SQLite database |
 | `LOG_DIR` | `data/logs` | JSONL logs |
+| `ALLOWED_HOSTS` | `["localhost","127.0.0.1","::1"]` | JSON list of hostnames accepted in the `Host` header |
+| `CAPTURE_MAX_SECONDS` | `3600` | Positive time limit for one transcription session |
+| `CAPTURE_MAX_CONNECTIONS` | `2` | Positive number of transcription sessions open at once |
 | `DECISION_MAX_BATCH_SECONDS` | `60` | Positive speech duration that ends a batch before the target's turn ends |
 | `DECISION_MAX_BATCH_TURNS` | `3` | Positive number of turns that ends a batch before the target's turn ends; each turn adds topic questions to the request |
 | `DECISION_IDLE_SECONDS` | `20` | Positive time without new speech that ends a batch |
@@ -18,6 +21,8 @@ Run from the repository root with writable local storage. Environment variables 
 | `APP_NAME` | `normative-conformance` | Application title |
 
 Use a fresh database path for this disposable schema. Run one process per database; multiple workers sharing storage are unsupported.
+
+Listen on localhost only. The server has no authentication, so listening on another address exposes all stored speech to the network. See the [security assessment](security_assessment.md#what-deployment-would-require).
 
 ```bash
 uv sync --locked --no-dev

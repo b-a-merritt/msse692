@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     debug: bool = False
     app_db_path: Path = Path("data/prototype.sqlite3")
     log_dir: Path = Path("data/logs")
+    allowed_hosts: list[str] = ["localhost", "127.0.0.1", "::1"]
+    capture_max_seconds: int = Field(default=3600, gt=0)
+    capture_max_connections: int = Field(default=2, gt=0)
     decision_max_batch_seconds: int = Field(default=60, gt=0)
     decision_max_batch_turns: int = Field(default=3, gt=0)
     decision_idle_seconds: int = Field(default=20, gt=0)

@@ -22,5 +22,7 @@ export const STATUS = Object.freeze({
   providerTimeout: "The transcription service did not respond in time. The transcript is incomplete.",
   invalidAudio: "Audio was rejected. Record at least 50 ms and start a new capture.",
   incomplete: "The transcription session ended early. The transcript is incomplete.",
+  captureLimit: "Capture reached its time limit. Speech already transcribed is saved.",
+  captureBusy: "Too many captures are running. Stop one and try again.",
   unacknowledged: "Capture stopped before the final audio was acknowledged.",
 });

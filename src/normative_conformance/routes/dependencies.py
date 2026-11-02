@@ -1,21 +1,32 @@
+import logging
 from collections.abc import Iterator
 from threading import Event
 from threading import Thread
 from typing import Annotated
 from typing import cast
+from urllib.parse import urlsplit
 
 from fastapi import Depends
 from fastapi import Path
+from fastapi import Query
 from fastapi import Request
+from fastapi import WebSocketException
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
+from starlette.requests import HTTPConnection
 
+from normative_conformance.config import Settings
 from normative_conformance.database import read_session
 from normative_conformance.database import write_session
+from normative_conformance.errors import ForeignRequest
 from normative_conformance.errors import NotReady
 from normative_conformance.errors import StorageUnavailable
+from normative_conformance.schemas.common import IDENTIFIER_MAX_LENGTH
+from normative_conformance.schemas.common import IDENTIFIER_PATTERN
 from normative_conformance.schemas.internal import Clock
+
+logger = logging.getLogger(__name__)
 
 
 def get_engine(
@@ -70,8 +81,37 @@ def get_assessment_worker(*, request: Request) -> Thread:
     return worker
 
 
+def _is_foreign(*, connection: HTTPConnection, allowed_hosts: list[str]) -> bool:
+    host = connection.headers.get("host", "")
+    origin = connection.headers.get("origin")
+    try:
+        return urlsplit(f"//{host}").hostname not in allowed_hosts or (
+            origin is not None and urlsplit(origin).netloc != host
+        )
+    except ValueError:
+        return True
+
+
+def reject_foreign_request(connection: HTTPConnection) -> None:
+    """Refuse other sites' browser pages; clients outside a browser send no `Origin`."""
+    settings = cast(Settings, connection.app.state.settings)
+    if not _is_foreign(connection=connection, allowed_hosts=settings.allowed_hosts):
+        return
+    if connection.scope["type"] == "websocket":
+        logger.warning("WebSocket rejected", extra={"event": "websocket.foreign_rejected"})
+        raise WebSocketException(code=1008, reason="Foreign request")
+    raise ForeignRequest("The request came from another site")
+
+
 # A nonempty identity path segment.
-PathId = Annotated[str, Path(strict=True, min_length=1, pattern=r"^[^/]+$")]
+PathId = Annotated[
+    str,
+    Path(strict=True, min_length=1, max_length=IDENTIFIER_MAX_LENGTH, pattern=IDENTIFIER_PATTERN),
+]
+QueryId = Annotated[
+    str,
+    Query(strict=True, min_length=1, max_length=IDENTIFIER_MAX_LENGTH, pattern=IDENTIFIER_PATTERN),
+]
 
 ReadSession = Annotated[Session, Depends(get_read_session)]
 WriteSession = Annotated[Session, Depends(get_write_session)]

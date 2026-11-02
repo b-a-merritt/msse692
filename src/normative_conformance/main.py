@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from normative_conformance.body_limit import body_limit
 from normative_conformance.config import Settings
 from normative_conformance.config import get_settings
 from normative_conformance.lifespan import lifespan
@@ -20,7 +21,10 @@ def create_app(
     application = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
     application.state.settings = settings
     application.state.clock = now
+    application.state.active_captures = 0
 
+    # The last added runs first, so a rejected body still gets a request ID and a log record.
+    application.add_middleware(body_limit)
     application.middleware("http")(response_metadata)
     register_error_handlers(application=application)
 

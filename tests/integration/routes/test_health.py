@@ -23,6 +23,7 @@ def application(*, tmp_path):
         settings=Settings(
             _env_file=None,
             type_safe_api_key="integration-key",
+            allowed_hosts=["testserver"],
             app_db_path=tmp_path / "app.sqlite3",
             log_dir=tmp_path / "logs",
         )

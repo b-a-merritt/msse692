@@ -9,6 +9,9 @@ from pydantic import model_validator
 from normative_conformance.schemas.common import ContractModel
 from normative_conformance.schemas.common import Identifier
 
+# About 20 minutes of uninterrupted speech from one speaker.
+TRANSCRIPT_MAX_LENGTH = 20_000
+
 
 class ObservationInput(ContractModel):
     case_id: Identifier
@@ -16,17 +19,10 @@ class ObservationInput(ContractModel):
     speaker_id: Identifier
     start_at: AwareDatetime
     end_at: AwareDatetime
-    transcript: str = Field(strict=True, pattern=r"\S")
+    transcript: str = Field(strict=True, max_length=TRANSCRIPT_MAX_LENGTH, pattern=r"\S")
     signal_level_min: float = Field(strict=True, ge=-120, le=0)
     signal_level_avg: float = Field(strict=True, ge=-120, le=0)
     signal_level_max: float = Field(strict=True, ge=-120, le=0)
-
-    @field_validator("speaker_id")
-    @classmethod
-    def validate_speaker_id(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("Speaker ID must not be blank")
-        return value
 
     @field_validator("start_at", "end_at")
     @classmethod

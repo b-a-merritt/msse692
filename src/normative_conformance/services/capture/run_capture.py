@@ -40,6 +40,7 @@ async def run_capture(
     now: Clock,
     store_observations: StoreObservations,
     store_revisions: StoreRevisions,
+    max_seconds: int,
 ) -> None:
     """Stream browser PCM to a transcriber and report levels and transcripts until `stopped`.
 
@@ -87,6 +88,7 @@ async def run_capture(
                 started_at=started_at,
                 store_observations=store_observations,
                 store_revisions=store_revisions,
+                max_seconds=max_seconds,
             )
         await send(StoppedMessage(type="stopped"))
     except CaptureDisconnected:
@@ -140,6 +142,7 @@ async def _stream(
     started_at: datetime,
     store_observations: StoreObservations,
     store_revisions: StoreRevisions,
+    max_seconds: int,
 ) -> None:
     """Finish when the transcriber's events end; any task's failure ends capture."""
     stopping = asyncio.Event()
@@ -174,6 +177,7 @@ async def _stream(
             )
         ),
         asyncio.create_task(_drain_timeout(stopping)),
+        asyncio.create_task(_capture_limit(max_seconds)),
     }
     pending = tasks
     try:
@@ -185,6 +189,12 @@ async def _stream(
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def _capture_limit(max_seconds: int) -> None:
+    """Bound a session even when no audio arrives; the provider bills for time held open."""
+    await asyncio.sleep(max_seconds)
+    raise CaptureFailure("captureLimit")
 
 
 async def _drain_timeout(stopping: asyncio.Event) -> None:

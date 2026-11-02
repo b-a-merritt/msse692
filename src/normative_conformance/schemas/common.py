@@ -11,8 +11,13 @@ class ContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
 
 
-# A nonempty identity that can appear in a URL path segment.
-Identifier = Annotated[str, Field(strict=True, min_length=1, pattern=r"^[^/]+$")]
+# Identities reach the decision model, so they exclude the spaces that free text needs.
+IDENTIFIER_PATTERN = r"^[A-Za-z0-9._:-]+$"
+IDENTIFIER_MAX_LENGTH = 128
+Identifier = Annotated[
+    str,
+    Field(strict=True, min_length=1, max_length=IDENTIFIER_MAX_LENGTH, pattern=IDENTIFIER_PATTERN),
+]
 
 T = TypeVar("T")
 

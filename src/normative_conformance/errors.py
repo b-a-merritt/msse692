@@ -13,6 +13,10 @@ class ObservationExists(RuntimeError):
     """The case/observation identity already exists; no new work is requested."""
 
 
+class ForeignRequest(RuntimeError):
+    """The request's host or origin shows that another site sent it."""
+
+
 class NotReady(RuntimeError):
     """A required runtime resource is not available to process requests."""
 

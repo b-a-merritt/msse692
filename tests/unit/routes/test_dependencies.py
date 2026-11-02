@@ -4,8 +4,11 @@ from unittest.mock import Mock
 
 import pytest
 from fastapi import Request
+from fastapi import WebSocketException
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.requests import HTTPConnection
 
+from normative_conformance.errors import ForeignRequest
 from normative_conformance.errors import NotReady
 from normative_conformance.errors import StorageUnavailable
 from normative_conformance.routes import dependencies
@@ -79,3 +82,70 @@ def test_write_provider_translates_failures_from_the_request_body(*, monkeypatch
     ) as caught:
         generator.throw(failure)
     assert caught.value.__cause__ is failure
+
+
+def connection(*, scope_type, headers):
+    return HTTPConnection(
+        {
+            "type": scope_type,
+            "headers": [(name.encode(), value.encode()) for name, value in headers.items()],
+            "app": SimpleNamespace(
+                state=SimpleNamespace(
+                    settings=SimpleNamespace(allowed_hosts=["localhost", "127.0.0.1", "::1"])
+                )
+            ),
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        pytest.param({"host": "localhost:8000"}, id="script-on-this-machine"),
+        pytest.param({"host": "127.0.0.1:8000"}, id="loopback-address"),
+        pytest.param({"host": "[::1]:8000"}, id="ipv6-loopback"),
+        pytest.param(
+            {"host": "localhost:8000", "origin": "http://localhost:8000"}, id="capture-page"
+        ),
+    ],
+)
+@pytest.mark.parametrize("scope_type", ["http", "websocket"])
+def test_local_clients_and_the_capture_page_are_allowed(*, scope_type, headers):
+    assert (
+        dependencies.reject_foreign_request(connection(scope_type=scope_type, headers=headers))
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        pytest.param({}, id="no-host"),
+        pytest.param({"host": "attacker.example"}, id="rebound-domain"),
+        pytest.param({"host": "attacker.example:8000"}, id="rebound-domain-with-port"),
+        pytest.param({"host": "localhost.attacker.example"}, id="allowed-name-as-prefix"),
+        pytest.param({"host": "[malformed"}, id="malformed-host"),
+        pytest.param(
+            {"host": "localhost:8000", "origin": "https://attacker.example"}, id="other-site"
+        ),
+        pytest.param(
+            {"host": "localhost:8000", "origin": "http://localhost:9000"}, id="other-port"
+        ),
+        pytest.param({"host": "localhost:8000", "origin": "null"}, id="sandboxed-page"),
+        pytest.param({"host": "localhost:8000", "origin": "http://[malformed"}, id="bad-origin"),
+    ],
+)
+def test_requests_from_other_sites_are_refused(*, headers):
+    with pytest.raises(ForeignRequest):
+        dependencies.reject_foreign_request(connection(scope_type="http", headers=headers))
+
+
+def test_websockets_from_other_sites_close_before_they_are_accepted():
+    with pytest.raises(WebSocketException) as caught:
+        dependencies.reject_foreign_request(
+            connection(
+                scope_type="websocket",
+                headers={"host": "localhost:8000", "origin": "https://attacker.example"},
+            )
+        )
+    assert caught.value.code == 1008

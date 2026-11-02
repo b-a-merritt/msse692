@@ -27,6 +27,9 @@ def socket(*received):
     websocket = AsyncMock()
     websocket.app = Mock()
     websocket.app.state.settings.assembly_api_key = "unit-key"
+    websocket.app.state.settings.capture_max_connections = 2
+    websocket.app.state.settings.capture_max_seconds = 3600
+    websocket.app.state.active_captures = 0
     websocket.receive.side_effect = received
     return websocket
 
@@ -39,7 +42,15 @@ def test_route_relays_browser_frames_and_closes_after_success(monkeypatch):
     calls = {}
 
     async def run_capture(
-        *, case_id, messages, send, connect_transcriber, now, store_observations, store_revisions
+        *,
+        case_id,
+        messages,
+        send,
+        connect_transcriber,
+        now,
+        store_observations,
+        store_revisions,
+        max_seconds,
     ):
         calls["case_id"] = case_id
         calls["messages"] = [await anext(messages), await anext(messages)]
@@ -72,6 +83,52 @@ def test_failure_sends_fixed_text_and_closes(monkeypatch, code, close_code):
     websocket.close.assert_awaited_once_with(code=close_code)
 
 
+def test_capture_beyond_the_connection_limit_opens_no_session(monkeypatch):
+    websocket = socket()
+    websocket.app.state.settings.capture_max_connections = 2
+    websocket.app.state.active_captures = 2
+    run_capture = AsyncMock()
+    monkeypatch.setattr(capture, "run_capture", run_capture)
+
+    asyncio.run(capture.capture_audio(websocket, case=Mock(case_id="capture-case")))
+
+    run_capture.assert_not_awaited()
+    websocket.send_json.assert_awaited_once_with(
+        {"type": "error", "code": "captureBusy", "message": capture.ERROR_MESSAGES["captureBusy"]}
+    )
+    websocket.close.assert_awaited_once_with(code=1011)
+    assert websocket.app.state.active_captures == 2
+
+
+@pytest.mark.parametrize("error", [None, CaptureFailure("providerAuth")])
+def test_capture_holds_a_slot_only_while_it_runs(monkeypatch, error):
+    websocket = socket()
+    websocket.app.state.active_captures = 1
+    during = []
+
+    async def run_capture(**kwargs):
+        during.append(websocket.app.state.active_captures)
+        if error is not None:
+            raise error
+
+    monkeypatch.setattr(capture, "run_capture", run_capture)
+    asyncio.run(capture.capture_audio(websocket, case=Mock(case_id="capture-case")))
+
+    assert during == [2]
+    assert websocket.app.state.active_captures == 1
+
+
+def test_capture_receives_the_configured_time_limit(monkeypatch):
+    websocket = socket()
+    websocket.app.state.settings.capture_max_seconds = 90
+    run_capture = AsyncMock()
+    monkeypatch.setattr(capture, "run_capture", run_capture)
+
+    asyncio.run(capture.capture_audio(websocket, case=Mock(case_id="capture-case")))
+
+    assert run_capture.await_args.kwargs["max_seconds"] == 90
+
+
 def test_every_failure_code_has_fixed_text():
     assert set(capture.ERROR_MESSAGES) == set(get_args(CaptureErrorCode))
 
@@ -81,7 +138,15 @@ def test_browser_disconnect_ends_quietly(monkeypatch, received):
     websocket = socket(received)
 
     async def run_capture(
-        *, case_id, messages, send, connect_transcriber, now, store_observations, store_revisions
+        *,
+        case_id,
+        messages,
+        send,
+        connect_transcriber,
+        now,
+        store_observations,
+        store_revisions,
+        max_seconds,
     ):
         await anext(messages)
 
@@ -96,7 +161,15 @@ def test_disconnect_while_sending_ends_quietly(monkeypatch):
     websocket.send_json.side_effect = WebSocketDisconnect(1006)
 
     async def run_capture(
-        *, case_id, messages, send, connect_transcriber, now, store_observations, store_revisions
+        *,
+        case_id,
+        messages,
+        send,
+        connect_transcriber,
+        now,
+        store_observations,
+        store_revisions,
+        max_seconds,
     ):
         await send({"type": "stopped"})
 

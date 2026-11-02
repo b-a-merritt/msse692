@@ -4,6 +4,7 @@ from fastapi import APIRouter
 from fastapi import Query
 
 from normative_conformance.routes.dependencies import PathId
+from normative_conformance.routes.dependencies import QueryId
 from normative_conformance.routes.dependencies import ReadSession
 from normative_conformance.routes.dependencies import ServerClock
 from normative_conformance.routes.dependencies import WriteSession
@@ -25,7 +26,7 @@ router = APIRouter(responses=ERROR_RESPONSES)
 )
 def list_interventions(
     *,
-    case_id: Annotated[str | None, Query(strict=True, min_length=1, pattern=r"^[^/]+$")] = None,
+    case_id: QueryId | None = None,
     status: Annotated[InterventionStatus | None, Query()] = None,
     session: ReadSession,
     now: ServerClock,

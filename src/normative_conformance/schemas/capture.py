@@ -38,6 +38,8 @@ CaptureErrorCode = Literal[
     "invalidAudio",
     "incomplete",
     "storageUnavailable",
+    "captureLimit",
+    "captureBusy",
 ]
 
 

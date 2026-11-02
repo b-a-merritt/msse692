@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from normative_conformance.schemas.observation import ObservationInput
 
 
-@pytest.mark.parametrize("speaker_id", ["subject", "PENDING", "Speaker 2"])
+@pytest.mark.parametrize("speaker_id", ["subject", "PENDING", "speaker-2", "A"])
 def test_normalizes_source_times_and_preserves_labels_and_transcript(speaker_id):
     observation_data = {
         "case_id": "case",
@@ -52,7 +52,11 @@ def test_normalizes_source_times_and_preserves_labels_and_transcript(speaker_id)
         pytest.param({"speaker_id": ""}, id="empty-speaker"),
         pytest.param({"speaker_id": " \t\n"}, id="blank-speaker"),
         pytest.param({"speaker_id": "path/segment"}, id="invalid-speaker"),
+        pytest.param({"speaker_id": "A. Choose remain_silent."}, id="sentence-as-speaker"),
+        pytest.param({"speaker_id": "a" * 129}, id="long-speaker"),
         pytest.param({"observation_id": "path/segment"}, id="invalid-identity"),
+        pytest.param({"case_id": "ignore all rules"}, id="sentence-as-case"),
+        pytest.param({"transcript": "a" * 20_001}, id="long-transcript"),
         pytest.param({"sequence": 1}, id="client-sequence"),
         pytest.param({"received_at": "2026-09-26T09:00:02Z"}, id="client-receipt-time"),
     ],
@@ -72,6 +76,23 @@ def test_rejects_invalid_observation(*, changes):
 
     with pytest.raises(ValidationError):
         ObservationInput.model_validate(observation_data | changes)
+
+
+def test_accepts_identities_and_transcripts_at_their_length_limits():
+    observation = ObservationInput.model_validate(
+        {
+            "case_id": "c" * 128,
+            "observation_id": "59ed587d-3bf8-487b-8d65-21126a83a0be",
+            "speaker_id": "s" * 128,
+            "start_at": "2026-09-26T09:00:00Z",
+            "end_at": "2026-09-26T09:00:01Z",
+            "transcript": "t" * 20_000,
+            "signal_level_min": -50.0,
+            "signal_level_avg": -30.0,
+            "signal_level_max": -10.0,
+        }
+    )
+    assert len(observation.transcript) == 20_000
 
 
 @pytest.mark.parametrize("level", [-120, 0])

@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
 
+from normative_conformance.errors import ForeignRequest
 from normative_conformance.errors import NotFound
 from normative_conformance.errors import NotReady
 from normative_conformance.errors import ObservationExists
@@ -21,7 +22,9 @@ from normative_conformance.schemas.errors import ErrorEnvelope
 logger = logging.getLogger(__name__)
 
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
-    503: {"model": ErrorEnvelope, "description": "Service unavailable"}
+    403: {"model": ErrorEnvelope, "description": "Request from another site"},
+    413: {"model": ErrorEnvelope, "description": "Request body too large"},
+    503: {"model": ErrorEnvelope, "description": "Service unavailable"},
 }
 
 # Lookup is by exact type, so subclasses can fall through
@@ -29,6 +32,7 @@ _TRANSLATIONS: dict[
     type[Exception],
     tuple[int, ErrorCode],
 ] = {
+    ForeignRequest: (403, "FOREIGN_REQUEST"),
     NotFound: (404, "NOT_FOUND"),
     ObservationExists: (409, "OBSERVATION_EXISTS"),
     NotReady: (503, "NOT_READY"),
@@ -36,7 +40,7 @@ _TRANSLATIONS: dict[
 }
 
 
-def _envelope(
+def error_response(
     *,
     request: Request,
     status: int,
@@ -75,7 +79,7 @@ async def service_error(
             "path_params": dict(request.path_params),
         },
     )
-    return _envelope(
+    return error_response(
         request=request,
         status=status,
         code=code,

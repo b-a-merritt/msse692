@@ -83,6 +83,7 @@ async def run(*, case_id, messages, transcriber, now, store_observations, store_
             messages=messages,
             send=send,
             connect_transcriber=connecting(transcriber),
+            max_seconds=3600,
         ),
         1,
     )
@@ -210,6 +211,7 @@ def test_browser_leaving_before_stop_is_a_disconnect_without_stopped():
                 messages=browser(b"\x00\x00" * 1600),
                 send=send,
                 connect_transcriber=connecting(FakeTranscriber()),
+                max_seconds=3600,
             )
         )
     assert [m["type"] for m in sent] == ["ready", "levels"]
@@ -272,10 +274,40 @@ def test_connection_failure_sends_nothing():
                 messages=browser(),
                 send=send,
                 connect_transcriber=connect,
+                max_seconds=3600,
             )
         )
     assert caught.value.code == "notConfigured"
     assert sent == []
+
+
+def test_capture_limit_ends_a_session_that_never_stops():
+    transcriber = FakeTranscriber()
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    async def silent_browser():
+        await asyncio.Event().wait()
+        yield b""
+
+    async def scenario():
+        with pytest.raises(CaptureFailure) as caught:
+            await module.run_capture(
+                case_id="capture-case",
+                now=lambda: datetime(2026, 10, 26, tzinfo=UTC),
+                store_observations=AsyncMock(),
+                store_revisions=AsyncMock(),
+                messages=silent_browser(),
+                send=send,
+                connect_transcriber=connecting(transcriber),
+                max_seconds=0,
+            )
+        return caught.value.code
+
+    assert asyncio.run(asyncio.wait_for(scenario(), 2)) == "captureLimit"
+    assert [message["type"] for message in sent] == ["ready"]
 
 
 def test_drain_deadline_is_started_only_after_stop(monkeypatch):
