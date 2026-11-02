@@ -1,0 +1,20 @@
+{
+  "case-1": {"intervene": "yes", "behaviors": ["contempt", "criticism", "cruelty", "swearing"]},
+  "case-2": {"intervene": "yes", "behaviors": ["contempt", "criticism", "cruelty", "defensiveness", "swearing"]},
+  "case-3": {"intervene": "yes", "behaviors": ["contempt"]},
+  "case-4": {"intervene": "yes", "behaviors": ["contempt", "criticism", "defensiveness", "swearing"]},
+  "case-5": {"intervene": "yes", "behaviors": ["contempt", "cruelty"]},
+  "case-6": {"intervene": "no", "behaviors": []},
+  "case-7": {"intervene": "either", "behaviors": ["criticism", "defensiveness"]},
+  "case-8": {"intervene": "yes", "behaviors": ["contempt", "cruelty"]},
+  "case-9": {"intervene": "yes", "behaviors": ["contempt", "cruelty", "swearing"]},
+  "case-10": {"intervene": "yes", "behaviors": ["contempt", "criticism", "defensiveness", "stonewalling", "swearing"]},
+  "case-11": {"intervene": "no", "behaviors": ["swearing"]},
+  "case-12": {"intervene": "no", "behaviors": []},
+  "control-test-01": {"intervene": "yes"},
+  "control-test-02": {"intervene": "yes"},
+  "control-test-03": {"intervene": "no"},
+  "control-test-04": {"intervene": "no"},
+  "control-test-05": {"intervene": "no"},
+  "control-test-06": {"intervene": "yes"}
+}

@@ -23,7 +23,7 @@ Configure the target explicitly:
 uv run python scripts/send_observations.py scripts/cases/case-3.jsonl --target-speaker-id speaker-2
 ```
 
-Use fresh storage or new case IDs. The decision model assesses topics for all new speech and behaviors for the target. `cases/predictions.md` lists the expected behaviors and interventions; model scores are not fixed.
+Use fresh storage or new case IDs. The decision model assesses topics for all new speech and behaviors for the target. `cases/predictions.md` lists the expected behaviors and interventions. Model scores are not fixed.
 
 ## Capture a case file
 
@@ -33,11 +33,11 @@ Capture each clip once, then replay the file. Route system audio to the browser'
 uv run python scripts/export_case.py <capture-case-id> scripts/cases/<case-id>.jsonl --as-case-id <case-id>
 ```
 
-The file holds speech as ingested, in sequence order; speaker corrections are left out, as decisions ignore them.
+The file holds speech as ingested, in sequence order. Speaker corrections are left out because decisions ignore them.
 
 ## Additional inputs
 
-`cases/control/` is AI-written dialogue between one couple, a control test for process discovery: 8 training and 6 held-out conversations, one file each, a week apart. `cases/predictions.md` lists the planted pattern and expected outcomes. Replay the 8 training conversations into one database, then run `uv run discover-model` with the same `APP_DB_PATH`. For each held-out run with evidence, start the server on a copy of that database, so held-out conversations are never discovered from; for each run without evidence, use an empty database:
+`cases/control/` is AI-written dialogue between one couple, a control test for process discovery: 8 training and 6 held-out conversations, one file each, a week apart. `cases/predictions.md` lists the planted pattern and expected outcomes. Replay the 8 training conversations into one database, then run `uv run discover-model` with the same `APP_DB_PATH`. For each held-out run with evidence, start the server on a copy of that database, so held-out conversations are never discovered from. For each run without evidence, use an empty database:
 
 ```bash
 uv run python scripts/send_observations.py scripts/cases/control/control-test-01.jsonl --target-speaker-id speaker-2
@@ -51,4 +51,45 @@ uv run python scripts/send_observations.py scripts/cases/control/control-test-01
 | `cases/demo-repaired.jsonl` | The interruptions followed by an apology |
 | `cases/demo-speaker-control.jsonl` | `speaker-1` says "You are crazy." |
 | `cases/demo-target-label.jsonl` | `speaker-2` says "You are crazy." |
-| `cases/demo-grouped.jsonl` | Two interruptions; the second is loud |
+| `cases/demo-grouped.jsonl` | Two interruptions, the second loud |
+
+## Evaluate
+
+`evaluate.py` replays any case files and reports on any databases. Run it from the repository root. `run` calls the paid decision model and writes a database, logs, and resource samples for each run to the directory it is given. Use a path under `data/`, which git ignores.
+
+| Command | Reports |
+|---|---|
+| `run` | Nothing. Replays case files on fresh servers |
+| `outcomes` | Interventions and behaviors per case, scored against `cases/expected.json` when given |
+| `timing` | Time from the end of speech to a stored decision. Add `--live` for live capture |
+| `load` | Arrival rates, throughput, memory, CPU, and logs for one server's database |
+| `compare` | Interventions, evidence, and behavior scores between two sets of runs |
+
+`outcomes` counts every database holding a case as one run, so pass only the runs to compare.
+
+Film cases, three replays each:
+
+```bash
+uv run python scripts/evaluate.py run data/eval/film scripts/cases/case-*.jsonl --target-speaker-id speaker-2 --replicates 3 --concurrency 6
+uv run python scripts/evaluate.py outcomes data/eval/film --expected scripts/cases/expected.json
+uv run python scripts/evaluate.py timing data/eval/film
+```
+
+Control dialogue, with and without discovered evidence:
+
+```bash
+uv run python scripts/evaluate.py run data/eval/train scripts/cases/control/control-train-*.jsonl --target-speaker-id speaker-2 --together
+APP_DB_PATH=data/eval/train/run-1.sqlite3 uv run discover-model
+uv run python scripts/evaluate.py run data/eval/with scripts/cases/control/control-test-*.jsonl --target-speaker-id speaker-2 --together --replicates 3 --concurrency 6 --seed data/eval/train/run-1.sqlite3
+uv run python scripts/evaluate.py run data/eval/without scripts/cases/control/control-test-*.jsonl --target-speaker-id speaker-2 --together --replicates 3 --concurrency 6 --base-port 8300
+uv run python scripts/evaluate.py compare --baseline data/eval/without --variant data/eval/with --cases control-test
+uv run python scripts/evaluate.py outcomes data/eval/with --cases control-test --expected scripts/cases/expected.json
+```
+
+Stress phases 1–3 on one server:
+
+```bash
+uv run python scripts/evaluate.py run data/eval/stress scripts/cases/stress.jsonl --target-speaker-id speaker-2 --cases 'stress-p[123]'
+uv run python scripts/evaluate.py load data/eval/stress/stress-run-1.sqlite3 --group 'stress-(p\d)'
+uv run python scripts/evaluate.py timing data/eval/stress --group 'stress-(p\d)'
+```

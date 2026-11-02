@@ -16,8 +16,6 @@ All runs used one machine: WSL2 Linux with 12 cores, Python 3.13.15, SQLite 3.53
 | Live capture | 17 decisions across 5 captures | Speech through the capture page and the transcription provider |
 | Stress | Phases 1–3 of `scripts/cases/stress.jsonl`: 1,812 observations in 60 conversations | One server and fresh database |
 
-The film and live runs used code from before the request limits and dependency changes. Those changes do not touch the decision, worker, discovery, assessment, or model-client code.
-
 | Measure | Definition |
 |---|---|
 | Decision | An assessment with an action. Batches without new target speech have no action |

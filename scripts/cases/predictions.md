@@ -17,10 +17,10 @@ Loudness, emotion, long turns, profanity used for emphasis rather than at the li
 
 | Query-based rule | Treatment |
 |---|---|
-| Loud and fast, shouting | Not a behavior; signal levels inform hostility intensity only |
+| Loud and fast, shouting | Not a behavior. Signal levels inform hostility intensity only |
 | Extended turn | Not a behavior |
 | Absolutist phrase ("you always") | Criticism only when it generalizes about the person |
-| Vulgar language | Swearing; intervene only when aimed at the listener |
+| Vulgar language | Swearing. Intervene only when aimed at the listener |
 | Character label ("crazy") | Criticism or contempt |
 | Repeated interruption | Interruption |
 
@@ -29,8 +29,8 @@ Loudness, emotion, long turns, profanity used for emphasis rather than at the li
 | Case | Inappropriate speech | Expected behaviors | Intervene |
 |---|---|---|---|
 | 1 | "anyone else in their right mind", "goddamn punishment", "I swear to God—" | criticism, contempt, cruelty, swearing | Yes |
-| 2 | "You're all the bad things", "It's pathetic", "I hope you're dead… and die" | criticism, contempt, cruelty, defensiveness, swearing | Yes, several; none after "I'm sorry" |
-| 3 | "you used to sleep with the door guy"; after apologizing, "Because you go to BU" | contempt | Yes; the second remark is unrepaired |
+| 2 | "You're all the bad things", "It's pathetic", "I hope you're dead… and die" | criticism, contempt, cruelty, defensiveness, swearing | Yes, several, but none after "I'm sorry" |
+| 3 | "you used to sleep with the door guy", then after apologizing, "Because you go to BU" | contempt | Yes. The second remark is unrepaired |
 | 4 | "you're fucking nuts", "put up with your shit", "your fucking French ass… blew that guy" | criticism, contempt, defensiveness, swearing | Yes |
 | 5 | "Book dropper! Child mentioner!", the "Get the Guests" story, "Beg, baby", "She'll get over it" | cruelty, contempt | Yes |
 | 6 | None. A complaint about infidelity, loud and emotional ("You always… you take") | None | No |
@@ -43,13 +43,15 @@ Loudness, emotion, long turns, profanity used for emphasis rather than at the li
 
 ## Scoring
 
+`expected.json` holds the intervention predictions and expected behaviors from this file for `scripts/evaluate.py`.
+
 - **Intervention:** a case matches when it has at least one intervention and the prediction is Yes, none and the prediction is No, or either and the prediction is Either.
 - **Behaviors:** an expected behavior is found when any target turn scores it at the 0.7 threshold. Report found, missed, and unexpected behaviors per case.
 - Cases 6 and 11 test context: they contain the shouting or swearing a phrase list matches, but call for no intervention.
 
 ## Query-based baseline
 
-The query-based results from the post-fix rerun in `docs/quality_assurance_report.md`, scored against these predictions. Cases 1 and 2 tuned those rules and have no recorded results, so they are not in the baseline; results on them would favor the rules.
+The query-based rules' results, scored against these predictions. Cases 1 and 2 tuned those rules and have no recorded results, so they are not in the baseline. Results on them would favor the rules.
 
 | Case | Interventions | Predicted | Result |
 |---|---|---|---|
@@ -68,7 +70,7 @@ The query-based results from the post-fix rerun in `docs/quality_assurance_repor
 
 ## Decision-model results
 
-Three replays of each case with `jev-1.14.0`, prompt `conversation-3`, and no discovered model, scored by the rules above. Batches are limited to three turns (ADR 017); only cases 5 and 12 have batches the limit affects.
+Three replays of each case with `jev-1.14.0`, prompt `conversation-3`, and no discovered model, scored by the rules above. Batches are limited to three turns (ADR 017). Only cases 5 and 12 have batches the limit affects.
 
 The number after each behavior is how many of the three replays had a target turn at the threshold. Interventions lists the count from each replay.
 
@@ -89,34 +91,34 @@ The number after each behavior is how many of the three replays had a target tur
 
 The intervention result did not change between replays for any case. Every replay matched 8 of 10 on cases 3–12, against 6 of 10 for the query-based rules, and cases 1 and 2 matched. Both of the rules' misses match in every replay: case 3's "door guy" remark and case 8's threats scored as contempt.
 
-The two false positives have different causes and appear in every replay. In case 6, both interventions come at "Troy, you're hurting me! … Let go!" and "Troy." with no target behavior at 0.5 or above: the model responded to harm against the target, which the definition above does not cover. In case 11, the monologue scored up to 0.93 for contempt and criticism; the model reads it as an attack, not as care.
+The two false positives have different causes and appear in every replay. In case 6, both interventions come at "Troy, you're hurting me! … Let go!" and "Troy." with no target behavior at 0.5 or above: the model responded to harm against the target, which the definition above does not cover. In case 11, the monologue scored up to 0.93 for contempt and criticism. The model reads it as an attack, not as care.
 
 Cruelty was never found in cases 5 and 9, and was found in one replay of case 8, at 0.70 on "I am the one who knocks", despite the prompt asking about threats and intimidation. Criticism was never found in case 1. Defensiveness was unexpected in every replay of cases 3, 5, 6, 8, 9, and 11.
 
 ## Control dialogue
 
-`cases/control/` is AI-written dialogue between one couple, used to test whether discovery finds a known pattern and whether its evidence improves decisions. The target is `speaker-2` (Alex); `speaker-1` is Sam.
+`cases/control/` is AI-written dialogue between one couple, used to test whether discovery finds a known pattern and whether its evidence improves decisions. The target is `speaker-2` (Alex), and `speaker-1` is Sam.
 
 **Planted pattern.** Sam's mother, then money from the couple's savings, is followed by Alex's contempt and criticism. Either topic alone stays calm. Because the pattern was written into the data, these cases show whether the mechanism can find a pattern, not that real couples have one.
 
 | Training | Content | Undesired target behavior |
 |---|---|---|
-| `control-train-01`–`06` | Other topics, then the pattern, then conflict | contempt, criticism; stonewalling in 06 |
+| `control-train-01`–`06` | Other topics, then the pattern, then conflict | contempt, criticism, and stonewalling in 06 |
 | `control-train-07` | Budget review only | None |
 | `control-train-08` | Mother's visit only | None |
 
-Discovery should require both `extended_family` (the mother) and `budgeting` (the savings) before `undesired_behavior`, in either order; neither topic alone gives evidence.
+Discovery should require both `extended_family` (the mother) and `budgeting` (the savings) before `undesired_behavior`, in either order. Neither topic alone gives evidence.
 
 | Held out | Content | Without evidence | With evidence |
 |---|---|---|---|
-| `control-test-01` | Pattern; tense but civil replies; then contempt and criticism | Intervene at the attack | Intervene, possibly during the tense replies |
+| `control-test-01` | Pattern, tense but civil replies, then contempt and criticism | Intervene at the attack | Intervene, possibly during the tense replies |
 | `control-test-02` | Same, ending in stonewalling | Intervene at the attack | Intervene, possibly during the tense replies |
-| `control-test-03` | Pattern; Alex responds constructively | No | No |
-| `control-test-04` | Pattern; Alex sounds annoyed, then apologizes and agrees | No | No |
+| `control-test-03` | Pattern, then Alex responds constructively | No | No |
+| `control-test-04` | Pattern, then Alex sounds annoyed, apologizes, and agrees | No | No |
 | `control-test-05` | Unrelated topic, calm | No | No |
 | `control-test-06` | Unrelated topic, criticism and stonewalling | Intervene | Intervene, unchanged |
 
-Evidence helps if the first intervention in 01 and 02 comes earlier, 03–06 are unchanged, and behavior scores do not differ between the two runs. Run each held-out case at least three times per condition; answers vary between runs.
+Evidence helps if the first intervention in 01 and 02 comes earlier, 03–06 are unchanged, and behavior scores do not differ between the two runs. Run each held-out case at least three times per condition. Answers vary between runs.
 
 ### Control results
 
