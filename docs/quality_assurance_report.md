@@ -1,160 +1,97 @@
-## A Human Cyber-Physical System Architecture for Supporting Moral Self-Regulation
+## Online Normative Conformance of Conversational Observations
 
 # Quality Assurance Report
 
-Last updated: Oct 10, 2026
+Last updated: Nov 2, 2026
 
-# **Team: *Individual Track*** {#team:-individual-track}
+# **Team: *Individual Track***
 
 * Ben Merritt
 
-[Team: Individual Track](#team:-individual-track)
+# **Summary**
 
-[Summary](#summary)
+The prototype transcribes live speech, stores it as observations, and asks a decision model fixed questions about each batch of speech. It stores the scores and action, and creates an intervention when the action is `intervene`.
 
-[Testing Strategy & Results](#testing-strategy-&-results)
+All 558 automated tests pass. Unit tests alone cover 98.40% of statements and branches, above the required 95%. Lint, formatting, type checks, and the dependency audit report no issues.
 
-[Approach](#approach)
+Twelve film scenes were each replayed three times, and the intervention result never changed. On the 10 scenes also run with the earlier keyword rules, the decision model matched 8 and the rules matched 6. The main open defects are two false positives and missed cruelty, which recur across replays.
 
-[Strategy](#strategy)
+The system is ready for research demonstration on one machine. It is not ready for production: it has no authentication and has not been studied with real couples.
 
-[Coverage](#coverage)
+# **Testing Strategy & Results**
 
-[Results](#results)
+## **Approach**
 
-[User acceptance testing](#user-acceptance-testing)
+The tests are split into suites that run separately.
 
-[Bug Report & Resolution](#bug-report-&-resolution)
+The unit suite (349 Python tests) checks decisions in isolation, such as request validation, batch boundaries, error translation, and worker orchestration. It never opens a database, file, network connection, or worker thread. The JavaScript suite (38 tests) covers the capture page's client code.
 
-[Severity scale](#severity-scale)
+The integration suite (171 tests) runs the code against SQLite, HTTP, the worker, and restarts.
 
-[Bugs fixed](#bugs-fixed)
-
-[Open bugs](#open-bugs)
-
-[Limitations by design](#limitations-by-design)
-
-[Quality Metrics](#quality-metrics)
-
-[Code quality](#code-quality)
-
-[Performance](#performance)
-
-[Security](#security)
-
-[Accessibility](#accessibility)
-
-[System Readiness Assessment](#system-readiness-assessment)
-
-[Production readiness](#production-readiness)
-
-[Risks and mitigations](#risks-and-mitigations)
-
-[Week 8 readiness](#week-8-readiness)
-
-#
-
-# **Summary** {#summary}
-
-The prototype receives mocked conversation observations, assesses one target speaker against SQL-defined normative models, waits for a repair, and records interventions. All 543 automated tests pass. The unit suite alone (excluding integration tests) covers 100% of statements and branches. Lint, formatting, and strict type checks report no issues.
-
-Testing found 10 open defects. Four are P2, and most of those are related to losing queued work or interventions when a storage write fails, the server stops, or the process crashes. Normal operation and the stress run did not trigger them. Eleven defects found earlier are fixed, including a P1 in which the loud-and-fast rule flagged short, calm lines.
-
-The system is ready for research demonstration on one machine. It is not ready for production. It has no authentication, it loses work under failure, and it has not been tested at the case length its performance requirement names.
-
-# **Testing Strategy & Results** {#testing-strategy-&-results}
-
-## **Approach** {#approach}
-
-The tests are split into two suites that run separately.
-
-The unit suite (231 tests) checks decisions in isolation. It checks things like request validation, status selection, deadline arithmetic, window timing, error translation, and worker orchestration. It uses in-memory input and output. It never opens a database, a file, a network connection, or a worker thread. They complete in about two seconds.
-
-The integration suite (312 tests) runs the same code against real dependencies. It checks SQL rules against stored observations, transaction rollback, concurrent ingestion, queue coalescing, startup validation, and shutdown. It runs in about fourteen seconds.
-
-End-to-end testing was done manually using the running server. I replayed ten film scenes through the HTTP API and compared the interventions to predictions. The stress test replayed 9,966 observations through the same path.
+End-to-end testing used the running server. Film scenes and control dialogue were replayed through the HTTP API and scored against written predictions. A stress input measured capacity.
 
 The following were not tested:
 
-* More than one server process. The scheduler keeps coordination state in memory and assumes a single process.
-* A forced crash during assessment followed by restart. Restart behavior is tested at the component level only.
-* Live audio, speech recognition, and speaker diarization. These are out of scope, and all input is mocked.
-* Accessibility, because the system has no user interface.
+* More than one server process.
+* A forced crash during a model call followed by a restart.
+* A provider outage.
+* Use by real couples.
+* Accessibility of the capture page.
 
-## **Strategy** {#strategy}
+## **Strategy**
 
-I wrote most of the tests with an AI coding assistant. Integration suites usually cover only the main workflows because integration tests are slow to write and maintain. Near full coverage is usually left to unit tests. With AI writing the tests, an extra integration test costs little, so I also covered failure paths against real dependencies, such as storage rollback, queue failure after commit, and shutdown with tasks waiting.
+I wrote most of the tests with an AI coding assistant. Integration tests are slow to write and maintain, so projects usually keep them to the main workflows and leave near full coverage to unit tests. With AI writing the tests, an extra integration test costs little, so I also covered failure paths against real dependencies, such as rejected hosts and restarts.
 
-The risk with AI-written tests is that they pass without actually testing anything, or, worse, that they confirm the wrong behavior. Every test has to be reviewed. To keep review fast, the tests must avoid [mystery guests](https://thoughtbot.com/blog/mystery-guest): each test spells out its own scenario data in the test body, and fixtures only create and clean up things like a temporary database. I need to be able to check a test by reading one function, matching the inputs to the assertions, without tracing fixture chains or opening data files.
+The risk with AI-written tests is that they pass without testing anything, or confirm the wrong behavior. Every test has to be reviewed. To keep review fast, tests must avoid [mystery guests](https://thoughtbot.com/blog/mystery-guest). Each test spells out its own scenario data, and fixtures only create and clean up things like a temporary database. I need to be able to check a test by reading one function and matching its inputs to its assertions.
 
-## **Coverage** {#coverage}
+## **Coverage**
 
-Coverage is measured with coverage.py through pytest-cov, with branch measurement on. CI enforces the 95% minimum against the unit suite alone, starting from empty coverage data, so integration tests cannot satisfy it. The integration suite then appends to a separate combined report.
+Coverage is measured with coverage.py through pytest-cov, with branch measurement on. CI requires 95% from the unit suite alone, starting from empty coverage data, so integration tests cannot help meet it. The integration suite then adds to a separate combined report.
 
 | Suite | Statements | Missed | Branches | Partial | Coverage |
 | :---- | :---- | :---- | :---- | :---- | :---- |
-| Unit only | 1,421 | 0 | 160 | 0 | 100% |
-| Unit and integration | 1,421 | 0 | 160 | 0 | 100% |
+| Unit only | 2,216 | 33 | 226 | 0 | 98.40% |
+| Unit and integration | 2,216 | 0 | 226 | 0 | 100% |
 
-*Unit tests showing 100% coverage.*![][image1]
+## **Results**
 
-*Integration tests showing 99.24% coverage.*![][image2]The integration run prints one warning from a third-party library (Starlette deprecating its use of `httpx` in the test client). It does not affect the application.
+| Suite | Tests | Passed | Failed | Time |
+| :---- | :---- | :---- | :---- | :---- |
+| Unit (Python) | 349 | 349 | 0 | About 4 s |
+| Unit (JavaScript) | 38 | 38 | 0 | Not recorded |
+| Integration | 171 | 171 | 0 | About 11 s |
+| Total | 558 | 558 | 0 | |
 
-## **Results** {#results}
+## **Scenario acceptance testing**
 
-| Suite | Tests | Passed | Failed | Skipped | Time |
-| :---- | :---- | :---- | :---- | :---- | :---- |
-| Unit | 231 | 231 | 0 | 0 | 1.7 s |
-| Integration | 312 | 312 | 0 | 0 | 14 s |
-| Total | 543 | 543 | 0 | 0 |  |
+I did not test with people. The system measures undesired behavior in a person's speech, and running it on participants would require ethics review.
 
-## **User acceptance testing** {#user-acceptance-testing}
+Instead, I wrote down the expected outcome for each scenario and replayed it through the HTTP API at its original pacing. [`scripts/cases/predictions.md`](../scripts/cases/predictions.md) has the predictions, per-case results, and scoring rules.
 
-I did not test with people. The system measures undesired behavior in a person's speech, and running it on participants would have required ethics review that this practicum does not include.
+**Film scenes.** Twelve scenes, three replays each.
 
-Instead, I ran a scenario-based acceptance test. I converted twelve scenes from films and television into mocked observation files, with generic speaker identifiers and no source audio or video. For each scene, I wrote down which interventions the target speaker (`speaker-2`) should receive, then replayed the scene through the HTTP API at its original pacing and compared the result. Cases 1 and 2 were used to tune the models and are not scored. The first scored run used the detection code from before the fixes in the bug report. The update after the results reruns every case with the current code.
+| Result | Outcome |
+| :---- | :---- |
+| Intervention result across replays | Unchanged for all 12 cases |
+| Cases matched in every replay | 10 of 12 |
+| Cases 3–12, decision model | 8 of 10 |
+| Cases 3–12, query-based rules | 6 of 10 |
+| False positives | Cases 6 and 11, in every replay |
 
-| Case | Predicted | Actual interventions | Result |
-| :---- | :---- | :---- | :---- |
-| 3 | None | None. A loud "Wait" was repaired by "I apologize, okay?" | Match |
-| 4 | One or two, for intensity and language | Three: vulgar language, loud and fast, extended turn | One extra |
-| 5 | Loud only, if any | Two: loud and fast ("Silence\!"), repeated interruption | Interruption not predicted |
-| 6 | Two: absolutist phrase and shouting | Three: extended turn, loud and fast, absolutist phrase ("You always talking") | One extra |
-| 7 | None | One: loud and fast ("Such as?") | One false positive |
-| 8 | None | None | Match |
-| 9 | At least two: language and interruption | Three: vulgar language, repeated interruption, loud and fast | Match |
-| 10 | Interruption and the "crazy" label | Three: loud and fast, vulgar language ("damn dishes"), repeated interruption | Label missed, loud false positive |
-| 11 | Vulgar language only, not "tough kid" | One: vulgar language | Match |
-| 12 | None | One: loud and fast ("I got your letter.") | Mismatch: false positive |
+Intervention counts varied between replays, most in case 1 (4, 5, 3), case 11 (4, 2, 2), and case 5 (24, 24, 22). Some expected behaviors appeared in only some replays, such as stonewalling in case 10 (2 of 3) and cruelty in case 8 (1 of 3).
 
-Four cases matched, two matched with one extra intervention, and four did not match. The ten cases produced 17 interventions. Three of them (cases 7, 10, and 12\) are false positives from the loud-and-fast rule, and one predicted intervention (the label in case 10\) was missed. The other unpredicted interventions (extended turns, the case 5 interruption, and "damn") follow the rules as written, so they show gaps in my predictions, not detector errors.
+**Control dialogue.** AI-written conversations with a planted topic pattern: 8 for discovery and 6 held out. Each held-out conversation was replayed three times with discovered evidence and three times without.
 
-In case 10, Brooke's insult produced no intervention because she is not the target speaker, as expected.
+| Criterion | Outcome |
+| :---- | :---- |
+| First intervention earlier in conversations 01 and 02 | Earlier in 01 (turn 16 against turns 18, 20, 20). Unchanged in 02 (turn 12) |
+| Conversations 03–06 unchanged | Held |
+| Behavior scores do not differ | Held: mean difference 0.0057 between conditions, 0.0055 within |
+| Whether to intervene | Matched the prediction in all 36 runs |
 
-![][image3]
+# **Bug Report & Resolution**
 
-## **Update: rerun after defect fixes** {#update-rerun-after-defect-fixes}
-
-After fixing the loud-and-fast, delivery, and label defects, I replayed all twelve cases again against the same predictions. Each case ran on its own server with fresh storage.
-
-| Case | Predicted | Actual interventions | Result |
-| :---- | :---- | :---- | :---- |
-| 3 | None | None | Match |
-| 4 | One or two, for intensity and language | Three: vulgar language ("piss me off"), character label ("you're fucking nuts"), extended turn | Intensity missed, two extra |
-| 5 | Loud only, if any | Two: loud and fast ("We've only had one game…"), repeated interruption | Interruption not predicted |
-| 6 | Two: absolutist phrase and shouting | Two: extended turn, absolutist phrase ("You always talking") | Shouting missed, one extra |
-| 7 | None | One: loud and fast ("Don't tell me what I can or cannot do.") | Mismatch |
-| 8 | None | None | Match |
-| 9 | At least two: language and interruption | Two: vulgar language ("fucking asparagus"), repeated interruption | Match |
-| 10 | Interruption and the "crazy" label | Three: vulgar language ("damn dishes"), character label ("you're acting crazy again"), repeated interruption | One extra |
-| 11 | Vulgar language only, not "tough kid" | One: vulgar language | Match |
-| 12 | None | None | Match |
-
-Five cases matched, one matched with one extra intervention, and four did not match. The ten cases produced 14 interventions, down from 17. The loud-and-fast false positives in cases 10 and 12 are gone, and the label in case 10 is now detected. Case 7 still has one loud-and-fast intervention, now on "Don't tell me what I can or cannot do." instead of "Such as?". Loud and fast no longer matches the short shouts in cases 4 and 6, so the shouting predicted for case 6 was missed. Case 4 gained a label intervention for "you're fucking nuts".
-
-# **Bug Report & Resolution** {#bug-report-&-resolution}
-
-| Severity scale |  |
+| Severity scale | |
 | :---- | :---- |
 | **Sev** | **Meaning** |
 | **P0** | The system cannot run, or stored records are corrupted. No workaround. |
@@ -162,113 +99,76 @@ Five cases matched, one matched with one extra intervention, and four did not ma
 | **P2** | Work or results are lost or wrong under a failure, but workarounds exist. |
 | **P3** | Low impact: rare, cosmetic, or not reachable with the current code. |
 
-| Bugs fixed |  |  |
+| Open defects | | |
 | :---- | :---- | :---- |
-| **Sev** | **Problem** | **Fix** |
-| **P1** | The loud-and-fast rule computed speech rate per chunk, so short chunks inflated it ("Such as?" is 2 words in 0.32 s, or 375 words per minute), and calm lines just above −18 dBFS matched. | Required chunks of at least 1.5 seconds and raised the volume threshold to −17 dBFS. Both are model parameters. |
-| **P2** | `POST /api/v1/interventions/deliver` marked every pending intervention as sent, across all cases, so one client could receive another case's interventions. | Delivery moved to `POST /api/v1/cases/{case_id}/interventions/deliver` and marks only that case's pending interventions. |
-| **P2** | "You're acting crazy" matched neither the descriptor list ("crazy" was not in it) nor the address patterns ("acting" was not in them), so the predicted label in case 10 was missed. | Expanded the insult terms that match only when addressed to the listener, including "crazy". Added "acting" to the address patterns, and matched bare labels such as "you're crazy". |
-| **P2** | The loud-and-fast model also required the phrases "you are wrong" or "you are ridiculous" in the same chunk, so it rarely matched. The interruption model required three overlaps of 300 ms, which missed the interruptions in the tuning cases. | Split loudness and insulting address into separate rules. Lowered the interruption rule to two overlaps of 150 ms. |
-| **P2** | Vulgar language was part of the character-label model, so swearing produced a message about describing the person. | Created a separate vulgar-language model with its own message. |
-| **P2** | The replay script timed each observation from its start time. Overlapping speech was sent immediately, so replays did not reproduce the scene's timing. | The script now waits until each chunk's end time and tracks the latest end time across overlapping chunks. |
-| **P2** | The interruption rule joined each subject chunk against every other chunk and ran a nested subquery per pair. Its cost grew faster than the case length. | Rewrote the rule with window functions that make one ordered pass over the case. |
-| **P2** | Nothing checked stored models before the worker used them. A model with invalid SQL or no intervention message failed only when a case reached it. | Startup now validates every model's schema, runs each rule against an empty case, and checks for a message. An invalid model stops startup. |
-| **P3** | Text normalization did not treat dashes as a word boundary, so phrases joined by one were missed. | Added dashes to the normalization table. |
-| **P3** | Assessment lookups by case and model, and pending-intervention lookups, had no indexes. | Added three indexes. |
+| **Sev** | **Problem** | **Evidence** |
+| **P1** | The model intervenes when the target is being harmed, which the definition of undesired behavior does not cover. | Case 6, every replay: interventions at "Troy, you're hurting me!" and "Troy." with no behavior at 0.5 or above. |
+| **P1** | The model reads a confrontational but caring monologue as an attack. | Case 11, every replay: contempt and criticism up to 0.93. |
+| **P1** | Threats and cruelty often score below the threshold, even though the prompt asks about them. | Never found in cases 5 and 9. Found in 1 of 3 replays of case 8. |
+| **P3** | Above about 2.1 assessments per second, decision time keeps growing. Nothing limits the load. | 20 simultaneous conversations gave a median of 23.27 s, and 30 gave 51.02 s. One conversation is well within capacity. |
+| **P3** | Discovery can require topics unrelated to the planted pattern, so a calm conversation can receive evidence. | The model required five generic topics beyond the two planted ones. `control-test-05` received evidence in 1 of 3 runs and stayed silent. |
 
-| Open bugs |  |  |  |
-| :---- | :---- | :---- | :---- |
-| **Sev** | **Problem** | **Impact** | **Workaround** |
-| None |  |  |  |
+## **Limitations by design**
 
-## **Limitations by design** {#limitations-by-design}
+These come from recorded decisions. They are not defects, but they affect results. [Known limitations](known_issues.md) lists the rest.
 
-These follow from decisions in the requirements and architecture. They are not defects, but they affect results.
+* A target's turn closes when the next speaker's speech arrives, so decision time includes that speech. A conversation's last batch waits 20 s.
+* Decisions use the first speaker labels, so labeling errors stay in decisions ([ADR 011](adrs/011-decisions-use-first-speaker-labels.md)).
+* Evidence goes only to the action question and requires every topic in the model ([ADR 016](adrs/016-declare-discovery-and-pattern-evidence.md)).
+* The worker is one sequential loop in one server process ([ADR 014](adrs/014-polling-worker.md)).
 
-* After a match is confirmed, the same model does not flag that speaker again until a repair occurs. A second offense without a repair produces no new intervention.
-* The phrase lists are fixed. Case 8 contains a threat that uses no listed phrase, so it was not detected, as predicted.
-* The target speaker is fixed when the database is first initialized and cannot change per case.
-* The system has no authentication and no limit on transcript size. The requirements accept this risk for a local research prototype.
+# **Quality Metrics**
 
-| The system intentionally ignores some retries. For example, if SQLite stays locked past its 5-second timeout and an operation fails, it is marked failed and never retried, even after restart. This is acceptable because we are dealing with time-sensitive, human-in-the-loop conditions. There is likely a small window in which intervention is possible. It is not enough to intervene–an individual must have a chance to correct their behavior. |
-| :---- |
-
-# **Quality Metrics** {#quality-metrics}
-
-| Code quality |  |  |
+| Code quality | | |
 | :---- | :---- | :---- |
 | **Check** | **Tool** | **Result** |
 | Lint | Ruff | No issues |
-| Formatting | Ruff format | 197 files already formatted |
-| Types | mypy, strict mode | No issues in 78 source files |
-| Cyclomatic complexity | Ruff (McCabe) | No function above 8\. Four functions exceed 5: `evaluate_case` (8), `validate_models` (7), `assess_model` (6), `resolve_pending` (6) |
-| Size |  | 3,282 lines of Python, excluding migrations |
+| Formatting | Ruff format | 250 files already formatted |
+| Types | mypy, strict mode | No issues in 107 source files |
+| Dependency audit | pip-audit, PyPI and OSV | No known vulnerabilities in 83 pinned packages |
+| Cyclomatic complexity | Ruff (McCabe) | No function above 11. Eight exceed 5: `capture_audio` (11), `forward_audio` (11), `record_transcripts` (8), `body_limit` (7), `limited` (6), `events` (6), `batch_end` (6), `run_worker` (6) |
+| Size | | 4,962 lines of Python, excluding migrations |
 
-Pre-commit runs Ruff, the formatter, mypy, and a lockfile check before each commit. GitHub Actions runs the same checks on every push and pull request, then enforces unit coverage, runs the integration suite, and uploads both coverage reports.
+Pre-commit runs the formatter, lint, type, and lockfile checks before each commit. On every push and pull request, GitHub Actions audits the locked dependencies, runs the pre-commit checks and JavaScript tests, enforces unit coverage, runs the integration suite, and uploads both coverage reports.
 
-![][image4]
+## **Performance**
 
-## **Performance** {#performance}
+[Quality Attribute Evaluation](quality_attribute_evaluation.md) has the method and full results.
 
-The requirement is a p95 assessment time of at most 250 ms. All timings come from the structured log timestamps, so they include logging cost. Both runs used one machine (WSL2 Linux, 12 cores, Python 3.13, SQLite 3.53) and one worker.
-
-The baseline replayed the twelve film cases at their original pacing.
-
-| Metric | p50 | p95 | Max |
-| :---- | :---- | :---- | :---- |
-| Observation saved to evaluation saved | 16.5 ms | 32.0 ms | 67.8 ms |
-| Assessment task | 12.1 ms | 23.9 ms | 36.5 ms |
-| Repair check task | 15.2 ms | 32.2 ms | 52.5 ms |
-| Deadline lateness (n=25) | 46.0 ms | 95.9 ms | 99.5 ms |
-| Intervention lateness (n=26) | 46.2 ms | 87.8 ms | 113.9 ms |
-
-The stress test sent 9,966 observations over about 14 minutes in six phases of increasing load, rotating through ten scripted scenarios of about 30 observations each.
-
-| Phase | Offered | Achieved | Worker busy | Observation to evaluation p50 / p95 / max |
+| Seconds, end of speech to stored decision, mid-conversation | n | p50 | p95 | Max |
 | :---- | :---- | :---- | :---- | :---- |
-| 1 | 3.7/s | 3.5/s | 5% | 13.9 / 19.8 / 48 ms |
-| 2 | 7.2/s | 6.6/s | 9% | 13.7 / 21.3 / 45 ms |
-| 3 | 10.6/s | 9.4/s | 13% | 14.2 / 25.8 / 69 ms |
-| 4 | 20.9/s | 16.5/s | 23% | 15.0 / 30.6 / 72 ms |
-| 5 | 31.6/s | 22.2/s | 32% | 15.4 / 35.2 / 90 ms |
-| 6 | 40.9/s | 25.5/s | 40% | 16.7 / 48.6 / 237 ms |
+| Film replays | 348 | 3.37 | 11.82 | 21.52 |
+| Live capture | 15 | 8.35 | 15.01 | 15.01 |
 
-The p95 stayed under 50 ms in every phase, well under the 250 ms target. The worst single result was 337 ms: 237 ms of evaluation plus up to 100 ms of deadline lateness. That is 3.4% of the shortest repair allowance (10 s).
+One worker handles about 2.1 assessments per second. It kept up with 10 simultaneous conversations but not 20. Under that load, the server used at most 17% of one core and 237 MB of memory.
 
-Achieved throughput fell behind the offered rate from phase 4 on, while the worker was busy at most 40% of the time. The slowest phase 6 evaluations spent 90 to 150 ms between saving the observation and queueing its task, so the limit is in ingestion, not assessment. I did not find the system's maximum rate.
+## **Security**
 
-## **Security** {#security}
+The server has no authentication or per-case access control and should listen only on localhost. Audio goes to the transcription provider, and transcripts go to the decision-model provider. The system has these protections:
 
-The requirements accept the risk of having no application security in this prototype. The system has no authentication, authorization, user isolation, or secrets, and should only listen on localhost. The following measures are implemented:
+* Requests must name an allowed host (`ALLOWED_HOSTS`, localhost by default), and a browser's origin must match it.
+* Request bodies are limited to 128 KiB. Live capture is limited in length and in simultaneous connections.
+* Pydantic validates request bodies and path parameters. Unknown fields are rejected, and identifiers are limited to 128 characters from `A–Z a–z 0–9 . _ : -`.
+* Logs record exception types but not exception messages, which can contain SQL parameters or transcripts.
 
-* Pydantic validates every request body and path parameter in strict mode. Unknown fields are rejected, identifiers cannot contain `/`, timestamps must include a time zone, and signal levels and times must be ordered.
-* Error responses carry a fixed message, a closed error code, and a request ID. They never include driver messages, SQL, file paths, or input values.
-* Logs record exception types but not exception messages, which can contain SQL parameters or transcripts. Validation failures log the field location and error type, not the submitted value.
-* The case data contains no source audio, video, names, or copied transcripts. Speakers are generic identifiers.
+## **Accessibility**
 
-## **Accessibility** {#accessibility}
+The capture page has not been audited. The rest of the system is an HTTP API, and FastAPI generates its OpenAPI page at `/docs`.
 
-Not applicable. The system is an HTTP API with no user interface. FastAPI generates the OpenAPI page at `/docs`.
+# **System Readiness Assessment**
 
-# **System Readiness Assessment** {#system-readiness-assessment}
+## **Production readiness**
 
-## **Production readiness** {#production-readiness}
+The system cannot be deployed to production. It runs reliably as a single local process for research use. A production deployment would need:
 
-The system is not deployable to production. It runs reliably as a single local process for research replay. A production deployment would need:
+1. Authentication, authorization, and TLS.
+2. Encrypted storage, a retention limit, and a way to delete speech.
+3. A decision on scaling. SQLite and one sequential worker limit the system to one process and about 2.1 assessments per second.
+4. An ethics review before the system processes the speech of real people.
 
-1. Authentication and authorization, a request size limit, and TLS.
-2. A decision on scaling. SQLite and in-memory scheduling limit the system to one process.
-3. An ethics review before the system processes the speech of real people.
-
-| Risks and mitigations |  |
+| Risks and mitigations | |
 | :---- | :---- |
 | **Risk** | **Mitigation** |
-| Continue to have false interventions undermine the demonstration | Fix the false positives by correcting the identification behavior. |
-| Interventions leak between concurrent cases. | While only one case would be running at a time for the prototype, this is still an easy bug to fix to avoid unexpected behavior. The fix is to scope the request to a single case ID. |
-
-## **Week 8 readiness** {#week-8-readiness}
-
-Remaining work before the final presentation:
-
-1. Fix the three outstanding bugs mentioned above, specifically the loud-fast false-positive bug, scoping interventions to a particular case, and broader lexicographical identification of insults.
-2. Prepare the presentation and demonstration.
+| False interventions undermine the demonstration. | Report cases 6 and 11 as known failures. Both recur in every replay and have identified causes. |
+| Answers vary between runs. | Replay each case at least three times and report the variation. |
+| Provider response times or outages change results. | Failed calls retry on the next poll, and requests the provider rejects are skipped. Report measured times with their limits. |

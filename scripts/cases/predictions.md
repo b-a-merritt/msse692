@@ -68,28 +68,30 @@ The query-based results from the post-fix rerun in `docs/quality_assurance_repor
 
 ## Decision-model results
 
-One replay of each case with `jev-1.14.0`, prompt `conversation-3`, and no discovered model, scored by the rules above. Cases 5 and 12, the only ones with batches over three turns, were replayed after batches were limited to three turns (ADR 017).
+Three replays of each case with `jev-1.14.0`, prompt `conversation-3`, and no discovered model, scored by the rules above. Batches are limited to three turns (ADR 017); only cases 5 and 12 have batches the limit affects.
 
-| Case | Interventions | Predicted | Result | Query-based | Found | Missed | Unexpected |
-|---|---|---|---|---|---|---|---|
-| 1 | 4 | Yes | Match | — | contempt, cruelty, swearing | criticism | — |
-| 2 | 9 | Yes | Match | — | contempt, criticism, cruelty, defensiveness, swearing | — | — |
-| 3 | 8 | Yes | Match | Missed | contempt | — | defensiveness |
-| 4 | 1 | Yes | Match | Match | contempt, criticism, defensiveness, swearing | — | — |
-| 5 | 24 | Yes | Match | Match | contempt | cruelty | criticism, defensiveness |
-| 6 | 2 | No | False positive | False positive | — | — | defensiveness |
-| 7 | 6 | Either | Match | Match | defensiveness | criticism | contempt |
-| 8 | 2 | Yes | Match | Missed | contempt | cruelty | defensiveness |
-| 9 | 10 | Yes | Match | Match | contempt, swearing | cruelty | criticism, defensiveness |
-| 10 | 16 | Yes | Match | Match | contempt, criticism, defensiveness, swearing | stonewalling | — |
-| 11 | 4 | No | False positive | False positive | swearing | — | contempt, criticism, cruelty, defensiveness |
-| 12 | 0 | No | Match | Match | — | — | — |
+The number after each behavior is how many of the three replays had a target turn at the threshold. Interventions lists the count from each replay.
 
-8 of 10 matched on cases 3–12, against 6 of 10 for the query-based rules, and cases 1 and 2 matched. The rules' two misses now match: case 3's "door guy" remark scored as contempt, and case 8's threats as contempt.
+| Case | Interventions | Predicted | Result | Query-based | Expected behaviors | Unexpected behaviors |
+|---|---|---|---|---|---|---|
+| 1 | 4, 5, 3 | Yes | Match | — | contempt 2, criticism 0, cruelty 3, swearing 3 | — |
+| 2 | 9, 10, 10 | Yes | Match | — | contempt 3, criticism 3, cruelty 3, defensiveness 3, swearing 3 | — |
+| 3 | 8, 7, 7 | Yes | Match | Missed | contempt 3 | defensiveness 3, stonewalling 2, criticism 1 |
+| 4 | 1, 1, 1 | Yes | Match | Match | contempt 3, criticism 3, defensiveness 3, swearing 3 | — |
+| 5 | 24, 24, 22 | Yes | Match | Match | contempt 3, cruelty 0 | criticism 3, defensiveness 3 |
+| 6 | 2, 2, 2 | No | False positive | False positive | — | defensiveness 3 |
+| 7 | 6, 6, 6 | Either | Match | Match | defensiveness 3, criticism 1 | contempt 3 |
+| 8 | 2, 2, 1 | Yes | Match | Missed | contempt 3, cruelty 1 | defensiveness 3 |
+| 9 | 10, 9, 10 | Yes | Match | Match | contempt 3, swearing 2, cruelty 0 | criticism 3, defensiveness 3 |
+| 10 | 16, 17, 17 | Yes | Match | Match | contempt 3, criticism 3, defensiveness 3, swearing 3, stonewalling 2 | interruption 1 |
+| 11 | 4, 2, 2 | No | False positive | False positive | swearing 3 | contempt 3, criticism 3, cruelty 3, defensiveness 3 |
+| 12 | 0, 0, 0 | No | Match | Match | — | — |
 
-The two false positives remain for different reasons. In case 6, both interventions follow "Troy, you're hurting me! … Let go!" with no target behavior at the threshold: the model responded to harm against the target, which the definition above does not cover. In case 11, the monologue scored contempt (0.90–0.92) and criticism; the model reads it as an attack, not as care.
+The intervention result did not change between replays for any case. Every replay matched 8 of 10 on cases 3–12, against 6 of 10 for the query-based rules, and cases 1 and 2 matched. Both of the rules' misses match in every replay: case 3's "door guy" remark and case 8's threats scored as contempt.
 
-Cruelty was missed in cases 5, 8, and 9, including case 8's threats, despite the prompt asking about threats and intimidation. Stonewalling was missed in case 10, and defensiveness was often unexpected.
+The two false positives have different causes and appear in every replay. In case 6, both interventions come at "Troy, you're hurting me! … Let go!" and "Troy." with no target behavior at 0.5 or above: the model responded to harm against the target, which the definition above does not cover. In case 11, the monologue scored up to 0.93 for contempt and criticism; the model reads it as an attack, not as care.
+
+Cruelty was never found in cases 5 and 9, and was found in one replay of case 8, at 0.70 on "I am the one who knocks", despite the prompt asking about threats and intimidation. Criticism was never found in case 1. Defensiveness was unexpected in every replay of cases 3, 5, 6, 8, 9, and 11.
 
 ## Control dialogue
 
@@ -115,3 +117,18 @@ Discovery should require both `extended_family` (the mother) and `budgeting` (th
 | `control-test-06` | Unrelated topic, criticism and stonewalling | Intervene | Intervene, unchanged |
 
 Evidence helps if the first intervention in 01 and 02 comes earlier, 03–06 are unchanged, and behavior scores do not differ between the two runs. Run each held-out case at least three times per condition; answers vary between runs.
+
+### Control results
+
+Three replays of each held-out case per condition with `jev-1.14.0` and prompt `conversation-3`, using one model discovered from one replay of the training conversations. Turn numbers are observation sequence numbers.
+
+| Held out | First intervention without evidence | First intervention with evidence | Runs with evidence | Result |
+|---|---|---|---|---|
+| `control-test-01` | Turns 18, 20, 20 | Turns 16, 16, 16 | 3 of 3 | Earlier |
+| `control-test-02` | Turns 12, 12, 12 | Turns 12, 12, 12 | 3 of 3 | Not earlier |
+| `control-test-03` | None | None | 3 of 3 | Unchanged |
+| `control-test-04` | None | None | 3 of 3 | Unchanged |
+| `control-test-05` | None | None | 1 of 3 | Unchanged |
+| `control-test-06` | Turns 4, 4, 4 | Turns 4, 4, 4 | 0 of 3 | Unchanged |
+
+All 36 runs matched the prediction of whether to intervene, so evidence changed timing only.

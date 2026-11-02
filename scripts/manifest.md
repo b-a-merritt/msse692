@@ -43,7 +43,7 @@ The file holds speech as ingested, in sequence order; speaker corrections are le
 uv run python scripts/send_observations.py scripts/cases/control/control-test-01.jsonl --target-speaker-id speaker-2
 ```
 
-`cases/stress.jsonl` is AI-generated synthetic speech for 330 interleaved cases, increasing the offered rate across six phases. Recorded gaps take approximately 11.5 minutes to replay; HTTP response time adds to that duration.
+`cases/stress.jsonl` is AI-generated synthetic speech for 330 interleaved cases, increasing the offered rate across six phases. Recorded gaps take approximately 11.5 minutes to replay. HTTP response time adds to that duration. The whole file causes about 4,400 decision-model calls. Phases 1–3, the cases with IDs starting `stress-p1`, `stress-p2`, and `stress-p3`, cause about 800 and exceed the worker's capacity.
 
 | File | Contents |
 |---|---|

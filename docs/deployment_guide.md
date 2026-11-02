@@ -22,7 +22,7 @@ Run from the repository root with writable local storage. Environment variables 
 
 Use a fresh database path for this disposable schema. Run one process per database; multiple workers sharing storage are unsupported.
 
-Listen on localhost only. The server has no authentication, so listening on another address exposes all stored speech to the network. See the [security assessment](security_assessment.md#what-deployment-would-require).
+Listen on localhost only. The server has no authentication, so listening on another address exposes all stored speech to the network.
 
 ```bash
 uv sync --locked --no-dev
