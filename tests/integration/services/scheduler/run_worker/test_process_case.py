@@ -7,7 +7,13 @@ import httpx2
 import pytest
 from sqlmodel import select
 from typesafe_sdk import RetryPolicy
+from typesafe_sdk import TypeSafeAPIConnectionError
+from typesafe_sdk import TypeSafeAPIResponseValidationError
+from typesafe_sdk import TypeSafeAPITimeoutError
+from typesafe_sdk import TypeSafeAuthenticationError
 from typesafe_sdk import TypeSafeClient
+from typesafe_sdk import TypeSafeInternalServerError
+from typesafe_sdk import TypeSafeRateLimitError
 
 from normative_conformance.database import read_session
 from normative_conformance.database import write_session
@@ -16,6 +22,7 @@ from normative_conformance.models.assessment import Classification
 from normative_conformance.models.assessment import ClassificationTopicScore
 from normative_conformance.models.case import ConversationCase
 from normative_conformance.models.case import TargetAssignment
+from normative_conformance.models.intervention import Intervention
 from normative_conformance.models.normative_model import NormativeModel
 from normative_conformance.models.normative_model import NormativeModelTopic
 from normative_conformance.models.observation import Observation
@@ -260,29 +267,7 @@ def test_earlier_classifications_matching_the_newest_model_send_evidence(
     def respond(request):
         payload = json.loads(request.content)
         requests.append(payload)
-        # Neutral answers; only keys and option labels are copied from the request.
-        answers = {}
-        for key, question in payload["questions"].items():
-            if question["type"] == "noul":
-                answers[key] = {"type": "noul", "noul": 0.1}
-            elif question["type"] == "choice":
-                choice = "await_context" if key == "action" else "unknown"
-                answers[key] = {
-                    "type": "choice",
-                    "choice": choice,
-                    "confidence": 1.0,
-                    "probabilities": {
-                        option: 1.0 if option == choice else 0.0 for option in question["criteria"]
-                    },
-                }
-            else:
-                answers[key] = {
-                    "type": "score",
-                    "score": 0.0,
-                    "confidence": 1.0,
-                    "legend": {str(i): level for i, level in enumerate(question["criteria"])},
-                    "probabilities": {"0": 1.0, "1": 0.0, "2": 0.0, "3": 0.0},
-                }
+        answers = _neutral_answers(questions=payload["questions"], action="await_context")
         return httpx2.Response(200, json={"model": "jev-1.14.0", "answers": answers, "usage": {}})
 
     with TypeSafeClient(
@@ -313,3 +298,214 @@ def test_earlier_classifications_matching_the_newest_model_send_evidence(
             "normative_model_id": model.normative_model_id,
             "topics": ["budgeting", "extended_family"],
         }
+
+
+@pytest.mark.parametrize("status", [400, 422])
+def test_batch_the_provider_rejects_is_skipped_without_an_assessment(engine, session, status):
+    session.add(ConversationCase(case_id="case", created_at_us=0))
+    session.flush()
+    session.add_all(
+        [
+            TargetAssignment(case_id="case", target_revision=1, assigned_at_us=0, speaker_id="A"),
+            *[
+                Observation(
+                    case_id="case",
+                    observation_id=identity,
+                    sequence=sequence,
+                    start_at_us=sequence * 1_000_000,
+                    end_at_us=sequence * 1_000_000 + 500_000,
+                    received_at_us=sequence * 1_000_000,
+                    speaker_id=speaker,
+                    transcript=transcript,
+                    signal_level_min=-40,
+                    signal_level_avg=-30,
+                    signal_level_max=-20,
+                )
+                for identity, sequence, speaker, transcript in [
+                    ("one", 1, "A", "You never listen."),
+                    ("two", 2, "B", "I am listening."),
+                ]
+            ],
+        ]
+    )
+    session.commit()
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx2.Response(status, json={"error": {"message": "rejected"}})
+
+    with TypeSafeClient(
+        api_key="integration-key",
+        transport=httpx2.MockTransport(respond),
+        base_url="https://api.typesafe.ai",
+        compression=False,
+        retry=RetryPolicy(max_retries=0),
+    ) as client:
+        result = module.process_case(
+            case_id="case",
+            max_batch_seconds=60,
+            max_batch_turns=3,
+            idle_seconds=20,
+            context_seconds=30,
+            engine=engine,
+            client=client,
+            now=lambda: datetime(1970, 1, 1, second=3, tzinfo=UTC),
+        )
+
+    # The batch would be rejected on every retry, so progress moves past it.
+    assert result is None
+    assert len(requests) == 1
+    with read_session(engine=engine) as check:
+        assert check.exec(select(Assessment)).all() == []
+        case = check.get(ConversationCase, "case")
+        assert (case.last_handled_sequence, case.last_handled_target_revision) == (1, 1)
+
+
+def _missing_action(questions):
+    answers = _neutral_answers(questions=questions, action="intervene")
+    del answers["action"]
+    return httpx2.Response(200, json={"model": "jev-1.14.0", "answers": answers, "usage": {}})
+
+
+def _raise_timeout(questions):
+    raise httpx2.ReadTimeout("provider did not answer")
+
+
+def _raise_connection_error(questions):
+    raise httpx2.ConnectError("provider refused the connection")
+
+
+@pytest.mark.parametrize(
+    "failed_response,error",
+    [
+        pytest.param(
+            lambda questions: httpx2.Response(500, json={"error": {"message": "down"}}),
+            TypeSafeInternalServerError,
+            id="server-error",
+        ),
+        pytest.param(
+            lambda questions: httpx2.Response(429, json={"error": {"message": "slow down"}}),
+            TypeSafeRateLimitError,
+            id="rate-limited",
+        ),
+        pytest.param(
+            lambda questions: httpx2.Response(401, json={"error": {"message": "bad key"}}),
+            TypeSafeAuthenticationError,
+            id="invalid-key",
+        ),
+        pytest.param(_raise_timeout, TypeSafeAPITimeoutError, id="timeout"),
+        pytest.param(_raise_connection_error, TypeSafeAPIConnectionError, id="unreachable"),
+        pytest.param(
+            lambda questions: httpx2.Response(200, text="<html>Bad gateway</html>"),
+            TypeSafeAPIResponseValidationError,
+            id="not-json",
+        ),
+        pytest.param(_missing_action, KeyError, id="missing-answer"),
+    ],
+)
+def test_failed_call_stores_nothing_and_the_next_poll_assesses_the_batch_once(
+    engine, session, failed_response, error
+):
+    session.add(ConversationCase(case_id="case", created_at_us=0))
+    session.flush()
+    session.add_all(
+        [
+            TargetAssignment(case_id="case", target_revision=1, assigned_at_us=0, speaker_id="A"),
+            *[
+                Observation(
+                    case_id="case",
+                    observation_id=identity,
+                    sequence=sequence,
+                    start_at_us=sequence * 1_000_000,
+                    end_at_us=sequence * 1_000_000 + 500_000,
+                    received_at_us=sequence * 1_000_000,
+                    speaker_id=speaker,
+                    transcript=transcript,
+                    signal_level_min=-40,
+                    signal_level_avg=-30,
+                    signal_level_max=-20,
+                )
+                for identity, sequence, speaker, transcript in [
+                    ("one", 1, "A", "You never listen."),
+                    ("two", 2, "B", "I am listening."),
+                ]
+            ],
+        ]
+    )
+    session.commit()
+    requests = []
+
+    def respond(request):
+        payload = json.loads(request.content)
+        requests.append(payload)
+        if len(requests) == 1:
+            return failed_response(payload["questions"])
+        answers = _neutral_answers(questions=payload["questions"], action="intervene")
+        return httpx2.Response(200, json={"model": "jev-1.14.0", "answers": answers, "usage": {}})
+
+    arguments = {
+        "case_id": "case",
+        "max_batch_seconds": 60,
+        "max_batch_turns": 3,
+        "idle_seconds": 20,
+        "context_seconds": 30,
+        "engine": engine,
+        "now": lambda: datetime(1970, 1, 1, second=3, tzinfo=UTC),
+    }
+    with TypeSafeClient(
+        api_key="integration-key",
+        transport=httpx2.MockTransport(respond),
+        base_url="https://api.typesafe.ai",
+        compression=False,
+        retry=RetryPolicy(max_retries=0),
+    ) as client:
+        with pytest.raises(error):
+            module.process_case(client=client, **arguments)
+
+        with read_session(engine=engine) as check:
+            assert check.exec(select(Assessment)).all() == []
+            assert check.exec(select(Intervention)).all() == []
+            assert check.get(ConversationCase, "case").last_handled_sequence == 0
+
+        assessment_id = module.process_case(client=client, **arguments)
+
+    assert len(requests) == 2
+    assert requests[1]["state"] == requests[0]["state"]
+    with read_session(engine=engine) as check:
+        [stored] = check.exec(select(Assessment)).all()
+        assert stored.assessment_id == assessment_id
+        assert (stored.after_sequence, stored.through_sequence) == (0, 1)
+        assert stored.action == "intervene"
+        assert json.loads(stored.request_json)["state"] == requests[1]["state"]
+        assert [row.assessment_id for row in check.exec(select(Intervention)).all()] == [
+            assessment_id
+        ]
+        assert check.get(ConversationCase, "case").last_handled_sequence == 1
+
+
+def _neutral_answers(*, questions, action):
+    """Answer every question neutrally, copying only keys and option labels from the request."""
+    answers = {}
+    for key, question in questions.items():
+        if question["type"] == "noul":
+            answers[key] = {"type": "noul", "noul": 0.1}
+        elif question["type"] == "choice":
+            choice = action if key == "action" else "unknown"
+            answers[key] = {
+                "type": "choice",
+                "choice": choice,
+                "confidence": 1.0,
+                "probabilities": {
+                    option: 1.0 if option == choice else 0.0 for option in question["criteria"]
+                },
+            }
+        else:
+            answers[key] = {
+                "type": "score",
+                "score": 0.0,
+                "confidence": 1.0,
+                "legend": {str(i): level for i, level in enumerate(question["criteria"])},
+                "probabilities": {"0": 1.0, "1": 0.0, "2": 0.0, "3": 0.0},
+            }
+    return answers
