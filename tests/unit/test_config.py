@@ -25,3 +25,10 @@ def test_invalid_runtime_settings_are_rejected_without_loading_env_files(
     assert [(error["loc"], error["type"]) for error in caught.value.errors()] == [
         ((field,), error_type)
     ]
+
+
+def test_debug_mode_is_off_by_default(*, monkeypatch):
+    # Debug mode returns tracebacks in 500 responses.
+    monkeypatch.delenv("DEBUG", raising=False)
+
+    assert config.Settings(_env_file=None).debug is False
