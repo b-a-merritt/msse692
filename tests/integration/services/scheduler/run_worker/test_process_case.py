@@ -2,9 +2,11 @@ import json
 from datetime import UTC
 from datetime import datetime
 from importlib import import_module
+from pathlib import Path
 
 import httpx2
 import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 from typesafe_sdk import RetryPolicy
 from typesafe_sdk import TypeSafeAPIConnectionError
@@ -15,6 +17,7 @@ from typesafe_sdk import TypeSafeClient
 from typesafe_sdk import TypeSafeInternalServerError
 from typesafe_sdk import TypeSafeRateLimitError
 
+from normative_conformance.database import create_database_engine
 from normative_conformance.database import read_session
 from normative_conformance.database import write_session
 from normative_conformance.models.assessment import Assessment
@@ -482,6 +485,102 @@ def test_failed_call_stores_nothing_and_the_next_poll_assesses_the_batch_once(
             assessment_id
         ]
         assert check.get(ConversationCase, "case").last_handled_sequence == 1
+
+
+def test_failed_save_stores_no_part_of_the_decision_and_restart_assesses_the_batch_once(
+    engine, session
+):
+    session.add(ConversationCase(case_id="case", created_at_us=0))
+    session.flush()
+    session.add_all(
+        [
+            TargetAssignment(case_id="case", target_revision=1, assigned_at_us=0, speaker_id="A"),
+            *[
+                Observation(
+                    case_id="case",
+                    observation_id=identity,
+                    sequence=sequence,
+                    start_at_us=sequence * 1_000_000,
+                    end_at_us=sequence * 1_000_000 + 500_000,
+                    received_at_us=sequence * 1_000_000,
+                    speaker_id=speaker,
+                    transcript=transcript,
+                    signal_level_min=-40,
+                    signal_level_avg=-30,
+                    signal_level_max=-20,
+                )
+                for identity, sequence, speaker, transcript in [
+                    ("one", 1, "A", "You never listen."),
+                    ("two", 2, "B", "I am listening."),
+                ]
+            ],
+        ]
+    )
+    session.commit()
+    # The intervention is the last record written, after the assessment and classifications.
+    with engine.begin() as connection:
+        connection.exec_driver_sql("""
+            CREATE TRIGGER fail_intervention BEFORE INSERT ON intervention
+            BEGIN SELECT RAISE(ABORT, 'disk full'); END
+        """)
+    requests = []
+
+    def respond(request):
+        payload = json.loads(request.content)
+        requests.append(payload)
+        answers = _neutral_answers(questions=payload["questions"], action="intervene")
+        return httpx2.Response(200, json={"model": "jev-1.14.0", "answers": answers, "usage": {}})
+
+    arguments = {
+        "case_id": "case",
+        "max_batch_seconds": 60,
+        "max_batch_turns": 3,
+        "idle_seconds": 20,
+        "context_seconds": 30,
+        "now": lambda: datetime(1970, 1, 1, second=3, tzinfo=UTC),
+    }
+    with TypeSafeClient(
+        api_key="integration-key",
+        transport=httpx2.MockTransport(respond),
+        base_url="https://api.typesafe.ai",
+        compression=False,
+        retry=RetryPolicy(max_retries=0),
+    ) as client:
+        with pytest.raises(IntegrityError, match="disk full"):
+            module.process_case(engine=engine, client=client, **arguments)
+
+        with read_session(engine=engine) as check:
+            assert check.exec(select(Assessment)).all() == []
+            assert check.exec(select(Classification)).all() == []
+            assert check.exec(select(Intervention)).all() == []
+            assert check.get(ConversationCase, "case").last_handled_sequence == 0
+
+        # Restart on the same database file after the fault is cleared.
+        with engine.begin() as connection:
+            connection.exec_driver_sql("DROP TRIGGER fail_intervention")
+        engine.dispose()
+        restarted = create_database_engine(path=Path(engine.url.database))
+        try:
+            assessment_id = module.process_case(engine=restarted, client=client, **arguments)
+            with read_session(engine=restarted) as check:
+                [stored] = check.exec(select(Assessment)).all()
+                classified = [
+                    check.get(Observation, row.observation_key).observation_id
+                    for row in check.exec(select(Classification))
+                ]
+                interventions = check.exec(select(Intervention)).all()
+                case = check.get(ConversationCase, "case")
+        finally:
+            restarted.dispose()
+
+    assert len(requests) == 2
+    assert requests[1]["state"] == requests[0]["state"]
+    assert stored.assessment_id == assessment_id
+    assert (stored.after_sequence, stored.through_sequence) == (0, 1)
+    assert stored.action == "intervene"
+    assert classified == ["one"]
+    assert [row.assessment_id for row in interventions] == [assessment_id]
+    assert case.last_handled_sequence == 1
 
 
 def _neutral_answers(*, questions, action):
