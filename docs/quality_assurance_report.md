@@ -2,7 +2,7 @@
 
 # Quality Assurance Report
 
-Last updated: Nov 2, 2026
+Last updated: Nov 8, 2026
 
 # **Team: *Individual Track***
 
@@ -12,7 +12,7 @@ Last updated: Nov 2, 2026
 
 The prototype transcribes live speech, stores it as observations, and asks a decision model fixed questions about each batch of speech. It stores the scores and action, and creates an intervention when the action is `intervene`.
 
-All 558 automated tests pass. Unit tests alone cover 98.40% of statements and branches, above the required 95%. Lint, formatting, type checks, and the dependency audit report no issues.
+All 570 automated tests pass. Unit tests alone cover 98.40% of statements and branches, above the required 95%. Lint, formatting, type checks, and the dependency audit report no issues.
 
 Twelve film scenes were each replayed three times, and the intervention result never changed. On the 10 scenes also run with the earlier keyword rules, the decision model matched 8 and the rules matched 6. The main open defects are two false positives and missed cruelty, which recur across replays.
 
@@ -24,17 +24,16 @@ The system is ready for research demonstration on one machine. It is not ready f
 
 The tests are split into suites that run separately.
 
-The unit suite (349 Python tests) checks decisions in isolation, such as request validation, batch boundaries, error translation, and worker orchestration. It never opens a database, file, network connection, or worker thread. The JavaScript suite (38 tests) covers the capture page's client code.
+The unit suite (350 Python tests) checks decisions in isolation, such as request validation, batch boundaries, error translation, and worker orchestration. It never opens a database, file, network connection, or worker thread. The JavaScript suite (38 tests) covers the capture page's client code.
 
-The integration suite (171 tests) runs the code against SQLite, HTTP, the worker, and restarts.
+The integration suite (182 tests) runs the code against SQLite, HTTP, the worker, and restarts. The decision-model provider is replaced by a mock HTTP transport, so its errors, timeouts, and malformed responses are tested without network calls.
 
 End-to-end testing used the running server. Film scenes and control dialogue were replayed through the HTTP API and scored against written predictions. A stress input measured capacity.
 
 The following were not tested:
 
 * More than one server process.
-* A forced crash during a model call followed by a restart.
-* A provider outage.
+* A real provider outage or a server process killed during a model call. Integration tests simulate both with the mock provider and a restart on the same database file.
 * Use by real couples.
 * Accessibility of the capture page.
 
@@ -57,10 +56,10 @@ Coverage is measured with coverage.py through pytest-cov, with branch measuremen
 
 | Suite | Tests | Passed | Failed | Time |
 | :---- | :---- | :---- | :---- | :---- |
-| Unit (Python) | 349 | 349 | 0 | About 4 s |
+| Unit (Python) | 350 | 350 | 0 | About 4 s |
 | Unit (JavaScript) | 38 | 38 | 0 | Not recorded |
-| Integration | 171 | 171 | 0 | About 11 s |
-| Total | 558 | 558 | 0 | |
+| Integration | 182 | 182 | 0 | About 11 s |
+| Total | 570 | 570 | 0 | |
 
 ## **Scenario acceptance testing**
 
