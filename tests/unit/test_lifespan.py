@@ -8,9 +8,9 @@ from unittest.mock import Mock
 import pytest
 from sqlalchemy import Engine
 
-from normative_conformance.config import Settings
+from conversation_monitor.config import Settings
 
-module = import_module("normative_conformance.lifespan")
+module = import_module("conversation_monitor.lifespan")
 
 
 FAILURE = RuntimeError("Lifecycle failed")

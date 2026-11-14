@@ -5,11 +5,11 @@ from datetime import UTC
 from datetime import datetime
 from threading import Barrier
 
-from normative_conformance import models
-from normative_conformance.database import read_session
-from normative_conformance.database import write_session
-from normative_conformance.services.intervention.deliver_pending import deliver_pending
-from normative_conformance.services.intervention.list_intervention_records import (
+from conversation_monitor import models
+from conversation_monitor.database import read_session
+from conversation_monitor.database import write_session
+from conversation_monitor.services.intervention.deliver_pending import deliver_pending
+from conversation_monitor.services.intervention.list_intervention_records import (
     list_intervention_records,
 )
 

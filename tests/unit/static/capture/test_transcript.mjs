@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Transcript, segments } from "../../../../src/normative_conformance/static/capture/transcript.js";
+import { Transcript, segments } from "../../../../src/conversation_monitor/static/capture/transcript.js";
 
 function element() {
   return { children: [], textContent: "", className: "",

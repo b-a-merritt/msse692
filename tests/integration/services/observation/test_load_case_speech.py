@@ -1,14 +1,14 @@
 from datetime import UTC
 from datetime import datetime
 
-from normative_conformance.database import read_session
-from normative_conformance.database import write_session
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.observation import Observation
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.schemas.observation import ObservationReplacement
-from normative_conformance.services.capture.store_revisions import store_revisions
-from normative_conformance.services.observation.load_case_speech import load_case_speech
+from conversation_monitor.database import read_session
+from conversation_monitor.database import write_session
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.observation import Observation
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.schemas.observation import ObservationReplacement
+from conversation_monitor.services.capture.store_revisions import store_revisions
+from conversation_monitor.services.observation.load_case_speech import load_case_speech
 
 
 def test_speech_is_read_as_ingested_in_sequence_order_without_corrections(engine):

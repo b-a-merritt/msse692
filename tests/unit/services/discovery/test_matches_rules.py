@@ -1,6 +1,6 @@
 import pytest
 
-from normative_conformance.services.discovery.matches_rules import matches_rules
+from conversation_monitor.services.discovery.matches_rules import matches_rules
 
 
 @pytest.mark.parametrize(

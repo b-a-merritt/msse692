@@ -3,7 +3,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from normative_conformance import models
+from conversation_monitor import models
 
 
 # The other tests store interventions from `intervene` assessments.

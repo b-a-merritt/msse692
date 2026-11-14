@@ -4,11 +4,11 @@ from datetime import timedelta
 
 import pytest
 
-from normative_conformance.errors import CaptureFailure
-from normative_conformance.services.capture.levels import FrameLevel
-from normative_conformance.services.capture.observations import build_observations
-from normative_conformance.services.capture.transcriber import TurnUpdate
-from normative_conformance.services.capture.transcriber import Word
+from conversation_monitor.errors import CaptureFailure
+from conversation_monitor.services.capture.levels import FrameLevel
+from conversation_monitor.services.capture.observations import build_observations
+from conversation_monitor.services.capture.transcriber import TurnUpdate
+from conversation_monitor.services.capture.transcriber import Word
 
 
 def test_groups_consecutive_words_and_uses_overlapping_frames_without_duration_weighting():

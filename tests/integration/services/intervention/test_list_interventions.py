@@ -1,8 +1,8 @@
 from datetime import UTC
 from datetime import datetime
 
-from normative_conformance import models
-from normative_conformance.services.intervention.list_interventions import list_interventions
+from conversation_monitor import models
+from conversation_monitor.services.intervention.list_interventions import list_interventions
 
 
 def test_reads_stored_interventions_with_case_status_and_id_filters(*, session):

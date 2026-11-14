@@ -8,14 +8,14 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from normative_conformance.errors import CaptureDisconnected
-from normative_conformance.errors import CaptureFailure
-from normative_conformance.services.capture import run_capture as module
-from normative_conformance.services.capture.transcriber import SpeakerRevised
-from normative_conformance.services.capture.transcriber import SpeechStarted
-from normative_conformance.services.capture.transcriber import TurnRevision
-from normative_conformance.services.capture.transcriber import TurnUpdate
-from normative_conformance.services.capture.transcriber import Word
+from conversation_monitor.errors import CaptureDisconnected
+from conversation_monitor.errors import CaptureFailure
+from conversation_monitor.services.capture import run_capture as module
+from conversation_monitor.services.capture.transcriber import SpeakerRevised
+from conversation_monitor.services.capture.transcriber import SpeechStarted
+from conversation_monitor.services.capture.transcriber import TurnRevision
+from conversation_monitor.services.capture.transcriber import TurnUpdate
+from conversation_monitor.services.capture.transcriber import Word
 
 END = object()
 
@@ -91,7 +91,7 @@ async def run(*, case_id, messages, transcriber, now, store_observations, store_
 
 
 def test_streams_levels_and_transcripts_until_stopped(caplog):
-    caplog.set_level(logging.INFO, logger="normative_conformance.services.capture")
+    caplog.set_level(logging.INFO, logger="conversation_monitor.services.capture")
     transcriber = FakeTranscriber(
         on_audio=[
             TurnUpdate(
@@ -170,7 +170,7 @@ def test_streams_levels_and_transcripts_until_stopped(caplog):
     }
     # Logs are the requested diagnostic output here; capture behavior is asserted above.
     records = [
-        r for r in caplog.records if r.name.startswith("normative_conformance.services.capture")
+        r for r in caplog.records if r.name.startswith("conversation_monitor.services.capture")
     ]
     assert len({r.capture_id for r in records}) == 1
     assert {r.event for r in records} == {

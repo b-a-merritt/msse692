@@ -4,15 +4,15 @@ from unittest.mock import Mock
 
 from sqlmodel import Session
 
-from normative_conformance.models.assessment import Assessment
-from normative_conformance.models.assessment import AssessmentActionProbability
-from normative_conformance.models.assessment import Classification
-from normative_conformance.models.assessment import ClassificationBehaviorScore
-from normative_conformance.models.assessment import ClassificationTopicScore
-from normative_conformance.schemas.decision import DecisionAnswers
-from normative_conformance.schemas.decision import DecisionSnapshot
-from normative_conformance.schemas.decision import ObservationAnswers
-from normative_conformance.services.assessment.store_assessment import store_assessment
+from conversation_monitor.models.assessment import Assessment
+from conversation_monitor.models.assessment import AssessmentActionProbability
+from conversation_monitor.models.assessment import Classification
+from conversation_monitor.models.assessment import ClassificationBehaviorScore
+from conversation_monitor.models.assessment import ClassificationTopicScore
+from conversation_monitor.schemas.decision import DecisionAnswers
+from conversation_monitor.schemas.decision import DecisionSnapshot
+from conversation_monitor.schemas.decision import ObservationAnswers
+from conversation_monitor.services.assessment.store_assessment import store_assessment
 
 
 def test_stores_decisions_as_queryable_rows_without_committing():

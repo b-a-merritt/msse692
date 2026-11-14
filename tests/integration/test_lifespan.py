@@ -9,15 +9,15 @@ from fastapi.testclient import TestClient
 from sqlmodel import select
 from typesafe_sdk import TypeSafeClient
 
-from normative_conformance.config import Settings
-from normative_conformance.config import get_settings
-from normative_conformance.database import read_session
-from normative_conformance.models.observation import Observation
-from normative_conformance.services.scheduler.run_worker import run_worker
+from conversation_monitor.config import Settings
+from conversation_monitor.config import get_settings
+from conversation_monitor.database import read_session
+from conversation_monitor.models.observation import Observation
+from conversation_monitor.services.scheduler.run_worker import run_worker
 
 # Default ASGI construction must not load a developer's local dotenv file.
 with patch.dict(Settings.model_config, {"env_file": None}):
-    from normative_conformance.main import create_app
+    from conversation_monitor.main import create_app
 get_settings.cache_clear()
 
 

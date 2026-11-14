@@ -4,9 +4,9 @@ import httpx2
 from typesafe_sdk import RetryPolicy
 from typesafe_sdk import TypeSafeClient
 
-from normative_conformance.clients.jev import evaluate
-from normative_conformance.schemas.decision import DecisionSnapshot
-from normative_conformance.schemas.observation import ObservationInput
+from conversation_monitor.clients.jev import evaluate
+from conversation_monitor.schemas.decision import DecisionSnapshot
+from conversation_monitor.schemas.observation import ObservationInput
 
 
 def test_sdk_serializes_questions_and_decodes_actual_http_response():

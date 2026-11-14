@@ -2,8 +2,8 @@ import asyncio
 import json
 from uuid import UUID
 
-from normative_conformance.body_limit import MAX_BODY_BYTES
-from normative_conformance.body_limit import body_limit
+from conversation_monitor.body_limit import MAX_BODY_BYTES
+from conversation_monitor.body_limit import body_limit
 
 
 def http_scope():

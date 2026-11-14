@@ -5,12 +5,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from normative_conformance.schemas.assessment import Assessment
-from normative_conformance.schemas.assessment import ObservationDecision
-from normative_conformance.schemas.decision import PatternEvidence
-from normative_conformance.schemas.discovery import DiscoveredModel
+from conversation_monitor.schemas.assessment import Assessment
+from conversation_monitor.schemas.assessment import ObservationDecision
+from conversation_monitor.schemas.decision import PatternEvidence
+from conversation_monitor.schemas.discovery import DiscoveredModel
 
-module = import_module("normative_conformance.services.discovery.find_evidence")
+module = import_module("conversation_monitor.services.discovery.find_evidence")
 
 
 def _assessment(*, assessment_id, topics):

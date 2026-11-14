@@ -1,4 +1,4 @@
-from normative_conformance.services.discovery.discover_rules import discover_rules
+from conversation_monitor.services.discovery.discover_rules import discover_rules
 
 
 def test_requires_topics_that_came_before_every_undesired_behavior():

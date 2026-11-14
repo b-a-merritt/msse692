@@ -1,8 +1,8 @@
 from datetime import UTC
 from datetime import datetime
 
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.decision.turns import turns
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.decision.turns import turns
 
 
 def test_groups_consecutive_speech_from_one_speaker_in_time_order():

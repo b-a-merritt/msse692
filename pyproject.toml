@@ -1,5 +1,5 @@
 [project]
-name = "normative-conformance"
+name = "conversation-monitor"
 version = "0.1.0"
 description = "A small service to raise interventions for undesired behavior"
 readme = "README.md"
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-discover-model = "normative_conformance.commands.discover:discover"
+discover-model = "conversation_monitor.commands.discover:discover"
 
 [build-system]
 requires = ["uv_build>=0.12.7,<0.13.0"]
@@ -37,7 +37,7 @@ dev = [
 
 [tool.alembic]
 # The same location database.py resolves at runtime, as MIGRATIONS_LOCATION names it.
-script_location = "normative_conformance:migrations"
+script_location = "conversation_monitor:migrations"
 prepend_sys_path = ["src"]
 
 [tool.pytest.ini_options]
@@ -45,7 +45,7 @@ testpaths = ["tests/unit", "tests/integration"]
 addopts = ["--import-mode=importlib"]
 
 [tool.coverage.run]
-source = ["src/normative_conformance"]
+source = ["src/conversation_monitor"]
 branch = true
 
 [tool.coverage.report]

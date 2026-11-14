@@ -7,15 +7,15 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
-from normative_conformance.errors import ObservationExists
-from normative_conformance.errors import StorageUnavailable
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.case import TargetAssignment
-from normative_conformance.models.observation import Observation
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.case import target
+from conversation_monitor.errors import ObservationExists
+from conversation_monitor.errors import StorageUnavailable
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.case import TargetAssignment
+from conversation_monitor.models.observation import Observation
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.case import target
 
-module = import_module("normative_conformance.services.observation.ingest")
+module = import_module("conversation_monitor.services.observation.ingest")
 
 
 @pytest.mark.parametrize(
@@ -55,7 +55,7 @@ def test_assigns_receipt_sequence_and_commits(
     session.exec.return_value.first.return_value = None
     session.exec.return_value.one.return_value = last_sequence
     monkeypatch.setattr(
-        "normative_conformance.services.observation.stage_observation.speaker_labels",
+        "conversation_monitor.services.observation.stage_observation.speaker_labels",
         lambda **kwargs: ["A", "A", "B"],
     )
     order = []

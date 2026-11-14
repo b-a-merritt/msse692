@@ -6,11 +6,11 @@ from unittest.mock import Mock
 
 from sqlmodel import Session
 
-from normative_conformance import models
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.observation.load_case_speech import IngestedObservation
+from conversation_monitor import models
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.observation.load_case_speech import IngestedObservation
 
-module = import_module("normative_conformance.services.assessment.list_assessment_records")
+module = import_module("conversation_monitor.services.assessment.list_assessment_records")
 
 
 def ingested(*, sequence, observation_id, speaker_id, second):

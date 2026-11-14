@@ -18,7 +18,7 @@ Run from the repository root with writable local storage. Environment variables 
 | `DECISION_IDLE_SECONDS` | `20` | Positive time without new speech that ends a batch |
 | `DECISION_CONTEXT_SECONDS` | `30` | Nonnegative duration of earlier speech sent as context |
 | `DEBUG` | `false` | Framework debug mode |
-| `APP_NAME` | `normative-conformance` | Application title |
+| `APP_NAME` | `conversation-monitor` | Application title |
 
 Use a fresh database path for this disposable schema. Run one process per database; multiple workers sharing storage are unsupported.
 
@@ -28,7 +28,7 @@ Listen on localhost only. The server has no authentication, so listening on anot
 uv sync --locked --no-dev
 export APP_DB_PATH=data/research/app.sqlite3
 export LOG_DIR=data/research/logs
-uv run --no-dev uvicorn normative_conformance.main:app \
+uv run --no-dev uvicorn conversation_monitor.main:app \
   --host 127.0.0.1 --port 8000 --workers 1
 ```
 

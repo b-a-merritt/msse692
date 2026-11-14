@@ -3,9 +3,9 @@ from unittest.mock import Mock
 import pytest
 from sqlmodel import Session
 
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.case import TargetAssignment
-from normative_conformance.services.case import progress
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.case import TargetAssignment
+from conversation_monitor.services.case import progress
 
 
 @pytest.mark.parametrize(

@@ -11,9 +11,9 @@ from sqlalchemy import inspect
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session
 
-from normative_conformance import database
-from normative_conformance.errors import StorageUnavailable
-from normative_conformance.models import ConversationCase
+from conversation_monitor import database
+from conversation_monitor.errors import StorageUnavailable
+from conversation_monitor.models import ConversationCase
 
 
 def test_reopening_and_reinitializing_preserves_records(*, engine):
@@ -54,7 +54,7 @@ def _install_failing_migration(*, tmp_path, monkeypatch):
     """Copy the migrations and add one that fails after partial writes."""
     migration_dir = tmp_path / "migrations"
     copytree(
-        str(files("normative_conformance") / "migrations"),
+        str(files("conversation_monitor") / "migrations"),
         migration_dir,
         ignore=ignore_patterns("__pycache__"),
     )

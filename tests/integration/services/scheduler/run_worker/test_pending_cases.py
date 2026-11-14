@@ -1,7 +1,7 @@
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.case import TargetAssignment
-from normative_conformance.models.observation import Observation
-from normative_conformance.services.scheduler.run_worker.pending_cases import pending_cases
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.case import TargetAssignment
+from conversation_monitor.models.observation import Observation
+from conversation_monitor.services.scheduler.run_worker.pending_cases import pending_cases
 
 
 def test_only_resolved_cases_with_new_input_target_are_ready(engine, session):

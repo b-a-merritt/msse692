@@ -7,13 +7,13 @@ from datetime import UTC
 
 from sqlalchemy.exc import OperationalError
 
-from normative_conformance.logging import JsonFormatter
+from conversation_monitor.logging import JsonFormatter
 
 
 def test_records_are_single_line_json_with_typed_fields():
     record = logging.makeLogRecord(
         {
-            "name": "normative_conformance.test",
+            "name": "conversation_monitor.test",
             "levelname": "INFO",
             "msg": "Fixed message",
             "event": "test.event",
@@ -32,7 +32,7 @@ def test_records_are_single_line_json_with_typed_fields():
     assert json.loads(formatted) == {
         "timestamp": "1970-01-01T00:00:00.000000Z",
         "level": "INFO",
-        "logger": "normative_conformance.test",
+        "logger": "conversation_monitor.test",
         "message": "Fixed message",
         "run_id": "test-run",
         "event": "test.event",
@@ -67,7 +67,7 @@ def test_start_and_stop_manage_handlers_without_emitting_logs(*, monkeypatch):
     from unittest.mock import Mock
     from unittest.mock import call
 
-    from normative_conformance import logging as module
+    from conversation_monitor import logging as module
 
     directory = MagicMock(spec=Path)
     existing, fresh = Mock(spec=Path), Mock(spec=Path)

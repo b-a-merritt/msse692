@@ -4,10 +4,10 @@ from unittest.mock import Mock
 from typesafe_sdk import Noul
 from typesafe_sdk import TypeSafeClient
 
-from normative_conformance.clients import jev
-from normative_conformance.schemas.decision import DecisionSnapshot
-from normative_conformance.schemas.decision import PatternEvidence
-from normative_conformance.schemas.observation import ObservationInput
+from conversation_monitor.clients import jev
+from conversation_monitor.schemas.decision import DecisionSnapshot
+from conversation_monitor.schemas.decision import PatternEvidence
+from conversation_monitor.schemas.observation import ObservationInput
 
 
 def test_sends_snapshot_and_questions_then_reads_answers_and_returns_the_request(monkeypatch):

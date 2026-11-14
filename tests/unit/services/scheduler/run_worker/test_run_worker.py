@@ -4,7 +4,7 @@ from importlib import import_module
 from threading import Event
 from unittest.mock import Mock
 
-module = import_module("normative_conformance.services.scheduler.run_worker.run_worker")
+module = import_module("conversation_monitor.services.scheduler.run_worker.run_worker")
 
 
 def test_polls_each_ready_case_once_per_pass(monkeypatch):

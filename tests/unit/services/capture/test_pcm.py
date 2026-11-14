@@ -1,6 +1,6 @@
 import pytest
 
-from normative_conformance.services.capture.pcm import PCMBuffer
+from conversation_monitor.services.capture.pcm import PCMBuffer
 
 
 def test_repacketizes_without_changing_or_padding_samples():

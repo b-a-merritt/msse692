@@ -7,9 +7,9 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
-from normative_conformance.errors import StorageUnavailable
+from conversation_monitor.errors import StorageUnavailable
 
-module = import_module("normative_conformance.services.intervention.deliver_pending")
+module = import_module("conversation_monitor.services.intervention.deliver_pending")
 
 
 def test_returns_updated_records_only_after_commit(*, monkeypatch):

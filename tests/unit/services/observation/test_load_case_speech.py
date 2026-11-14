@@ -4,8 +4,8 @@ from unittest.mock import Mock
 
 from sqlmodel import Session
 
-from normative_conformance.models.observation import Observation
-from normative_conformance.services.observation.load_case_speech import load_case_speech
+from conversation_monitor.models.observation import Observation
+from conversation_monitor.services.observation.load_case_speech import load_case_speech
 
 
 def test_ingested_rows_keep_their_key_sequence_and_receipt_time():

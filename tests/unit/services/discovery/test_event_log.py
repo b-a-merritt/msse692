@@ -1,4 +1,4 @@
-from normative_conformance.services.discovery.event_log import event_log
+from conversation_monitor.services.discovery.event_log import event_log
 
 
 def test_keeps_each_trace_and_its_event_order():

@@ -3,9 +3,9 @@ import logging
 
 import pytest
 
-from normative_conformance.errors import CaptureFailure
-from normative_conformance.services.capture import forward_audio as module
-from normative_conformance.services.capture.levels import FrameLevel
+from conversation_monitor.errors import CaptureFailure
+from conversation_monitor.services.capture import forward_audio as module
+from conversation_monitor.services.capture.levels import FrameLevel
 
 
 class FakeTranscriber:

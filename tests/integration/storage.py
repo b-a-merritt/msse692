@@ -1,6 +1,6 @@
 """Persist explicitly constructed records without supplying scenario data."""
 
-from normative_conformance.database import write_session
+from conversation_monitor.database import write_session
 
 
 def persist(*, session, record):

@@ -2,10 +2,10 @@ from unittest.mock import Mock
 
 from sqlmodel import Session
 
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.case import TargetAssignment
-from normative_conformance.services.case import records
-from normative_conformance.services.case.list_cases import list_cases
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.case import TargetAssignment
+from conversation_monitor.services.case import records
+from conversation_monitor.services.case.list_cases import list_cases
 
 
 def test_reports_each_case_with_its_current_target(monkeypatch):

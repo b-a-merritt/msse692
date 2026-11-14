@@ -1,9 +1,9 @@
 from itertools import count
 
-from normative_conformance import models
-from normative_conformance.schemas.observation import ObservationRecord
-from normative_conformance.services.observation.list_observations import list_observations
-from normative_conformance.timestamps import from_microseconds
+from conversation_monitor import models
+from conversation_monitor.schemas.observation import ObservationRecord
+from conversation_monitor.services.observation.list_observations import list_observations
+from conversation_monitor.timestamps import from_microseconds
 
 from ...storage import persist
 

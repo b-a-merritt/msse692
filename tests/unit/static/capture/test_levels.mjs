@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { summarize } from "../../../../src/normative_conformance/static/capture/levels.js";
+import { summarize } from "../../../../src/conversation_monitor/static/capture/levels.js";
 
 test("summarizes frame levels with the arithmetic mean of dBFS values", () => {
   assert.deepEqual(

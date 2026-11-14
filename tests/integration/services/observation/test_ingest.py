@@ -11,13 +11,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 from sqlmodel import select
 
-from normative_conformance.database import write_session
-from normative_conformance.errors import ObservationExists
-from normative_conformance.errors import StorageUnavailable
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.observation import Observation
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.observation.ingest import ingest
+from conversation_monitor.database import write_session
+from conversation_monitor.errors import ObservationExists
+from conversation_monitor.errors import StorageUnavailable
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.observation import Observation
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.observation.ingest import ingest
 
 
 def test_commits_case_and_observation_with_exact_timestamps(*, engine):

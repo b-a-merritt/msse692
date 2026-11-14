@@ -3,7 +3,7 @@ from sqlalchemy import delete
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 
-from normative_conformance import models
+from conversation_monitor import models
 
 
 @pytest.mark.parametrize(

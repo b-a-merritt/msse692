@@ -5,7 +5,7 @@ from datetime import UTC
 import pytest
 from pydantic import ValidationError
 
-from normative_conformance.schemas.observation import ObservationInput
+from conversation_monitor.schemas.observation import ObservationInput
 
 
 @pytest.mark.parametrize("speaker_id", ["subject", "PENDING", "speaker-2", "A"])

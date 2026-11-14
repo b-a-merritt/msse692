@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from normative_conformance import config
+from conversation_monitor import config
 
 
 @pytest.mark.parametrize(

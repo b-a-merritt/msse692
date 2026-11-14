@@ -14,7 +14,7 @@ globalThis.document = {
 };
 let pagehide;
 globalThis.window = { addEventListener: (_, listener) => { pagehide = listener; } };
-await import("../../../src/normative_conformance/static/capture.js");
+await import("../../../src/conversation_monitor/static/capture.js");
 const element = (id) => elements.get(id);
 
 beforeEach(() => { resetBrowser(); element("target-order").value = "1"; });

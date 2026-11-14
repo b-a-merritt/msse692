@@ -3,11 +3,11 @@ from unittest.mock import Mock
 import pytest
 from sqlmodel import Session
 
-from normative_conformance.errors import NotFound
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.case import TargetAssignment
-from normative_conformance.services.case import get_case
-from normative_conformance.services.case import records
+from conversation_monitor.errors import NotFound
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.case import TargetAssignment
+from conversation_monitor.services.case import get_case
+from conversation_monitor.services.case import records
 
 
 def test_get_case_returns_stored_selection(monkeypatch):

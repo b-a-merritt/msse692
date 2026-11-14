@@ -3,9 +3,9 @@ from datetime import datetime
 
 import pytest
 
-from normative_conformance import models
-from normative_conformance.database import write_session
-from normative_conformance.timestamps import to_microseconds
+from conversation_monitor import models
+from conversation_monitor.database import write_session
+from conversation_monitor.timestamps import to_microseconds
 
 
 def _timestamp(value):

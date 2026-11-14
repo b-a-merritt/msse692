@@ -5,11 +5,11 @@ from importlib import import_module
 from pathlib import Path
 from unittest.mock import Mock
 
-from normative_conformance.config import Settings
-from normative_conformance.schemas.discovery import CaseTrace
-from normative_conformance.schemas.discovery import DiscoveredModel
+from conversation_monitor.config import Settings
+from conversation_monitor.schemas.discovery import CaseTrace
+from conversation_monitor.schemas.discovery import DiscoveredModel
 
-module = import_module("normative_conformance.commands.discover")
+module = import_module("conversation_monitor.commands.discover")
 
 
 def _patch_storage(*, monkeypatch, traces):

@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import quote
 from urllib.request import urlopen
 
-from normative_conformance.schemas.observation import ObservationInput
+from conversation_monitor.schemas.observation import ObservationInput
 
 
 def main() -> None:

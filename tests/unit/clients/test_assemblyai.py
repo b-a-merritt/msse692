@@ -10,13 +10,13 @@ from websockets.exceptions import ConnectionClosedError
 from websockets.exceptions import InvalidStatus
 from websockets.http11 import Response
 
-from normative_conformance.clients import assemblyai as module
-from normative_conformance.errors import CaptureFailure
-from normative_conformance.services.capture.transcriber import SpeakerRevised
-from normative_conformance.services.capture.transcriber import SpeechStarted
-from normative_conformance.services.capture.transcriber import TurnRevision
-from normative_conformance.services.capture.transcriber import TurnUpdate
-from normative_conformance.services.capture.transcriber import Word
+from conversation_monitor.clients import assemblyai as module
+from conversation_monitor.errors import CaptureFailure
+from conversation_monitor.services.capture.transcriber import SpeakerRevised
+from conversation_monitor.services.capture.transcriber import SpeechStarted
+from conversation_monitor.services.capture.transcriber import TurnRevision
+from conversation_monitor.services.capture.transcriber import TurnUpdate
+from conversation_monitor.services.capture.transcriber import Word
 
 BEGIN = '{"type":"Begin","id":"session-123"}'
 

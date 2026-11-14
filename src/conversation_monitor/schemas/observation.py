@@ -1,0 +1,50 @@
+from datetime import UTC
+from datetime import datetime
+
+from pydantic import AwareDatetime
+from pydantic import Field
+from pydantic import field_validator
+from pydantic import model_validator
+
+from conversation_monitor.schemas.common import ContractModel
+from conversation_monitor.schemas.common import Identifier
+
+# About 20 minutes of uninterrupted speech from one speaker.
+TRANSCRIPT_MAX_LENGTH = 20_000
+
+
+class ObservationInput(ContractModel):
+    case_id: Identifier
+    observation_id: Identifier
+    speaker_id: Identifier
+    start_at: AwareDatetime
+    end_at: AwareDatetime
+    transcript: str = Field(strict=True, max_length=TRANSCRIPT_MAX_LENGTH, pattern=r"\S")
+    signal_level_min: float = Field(strict=True, ge=-120, le=0)
+    signal_level_avg: float = Field(strict=True, ge=-120, le=0)
+    signal_level_max: float = Field(strict=True, ge=-120, le=0)
+
+    @field_validator("start_at", "end_at")
+    @classmethod
+    def normalize_timestamp(cls, value: datetime) -> datetime:
+        return value.astimezone(UTC)
+
+    @model_validator(mode="after")
+    def validate_chunk(self) -> "ObservationInput":
+        if self.end_at <= self.start_at:
+            raise ValueError("End time must be after start time")
+        if not self.signal_level_min <= self.signal_level_avg <= self.signal_level_max:
+            raise ValueError("Signal levels must satisfy minimum <= average <= maximum")
+        return self
+
+
+class ObservationRecord(ObservationInput):
+    received_at: AwareDatetime
+    sequence: int = Field(strict=True, ge=1)
+
+
+class ObservationReplacement(ContractModel):
+    """Regrouped speech linked to the original observations for one turn."""
+
+    replaced_observation_ids: list[str]
+    observations: list[ObservationInput]

@@ -6,7 +6,7 @@ from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
-from normative_conformance import models
+from conversation_monitor import models
 
 
 def test_observation_round_trip(*, session):

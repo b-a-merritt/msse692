@@ -6,7 +6,7 @@ import pytest
 from fastapi import Request
 from fastapi import Response
 
-from normative_conformance.middleware import response_metadata
+from conversation_monitor.middleware import response_metadata
 
 
 def test_metadata_assigns_server_identity_and_headers():

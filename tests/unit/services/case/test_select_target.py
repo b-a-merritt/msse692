@@ -6,13 +6,13 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
-from normative_conformance.errors import StorageUnavailable
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.case import TargetAssignment
-from normative_conformance.schemas.case import TargetSelection
-from normative_conformance.services.case import records
-from normative_conformance.services.case import select_target
-from normative_conformance.services.case import target
+from conversation_monitor.errors import StorageUnavailable
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.case import TargetAssignment
+from conversation_monitor.schemas.case import TargetSelection
+from conversation_monitor.services.case import records
+from conversation_monitor.services.case import select_target
+from conversation_monitor.services.case import target
 
 
 @pytest.mark.parametrize(

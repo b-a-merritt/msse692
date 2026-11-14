@@ -8,10 +8,10 @@ from fastapi import WebSocketException
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.requests import HTTPConnection
 
-from normative_conformance.errors import ForeignRequest
-from normative_conformance.errors import NotReady
-from normative_conformance.errors import StorageUnavailable
-from normative_conformance.routes import dependencies
+from conversation_monitor.errors import ForeignRequest
+from conversation_monitor.errors import NotReady
+from conversation_monitor.errors import StorageUnavailable
+from conversation_monitor.routes import dependencies
 
 
 @pytest.mark.parametrize(

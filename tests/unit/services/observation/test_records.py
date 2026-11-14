@@ -1,5 +1,5 @@
-from normative_conformance.models.observation import Observation
-from normative_conformance.services.observation.records import to_record
+from conversation_monitor.models.observation import Observation
+from conversation_monitor.services.observation.records import to_record
 
 
 def test_records_convert_microseconds_to_utc_and_preserve_evidence():

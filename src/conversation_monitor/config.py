@@ -1,0 +1,29 @@
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings
+from pydantic_settings import SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
+    app_name: str = "conversation-monitor"
+    assembly_api_key: str = ""
+    type_safe_api_key: str = ""
+    debug: bool = False
+    app_db_path: Path = Path("data/prototype.sqlite3")
+    log_dir: Path = Path("data/logs")
+    allowed_hosts: list[str] = ["localhost", "127.0.0.1", "::1"]
+    capture_max_seconds: int = Field(default=3600, gt=0)
+    capture_max_connections: int = Field(default=2, gt=0)
+    decision_max_batch_seconds: int = Field(default=60, gt=0)
+    decision_max_batch_turns: int = Field(default=3, gt=0)
+    decision_idle_seconds: int = Field(default=20, gt=0)
+    decision_context_seconds: int = Field(default=30, ge=0)
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

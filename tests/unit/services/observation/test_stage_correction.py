@@ -2,8 +2,8 @@ from unittest.mock import Mock
 
 from sqlmodel import Session
 
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.observation.stage_correction import stage_correction
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.observation.stage_correction import stage_correction
 
 
 def test_adds_revised_speech_without_a_sequence_or_commit():

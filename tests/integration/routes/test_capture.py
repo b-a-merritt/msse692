@@ -11,11 +11,11 @@ from sqlmodel import select
 from starlette.websockets import WebSocketDisconnect
 from websockets.sync.server import serve
 
-from normative_conformance.clients import assemblyai as module
-from normative_conformance.database import read_session
-from normative_conformance.models.observation import Observation
-from normative_conformance.models.speaker_revision import ReplacedObservation
-from normative_conformance.timestamps import to_microseconds
+from conversation_monitor.clients import assemblyai as module
+from conversation_monitor.database import read_session
+from conversation_monitor.models.observation import Observation
+from conversation_monitor.models.speaker_revision import ReplacedObservation
+from conversation_monitor.timestamps import to_microseconds
 
 
 @contextmanager

@@ -10,9 +10,9 @@ from sqlalchemy.exc import OperationalError
 from sqlmodel import Session
 from sqlmodel import select
 
-from normative_conformance.models.assessment import Assessment
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.observation import Observation
+from conversation_monitor.models.assessment import Assessment
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.observation import Observation
 
 
 def test_ingestion_returns_committed_observation(*, open_client):

@@ -7,10 +7,10 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.schemas.observation import ObservationInput
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.schemas.observation import ObservationInput
 
-module = import_module("normative_conformance.services.observation.stage_observation")
+module = import_module("conversation_monitor.services.observation.stage_observation")
 
 
 def test_staging_leaves_transaction_to_caller(monkeypatch):

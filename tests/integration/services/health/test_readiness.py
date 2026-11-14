@@ -6,8 +6,8 @@ from unittest.mock import Mock
 import pytest
 from sqlalchemy.exc import OperationalError
 
-from normative_conformance.errors import NotReady
-from normative_conformance.services.health.readiness import readiness
+from conversation_monitor.errors import NotReady
+from conversation_monitor.services.health.readiness import readiness
 
 
 def test_running_worker_and_database_are_ready(*, session):

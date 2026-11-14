@@ -5,8 +5,8 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
-from normative_conformance.errors import NotReady
-from normative_conformance.services.health.readiness import readiness
+from conversation_monitor.errors import NotReady
+from conversation_monitor.services.health.readiness import readiness
 
 
 @pytest.mark.parametrize("stopped,alive", [(True, True), (False, False)])

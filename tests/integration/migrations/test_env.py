@@ -6,7 +6,7 @@ from alembic.runtime.environment import EnvironmentContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import inspect
 
-from normative_conformance.database import MIGRATIONS_LOCATION
+from conversation_monitor.database import MIGRATIONS_LOCATION
 
 
 def test_requires_a_supplied_connection():
@@ -21,7 +21,7 @@ def test_requires_a_supplied_connection():
         scripts.run_env()
 
     assert str(caught.value) == (
-        "Migrations run through normative_conformance.database.initialize_database, "
+        "Migrations run through conversation_monitor.database.initialize_database, "
         "which the application calls at startup. Use alembic to list revisions"
     )
 

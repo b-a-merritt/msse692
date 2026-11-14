@@ -1,13 +1,13 @@
 from unittest.mock import Mock
 from unittest.mock import patch
 
-from normative_conformance.config import Settings
-from normative_conformance.config import get_settings
+from conversation_monitor.config import Settings
+from conversation_monitor.config import get_settings
 
 # Importing main builds the default ASGI object. Disable dotenv reads during that
 # import; no application lifespan or HTTP client is started by these tests.
 with patch.dict(Settings.model_config, {"env_file": None}):
-    from normative_conformance import main
+    from conversation_monitor import main
 get_settings.cache_clear()
 
 

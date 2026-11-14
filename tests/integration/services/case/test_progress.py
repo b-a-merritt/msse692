@@ -1,8 +1,8 @@
 import pytest
 
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.case import TargetAssignment
-from normative_conformance.services.case.progress import read_handled_through
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.case import TargetAssignment
+from conversation_monitor.services.case.progress import read_handled_through
 
 
 @pytest.mark.parametrize(

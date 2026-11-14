@@ -10,8 +10,8 @@ from sqlalchemy import Engine
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session
 
-from normative_conformance import database
-from normative_conformance.errors import StorageUnavailable
+from conversation_monitor import database
+from conversation_monitor.errors import StorageUnavailable
 
 
 def test_connection_configuration_closes_cursor_on_failure():

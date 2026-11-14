@@ -10,7 +10,7 @@ globalThis.registerProcessor = (name, implementation) => {
   assert.equal(name, "pcm-capture");
   Processor = implementation;
 };
-await import("../../../src/normative_conformance/static/pcm-worklet.js");
+await import("../../../src/conversation_monitor/static/pcm-worklet.js");
 
 test("emits 100 ms PCM16 packets across render quanta and flushes the exact tail", () => {
   const processor = new Processor();

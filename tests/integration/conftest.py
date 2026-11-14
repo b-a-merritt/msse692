@@ -3,8 +3,8 @@
 import pytest
 from sqlmodel import Session
 
-from normative_conformance.database import create_database_engine
-from normative_conformance.database import initialize_database
+from conversation_monitor.database import create_database_engine
+from conversation_monitor.database import initialize_database
 
 
 @pytest.fixture

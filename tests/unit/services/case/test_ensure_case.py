@@ -2,9 +2,9 @@ from unittest.mock import Mock
 
 from sqlmodel import Session
 
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.services.case import records
-from normative_conformance.services.case.ensure_case import ensure_case
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.services.case import records
+from conversation_monitor.services.case.ensure_case import ensure_case
 
 
 def test_existing_case_is_returned_unchanged(monkeypatch):

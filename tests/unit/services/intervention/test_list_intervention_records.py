@@ -5,9 +5,9 @@ from unittest.mock import Mock
 
 from sqlmodel import Session
 
-from normative_conformance.models.intervention import Intervention
+from conversation_monitor.models.intervention import Intervention
 
-module = import_module("normative_conformance.services.intervention.list_intervention_records")
+module = import_module("conversation_monitor.services.intervention.list_intervention_records")
 
 
 def test_converts_delivery_status_and_source_assessment(*, monkeypatch):

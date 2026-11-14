@@ -1,0 +1,154 @@
+import logging
+
+from sqlalchemy import Engine
+from typesafe_sdk import TypeSafeBadRequestError
+from typesafe_sdk import TypeSafeClient
+from typesafe_sdk import TypeSafeUnprocessableEntityError
+
+from conversation_monitor.clients import jev
+from conversation_monitor.database import read_session
+from conversation_monitor.database import write_session
+from conversation_monitor.schemas.decision import DecisionAnswers
+from conversation_monitor.schemas.decision import DecisionSnapshot
+from conversation_monitor.schemas.internal import Clock
+from conversation_monitor.services.assessment.store_assessment import store_assessment
+from conversation_monitor.services.case.get_case import get_case
+from conversation_monitor.services.case.progress import mark_handled
+from conversation_monitor.services.case.progress import read_handled_through
+from conversation_monitor.services.decision.batch import batch_end
+from conversation_monitor.services.decision.context import build_snapshot
+from conversation_monitor.services.discovery.find_evidence import find_evidence
+from conversation_monitor.services.intervention.create_intervention import create_intervention
+from conversation_monitor.services.observation.load_case_speech import load_case_speech
+from conversation_monitor.timestamps import to_microseconds
+
+logger = logging.getLogger(__name__)
+
+
+def process_case(
+    *,
+    case_id: str,
+    max_batch_seconds: int,
+    max_batch_turns: int,
+    idle_seconds: int,
+    context_seconds: int,
+    engine: Engine,
+    now: Clock,
+    client: TypeSafeClient,
+) -> int | None:
+    """Assess the next closed batch, then commit its decisions and progress atomically.
+
+    A batch the provider rejects would fail on every retry, so it is skipped. Other failures
+    leave progress unchanged for the next poll to retry.
+    """
+    with read_session(engine=engine) as session:
+        case = get_case(case_id=case_id, session=session)
+        if case.target_speaker_id is None:
+            return None
+        after_sequence = read_handled_through(case_id=case_id, session=session)
+        speech = load_case_speech(case_id=case_id, session=session)
+
+    captured_at = now()
+    through_sequence = batch_end(
+        ingested=speech,
+        target_speaker_id=case.target_speaker_id,
+        after_sequence=after_sequence,
+        max_seconds=max_batch_seconds,
+        max_turns=max_batch_turns,
+        idle_seconds=idle_seconds,
+        now=captured_at,
+    )
+
+    if through_sequence is None:
+        return None
+
+    snapshot = build_snapshot(
+        case_id=case_id,
+        target_speaker_id=case.target_speaker_id,
+        target_revision=case.target_revision,
+        ingested=speech,
+        after_sequence=after_sequence,
+        through_sequence=through_sequence,
+        context_seconds=context_seconds,
+        captured_at=captured_at,
+    )
+    # Checked only once a batch closes, not on every poll of an open batch.
+    with read_session(engine=engine) as session:
+        evidence = find_evidence(
+            case_id=case_id, target_revision=case.target_revision, session=session
+        )
+    # The provider runs outside both database transactions; the input is already fixed.
+    try:
+        answers, request_json = jev.evaluate(
+            snapshot=snapshot,
+            evidence=evidence,
+            client=client,
+        )
+    except (TypeSafeBadRequestError, TypeSafeUnprocessableEntityError) as error:
+        _skip_rejected(snapshot=snapshot, status=error.status, engine=engine)
+        return None
+
+    return _save(
+        snapshot=snapshot,
+        answers=answers,
+        request_json=request_json,
+        observation_keys={row.observation.observation_id: row.observation_key for row in speech},
+        engine=engine,
+        now=now,
+    )
+
+
+def _skip_rejected(*, snapshot: DecisionSnapshot, status: int, engine: Engine) -> None:
+    logger.warning(
+        "Batch rejected",
+        extra={
+            "event": "batch.rejected",
+            "case_id": snapshot.case_id,
+            "after_sequence": snapshot.after_sequence,
+            "through_sequence": snapshot.through_sequence,
+            "status": status,
+        },
+    )
+    with write_session(engine=engine) as session:
+        mark_handled(
+            case_id=snapshot.case_id,
+            target_revision=snapshot.target_revision,
+            through_sequence=snapshot.through_sequence,
+            session=session,
+        )
+        session.commit()
+
+
+def _save(
+    *,
+    snapshot: DecisionSnapshot,
+    answers: DecisionAnswers,
+    request_json: str,
+    observation_keys: dict[str, int],
+    engine: Engine,
+    now: Clock,
+) -> int:
+    with write_session(engine=engine) as session:
+        completed_at_us = to_microseconds(value=now())
+        assessment_id = store_assessment(
+            session=session,
+            snapshot=snapshot,
+            answers=answers,
+            request_json=request_json,
+            observation_keys=observation_keys,
+            completed_at_us=completed_at_us,
+        )
+        create_intervention(
+            assessment_id=assessment_id,
+            created_at_us=completed_at_us,
+            answers=answers,
+            session=session,
+        )
+        mark_handled(
+            case_id=snapshot.case_id,
+            target_revision=snapshot.target_revision,
+            through_sequence=snapshot.through_sequence,
+            session=session,
+        )
+        session.commit()
+    return assessment_id

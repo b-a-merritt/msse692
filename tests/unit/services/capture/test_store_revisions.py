@@ -7,12 +7,12 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
-from normative_conformance.errors import CaptureFailure
-from normative_conformance.models.speaker_revision import ReplacedObservation
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.schemas.observation import ObservationReplacement
-from normative_conformance.services.capture import store_revisions as module
-from normative_conformance.services.observation.load_case_speech import IngestedObservation
+from conversation_monitor.errors import CaptureFailure
+from conversation_monitor.models.speaker_revision import ReplacedObservation
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.schemas.observation import ObservationReplacement
+from conversation_monitor.services.capture import store_revisions as module
+from conversation_monitor.services.observation.load_case_speech import IngestedObservation
 
 
 def test_stores_each_replacement_as_a_revision_with_its_corrected_speech(monkeypatch):

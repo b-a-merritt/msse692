@@ -8,12 +8,12 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
-from normative_conformance.config import Settings
-from normative_conformance.config import get_settings
+from conversation_monitor.config import Settings
+from conversation_monitor.config import get_settings
 
 # Default ASGI construction must not load a developer's local dotenv file.
 with patch.dict(Settings.model_config, {"env_file": None}):
-    from normative_conformance.main import create_app
+    from conversation_monitor.main import create_app
 get_settings.cache_clear()
 
 

@@ -3,9 +3,9 @@ from datetime import datetime
 
 import pytest
 
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.decision.batch import batch_end
-from normative_conformance.services.observation.load_case_speech import IngestedObservation
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.decision.batch import batch_end
+from conversation_monitor.services.observation.load_case_speech import IngestedObservation
 
 
 def _ingested(*, sequence, speaker_id, start_second, end_second):

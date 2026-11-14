@@ -3,11 +3,11 @@ from unittest.mock import Mock
 import pytest
 from sqlmodel import Session
 
-from normative_conformance.models.case import TargetAssignment
-from normative_conformance.services.case import target
-from normative_conformance.services.case.target import refresh_target
-from normative_conformance.services.case.target import resolve_speaker_order
-from normative_conformance.services.case.target import set_target_label
+from conversation_monitor.models.case import TargetAssignment
+from conversation_monitor.services.case import target
+from conversation_monitor.services.case.target import refresh_target
+from conversation_monitor.services.case.target import resolve_speaker_order
+from conversation_monitor.services.case.target import set_target_label
 
 
 @pytest.mark.parametrize(

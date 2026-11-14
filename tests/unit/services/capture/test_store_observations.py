@@ -7,9 +7,9 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session
 
-from normative_conformance.errors import CaptureFailure
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.capture import store_observations as module
+from conversation_monitor.errors import CaptureFailure
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.capture import store_observations as module
 
 
 def test_commits_whole_turn(monkeypatch):

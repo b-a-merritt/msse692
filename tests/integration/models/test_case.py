@@ -5,8 +5,8 @@ from sqlalchemy import delete
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.case import TargetAssignment
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.case import TargetAssignment
 
 
 def test_case_and_target_assignment_round_trip(session):

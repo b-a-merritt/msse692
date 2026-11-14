@@ -5,12 +5,12 @@ from typesafe_sdk import Choice
 from typesafe_sdk import Noul
 from typesafe_sdk import Score
 
-from normative_conformance.schemas.decision import DecisionSnapshot
-from normative_conformance.schemas.decision import PatternEvidence
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.decision.questions import build_questions
-from normative_conformance.services.decision.wording import ACTIONS
-from normative_conformance.services.decision.wording import INTERVENE_WITH_EVIDENCE
+from conversation_monitor.schemas.decision import DecisionSnapshot
+from conversation_monitor.schemas.decision import PatternEvidence
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.decision.questions import build_questions
+from conversation_monitor.services.decision.wording import ACTIONS
+from conversation_monitor.services.decision.wording import INTERVENE_WITH_EVIDENCE
 
 
 def test_questions_reference_explicit_rows_and_classify_only_new_turns():

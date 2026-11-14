@@ -3,9 +3,9 @@ from datetime import datetime
 
 import pytest
 
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.decision.context import build_snapshot
-from normative_conformance.services.observation.load_case_speech import IngestedObservation
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.decision.context import build_snapshot
+from conversation_monitor.services.observation.load_case_speech import IngestedObservation
 
 
 def _ingested(*, observation_id, sequence, start_second, end_second):

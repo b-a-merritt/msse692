@@ -4,14 +4,14 @@ from datetime import datetime
 import pytest
 from sqlmodel import select
 
-from normative_conformance.database import read_session
-from normative_conformance.database import write_session
-from normative_conformance.errors import CaptureFailure
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.observation import Observation
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.capture.store_observations import store_observations
-from normative_conformance.services.case.target import current_assignment
+from conversation_monitor.database import read_session
+from conversation_monitor.database import write_session
+from conversation_monitor.errors import CaptureFailure
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.observation import Observation
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.capture.store_observations import store_observations
+from conversation_monitor.services.case.target import current_assignment
 
 
 def test_turn_is_committed_in_order_and_resolves_target(engine):

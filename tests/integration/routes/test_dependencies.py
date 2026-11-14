@@ -8,8 +8,8 @@ from sqlmodel import Session
 from sqlmodel import select
 from starlette.websockets import WebSocketDisconnect
 
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.observation import Observation
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.observation import Observation
 
 
 def test_foreign_host_cannot_read_stored_speech(*, open_client):

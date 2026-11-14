@@ -7,14 +7,14 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from normative_conformance.errors import CaptureFailure
-from normative_conformance.services.capture import record_transcripts as module
-from normative_conformance.services.capture.levels import FrameLevel
-from normative_conformance.services.capture.observations import build_observations
-from normative_conformance.services.capture.transcriber import SpeakerRevised
-from normative_conformance.services.capture.transcriber import TurnRevision
-from normative_conformance.services.capture.transcriber import TurnUpdate
-from normative_conformance.services.capture.transcriber import Word
+from conversation_monitor.errors import CaptureFailure
+from conversation_monitor.services.capture import record_transcripts as module
+from conversation_monitor.services.capture.levels import FrameLevel
+from conversation_monitor.services.capture.observations import build_observations
+from conversation_monitor.services.capture.transcriber import SpeakerRevised
+from conversation_monitor.services.capture.transcriber import TurnRevision
+from conversation_monitor.services.capture.transcriber import TurnUpdate
+from conversation_monitor.services.capture.transcriber import Word
 
 
 class FakeTranscriber:

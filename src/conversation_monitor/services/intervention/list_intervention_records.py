@@ -1,0 +1,42 @@
+from sqlmodel import Session
+
+from conversation_monitor.schemas.internal import Clock
+from conversation_monitor.schemas.intervention import Intervention
+from conversation_monitor.schemas.intervention import InterventionStatus
+from conversation_monitor.services.intervention.list_interventions import list_interventions
+from conversation_monitor.timestamps import from_microseconds
+
+
+def list_intervention_records(
+    *,
+    session: Session,
+    case_id: str | None = None,
+    status: InterventionStatus | None = None,
+    intervention_ids: list[int] | None = None,
+    now: Clock,
+) -> list[Intervention]:
+    """Build API records from stored interventions and their source assessments."""
+    records = []
+    for row, row_case_id, speaker_id, row_status in list_interventions(
+        session=session,
+        case_id=case_id,
+        status=status,
+        intervention_ids=intervention_ids,
+        now=now,
+    ):
+        assert row.intervention_id is not None and speaker_id is not None
+        records.append(
+            Intervention(
+                intervention_id=row.intervention_id,
+                case_id=row_case_id,
+                target_speaker_id=speaker_id,
+                assessment_id=row.assessment_id,
+                message=row.message,
+                created_at=from_microseconds(value=row.created_at_us),
+                status=row_status,
+                sent_at=(
+                    from_microseconds(value=row.sent_at_us) if row.sent_at_us is not None else None
+                ),
+            )
+        )
+    return records

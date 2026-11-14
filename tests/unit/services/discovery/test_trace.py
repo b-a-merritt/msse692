@@ -3,10 +3,10 @@ from datetime import datetime
 
 import pytest
 
-from normative_conformance.schemas.assessment import Assessment
-from normative_conformance.schemas.assessment import ObservationDecision
-from normative_conformance.schemas.discovery import CaseTrace
-from normative_conformance.services.discovery.trace import trace
+from conversation_monitor.schemas.assessment import Assessment
+from conversation_monitor.schemas.assessment import ObservationDecision
+from conversation_monitor.schemas.discovery import CaseTrace
+from conversation_monitor.services.discovery.trace import trace
 
 
 def _assessment(*, assessment_id, target_revision, turns):

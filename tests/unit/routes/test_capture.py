@@ -8,10 +8,10 @@ from unittest.mock import Mock
 import pytest
 from fastapi import WebSocketDisconnect
 
-from normative_conformance.clients import assemblyai
-from normative_conformance.errors import CaptureFailure
-from normative_conformance.routes import capture
-from normative_conformance.schemas.capture import CaptureErrorCode
+from conversation_monitor.clients import assemblyai
+from conversation_monitor.errors import CaptureFailure
+from conversation_monitor.routes import capture
+from conversation_monitor.schemas.capture import CaptureErrorCode
 
 
 def test_page_and_script_responses_use_packaged_assets(monkeypatch):

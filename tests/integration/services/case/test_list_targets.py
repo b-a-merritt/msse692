@@ -1,8 +1,8 @@
 """Each of a case's target revisions maps to its speaker label."""
 
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.case import TargetAssignment
-from normative_conformance.services.case.list_targets import list_targets
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.case import TargetAssignment
+from conversation_monitor.services.case.list_targets import list_targets
 
 
 def test_maps_each_revision_of_the_case_to_its_label(session):

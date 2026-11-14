@@ -17,27 +17,25 @@ from typesafe_sdk import TypeSafeClient
 from typesafe_sdk import TypeSafeInternalServerError
 from typesafe_sdk import TypeSafeRateLimitError
 
-from normative_conformance.database import create_database_engine
-from normative_conformance.database import read_session
-from normative_conformance.database import write_session
-from normative_conformance.models.assessment import Assessment
-from normative_conformance.models.assessment import Classification
-from normative_conformance.models.assessment import ClassificationTopicScore
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.case import TargetAssignment
-from normative_conformance.models.intervention import Intervention
-from normative_conformance.models.normative_model import NormativeModel
-from normative_conformance.models.normative_model import NormativeModelTopic
-from normative_conformance.models.observation import Observation
-from normative_conformance.models.speaker_revision import ReplacedObservation
-from normative_conformance.models.speaker_revision import SpeakerRevision
-from normative_conformance.schemas.decision import DecisionAnswers
-from normative_conformance.schemas.decision import ObservationAnswers
-from normative_conformance.services.assessment.list_assessment_records import (
-    list_assessment_records,
-)
+from conversation_monitor.database import create_database_engine
+from conversation_monitor.database import read_session
+from conversation_monitor.database import write_session
+from conversation_monitor.models.assessment import Assessment
+from conversation_monitor.models.assessment import Classification
+from conversation_monitor.models.assessment import ClassificationTopicScore
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.case import TargetAssignment
+from conversation_monitor.models.intervention import Intervention
+from conversation_monitor.models.normative_model import NormativeModel
+from conversation_monitor.models.normative_model import NormativeModelTopic
+from conversation_monitor.models.observation import Observation
+from conversation_monitor.models.speaker_revision import ReplacedObservation
+from conversation_monitor.models.speaker_revision import SpeakerRevision
+from conversation_monitor.schemas.decision import DecisionAnswers
+from conversation_monitor.schemas.decision import ObservationAnswers
+from conversation_monitor.services.assessment.list_assessment_records import list_assessment_records
 
-module = import_module("normative_conformance.services.scheduler.run_worker.process_case")
+module = import_module("conversation_monitor.services.scheduler.run_worker.process_case")
 
 
 @pytest.mark.parametrize(

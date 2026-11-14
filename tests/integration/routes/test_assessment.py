@@ -3,12 +3,12 @@ from datetime import datetime
 
 from sqlmodel import select
 
-from normative_conformance.database import write_session
-from normative_conformance.models.assessment import Assessment
-from normative_conformance.models.assessment import AssessmentActionProbability
-from normative_conformance.models.assessment import Classification
-from normative_conformance.models.assessment import ClassificationTopicScore
-from normative_conformance.models.observation import Observation
+from conversation_monitor.database import write_session
+from conversation_monitor.models.assessment import Assessment
+from conversation_monitor.models.assessment import AssessmentActionProbability
+from conversation_monitor.models.assessment import Classification
+from conversation_monitor.models.assessment import ClassificationTopicScore
+from conversation_monitor.models.observation import Observation
 
 
 def test_lists_structured_decisions_for_the_requested_case(open_client):

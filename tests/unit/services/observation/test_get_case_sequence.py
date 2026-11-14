@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 from sqlmodel import Session
 
-from normative_conformance.services.observation.get_case_sequence import get_case_sequence
+from conversation_monitor.services.observation.get_case_sequence import get_case_sequence
 
 
 @pytest.mark.parametrize("stored,expected", [(None, 0), (7, 7)])

@@ -3,9 +3,9 @@
 from datetime import UTC
 from datetime import datetime
 
-from normative_conformance import models
-from normative_conformance.schemas.discovery import DiscoveredModel
-from normative_conformance.services.model.newest_model import newest_model
+from conversation_monitor import models
+from conversation_monitor.schemas.discovery import DiscoveredModel
+from conversation_monitor.services.model.newest_model import newest_model
 
 
 def test_no_model_before_discovery(session):

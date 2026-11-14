@@ -147,7 +147,7 @@ def _replay(job: _Job, args: argparse.Namespace) -> None:
                 sys.executable,
                 "-m",
                 "uvicorn",
-                "normative_conformance.main:app",
+                "conversation_monitor.main:app",
                 "--host",
                 "127.0.0.1",
                 "--port",

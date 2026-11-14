@@ -5,12 +5,12 @@ from datetime import datetime
 
 from sqlmodel import select
 
-from normative_conformance.database import read_session
-from normative_conformance.database import write_session
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.observation import Observation
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.observation.stage_observation import stage_observation
+from conversation_monitor.database import read_session
+from conversation_monitor.database import write_session
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.observation import Observation
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.observation.stage_observation import stage_observation
 
 
 def test_staged_observations_and_new_case_commit_together(engine):

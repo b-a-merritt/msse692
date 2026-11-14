@@ -1,6 +1,6 @@
 import pytest
 
-from normative_conformance.services.assessment.report_observation import report_observation
+from conversation_monitor.services.assessment.report_observation import report_observation
 
 
 @pytest.mark.parametrize(

@@ -5,12 +5,12 @@ from unittest.mock import Mock
 
 from sqlmodel import Session
 
-from normative_conformance.schemas.assessment import Assessment
-from normative_conformance.schemas.assessment import ObservationDecision
-from normative_conformance.schemas.case import CaseRecord
-from normative_conformance.schemas.discovery import CaseTrace
+from conversation_monitor.schemas.assessment import Assessment
+from conversation_monitor.schemas.assessment import ObservationDecision
+from conversation_monitor.schemas.case import CaseRecord
+from conversation_monitor.schemas.discovery import CaseTrace
 
-module = import_module("normative_conformance.services.discovery.load_traces")
+module = import_module("conversation_monitor.services.discovery.load_traces")
 
 
 def _assessment(*, assessment_id, target_revision, topics):

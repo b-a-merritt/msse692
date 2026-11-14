@@ -2,8 +2,8 @@ import pytest
 from sqlmodel import col
 from sqlmodel import select
 
-from normative_conformance import models
-from normative_conformance.services.intervention.is_pending import is_pending
+from conversation_monitor import models
+from conversation_monitor.services.intervention.is_pending import is_pending
 
 
 def _assessment(*, target_revision, after_sequence, through_sequence, action):

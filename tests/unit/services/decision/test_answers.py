@@ -3,10 +3,10 @@ from typesafe_sdk import Noul
 from typesafe_sdk import Score
 from typesafe_sdk import SystemOneResponse
 
-from normative_conformance.schemas.decision import DecisionSnapshot
-from normative_conformance.schemas.decision import ObservationAnswers
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.decision import answers as module
+from conversation_monitor.schemas.decision import DecisionSnapshot
+from conversation_monitor.schemas.decision import ObservationAnswers
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.decision import answers as module
 
 
 def test_reads_raw_answers_for_only_the_questions_that_were_asked(monkeypatch):

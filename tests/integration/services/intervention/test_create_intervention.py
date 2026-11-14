@@ -1,10 +1,10 @@
 from sqlmodel import select
 
-from normative_conformance import models
-from normative_conformance.schemas.decision import DecisionAnswers
-from normative_conformance.schemas.decision import ObservationAnswers
-from normative_conformance.services.intervention.create_intervention import MESSAGES
-from normative_conformance.services.intervention.create_intervention import create_intervention
+from conversation_monitor import models
+from conversation_monitor.schemas.decision import DecisionAnswers
+from conversation_monitor.schemas.decision import ObservationAnswers
+from conversation_monitor.services.intervention.create_intervention import MESSAGES
+from conversation_monitor.services.intervention.create_intervention import create_intervention
 
 
 def test_intervene_assessment_stores_an_eligible_pending_intervention(*, session):

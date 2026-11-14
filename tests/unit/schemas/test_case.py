@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from normative_conformance.schemas.case import TargetSelection
+from conversation_monitor.schemas.case import TargetSelection
 
 
 @pytest.mark.parametrize(

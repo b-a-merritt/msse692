@@ -12,13 +12,13 @@ from typesafe_sdk import TypeSafeBadRequestError
 from typesafe_sdk import TypeSafeInternalServerError
 from typesafe_sdk import TypeSafeUnprocessableEntityError
 
-from normative_conformance.schemas.case import CaseRecord
-from normative_conformance.schemas.decision import DecisionAnswers
-from normative_conformance.schemas.decision import PatternEvidence
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.observation.load_case_speech import IngestedObservation
+from conversation_monitor.schemas.case import CaseRecord
+from conversation_monitor.schemas.decision import DecisionAnswers
+from conversation_monitor.schemas.decision import PatternEvidence
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.observation.load_case_speech import IngestedObservation
 
-module = import_module("normative_conformance.services.scheduler.run_worker.process_case")
+module = import_module("conversation_monitor.services.scheduler.run_worker.process_case")
 
 
 def _ingested(*, observation_id, sequence, speaker_id):

@@ -10,7 +10,7 @@ from urllib.request import urlopen
 
 from pydantic import ValidationError
 
-from normative_conformance.schemas.case import TargetSelection
+from conversation_monitor.schemas.case import TargetSelection
 
 
 def _parse_timestamp(*, value: str) -> datetime:

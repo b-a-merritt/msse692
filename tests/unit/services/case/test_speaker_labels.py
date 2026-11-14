@@ -2,10 +2,10 @@ from datetime import UTC
 from datetime import datetime
 from importlib import import_module
 
-from normative_conformance.schemas.observation import ObservationInput
-from normative_conformance.services.observation.load_case_speech import IngestedObservation
+from conversation_monitor.schemas.observation import ObservationInput
+from conversation_monitor.services.observation.load_case_speech import IngestedObservation
 
-module = import_module("normative_conformance.services.case.speaker_labels")
+module = import_module("conversation_monitor.services.case.speaker_labels")
 
 
 def test_labels_follow_speech_order_with_stable_tie_breakers(monkeypatch):

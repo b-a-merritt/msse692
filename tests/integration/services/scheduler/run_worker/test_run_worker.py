@@ -6,17 +6,17 @@ from threading import Thread
 
 from sqlmodel import select
 
-from normative_conformance.database import read_session
-from normative_conformance.models.assessment import Assessment
-from normative_conformance.models.case import ConversationCase
-from normative_conformance.models.case import TargetAssignment
-from normative_conformance.models.observation import Observation
-from normative_conformance.schemas.decision import DecisionAnswers
-from normative_conformance.schemas.decision import ObservationAnswers
+from conversation_monitor.database import read_session
+from conversation_monitor.models.assessment import Assessment
+from conversation_monitor.models.case import ConversationCase
+from conversation_monitor.models.case import TargetAssignment
+from conversation_monitor.models.observation import Observation
+from conversation_monitor.schemas.decision import DecisionAnswers
+from conversation_monitor.schemas.decision import ObservationAnswers
 
-module = import_module("normative_conformance.services.scheduler.run_worker.run_worker")
+module = import_module("conversation_monitor.services.scheduler.run_worker.run_worker")
 process_case_module = import_module(
-    "normative_conformance.services.scheduler.run_worker.process_case"
+    "conversation_monitor.services.scheduler.run_worker.process_case"
 )
 
 

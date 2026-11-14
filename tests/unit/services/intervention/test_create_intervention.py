@@ -3,9 +3,9 @@ from unittest.mock import Mock
 import pytest
 from sqlmodel import Session
 
-from normative_conformance.schemas.decision import DecisionAnswers
-from normative_conformance.schemas.decision import ObservationAnswers
-from normative_conformance.services.intervention import create_intervention as module
+from conversation_monitor.schemas.decision import DecisionAnswers
+from conversation_monitor.schemas.decision import ObservationAnswers
+from conversation_monitor.services.intervention import create_intervention as module
 
 
 def _answers(*, action, behavior_scores):

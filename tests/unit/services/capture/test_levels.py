@@ -3,8 +3,8 @@ import struct
 
 import pytest
 
-from normative_conformance.services.capture.levels import FrameLevel
-from normative_conformance.services.capture.levels import LevelMeter
+from conversation_monitor.services.capture.levels import FrameLevel
+from conversation_monitor.services.capture.levels import LevelMeter
 
 
 @pytest.mark.parametrize(

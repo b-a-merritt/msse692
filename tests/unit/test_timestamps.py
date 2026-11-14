@@ -5,9 +5,9 @@ from datetime import timezone
 
 import pytest
 
-from normative_conformance.timestamps import from_microseconds
-from normative_conformance.timestamps import to_microseconds
-from normative_conformance.timestamps import utc_now
+from conversation_monitor.timestamps import from_microseconds
+from conversation_monitor.timestamps import to_microseconds
+from conversation_monitor.timestamps import utc_now
 
 
 @pytest.mark.parametrize(

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, mock, test } from "node:test";
 
 import { browser, resetBrowser } from "../browser.mjs";
-import { CaptureSession } from "../../../../src/normative_conformance/static/capture/session.js";
-import { STATUS } from "../../../../src/normative_conformance/static/capture/status.js";
+import { CaptureSession } from "../../../../src/conversation_monitor/static/capture/session.js";
+import { STATUS } from "../../../../src/conversation_monitor/static/capture/status.js";
 
 function record() {
   const events = { statuses: [], ready: 0, levels: [], transcripts: [], cases: [], ended: 0 };

@@ -7,14 +7,14 @@ import pytest
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 
-from normative_conformance.errors import ForeignRequest
-from normative_conformance.errors import NotFound
-from normative_conformance.errors import NotReady
-from normative_conformance.errors import ObservationExists
-from normative_conformance.errors import StorageUnavailable
-from normative_conformance.routes.errors import register_error_handlers
-from normative_conformance.routes.errors import service_error
-from normative_conformance.routes.errors import validation_error
+from conversation_monitor.errors import ForeignRequest
+from conversation_monitor.errors import NotFound
+from conversation_monitor.errors import NotReady
+from conversation_monitor.errors import ObservationExists
+from conversation_monitor.errors import StorageUnavailable
+from conversation_monitor.routes.errors import register_error_handlers
+from conversation_monitor.routes.errors import service_error
+from conversation_monitor.routes.errors import validation_error
 
 
 @pytest.mark.parametrize(

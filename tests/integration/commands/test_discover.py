@@ -4,10 +4,10 @@ from importlib import import_module
 
 from sqlalchemy import inspect
 
-from normative_conformance.config import Settings
-from normative_conformance.database import create_database_engine
+from conversation_monitor.config import Settings
+from conversation_monitor.database import create_database_engine
 
-module = import_module("normative_conformance.commands.discover")
+module = import_module("conversation_monitor.commands.discover")
 
 
 def test_empty_database_is_migrated_and_stores_no_model(*, monkeypatch, tmp_path, capsys):

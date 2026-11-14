@@ -43,7 +43,7 @@ schema change in one service silently breaks another.
 ## Mirror source directories in tests
 
 Organize tests relative to `tests/unit/` or `tests/integration/` the same way code
-is organized relative to `src/normative_conformance/`. Name test modules
+is organized relative to `src/conversation_monitor/`. Name test modules
 `test_<source_module>.py`, such as `tests/unit/schemas/test_observation.py` and
 `tests/integration/models/test_observation.py`. For migrations, test
 `tests/integration/migrations/test_env.py`; do not add tests for individual files

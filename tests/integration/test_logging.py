@@ -5,11 +5,11 @@ import sys
 from datetime import UTC
 from datetime import datetime
 
-from normative_conformance.logging import APP_LOGGER
-from normative_conformance.logging import UVICORN_ACCESS_LOGGER
-from normative_conformance.logging import JsonFormatter
-from normative_conformance.logging import start_logging
-from normative_conformance.logging import stop_logging
+from conversation_monitor.logging import APP_LOGGER
+from conversation_monitor.logging import UVICORN_ACCESS_LOGGER
+from conversation_monitor.logging import JsonFormatter
+from conversation_monitor.logging import start_logging
+from conversation_monitor.logging import stop_logging
 
 
 def test_existing_file_gets_a_suffix_and_restarts_do_not_duplicate_handlers(
@@ -20,7 +20,7 @@ def test_existing_file_gets_a_suffix_and_restarts_do_not_duplicate_handlers(
         def now(cls, tz=None):
             return datetime(2026, 10, 1, 12, tzinfo=UTC)
 
-    monkeypatch.setattr("normative_conformance.logging.datetime", FixedDatetime)
+    monkeypatch.setattr("conversation_monitor.logging.datetime", FixedDatetime)
     first = start_logging(log_dir=tmp_path)
     stop_logging()
     second = start_logging(log_dir=tmp_path)
