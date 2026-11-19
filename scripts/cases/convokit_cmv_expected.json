@@ -1,0 +1,224 @@
+{
+  "cga-cmv-01-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-01-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-02-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-02-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-03-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-03-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-04-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-04-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-05-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-05-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-06-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-06-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-07-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-07-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-08-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-08-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-09-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-09-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-10-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-10-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-11-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-11-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-12-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-12-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-13-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-13-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-14-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-14-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-15-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-15-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-16-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-16-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-17-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-17-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-18-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-18-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-19-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-19-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-20-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-20-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-21-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-21-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-22-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-22-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-23-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-23-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-24-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-24-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-25-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-25-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-26-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-26-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-27-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-27-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-28-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-28-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-29-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-29-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-30-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-30-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-31-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-31-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-32-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-32-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-33-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-33-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-34-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-34-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-35-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-35-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-36-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-36-civil": {
+    "intervene": "no"
+  },
+  "cga-cmv-37-awry": {
+    "intervene": "yes"
+  },
+  "cga-cmv-37-civil": {
+    "intervene": "no"
+  }
+}

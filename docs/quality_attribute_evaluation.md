@@ -94,4 +94,4 @@ All 1,812 stress observations were stored and all 804 batches were handled. No b
 - No run used a discovered model, so these times do not include checking evidence.
 - No run forced a crash or a provider outage.
 
-Decision agreement is reported in [`scripts/cases/predictions.md`](../scripts/cases/predictions.md).
+Decision agreement is reported in [`scripts/cases/predictions.md`](../scripts/cases/predictions.md), [`scripts/cases/persona_conflicts_predictions.md`](../scripts/cases/persona_conflicts_predictions.md), and [`scripts/cases/convokit_cmv_predictions.md`](../scripts/cases/convokit_cmv_predictions.md).

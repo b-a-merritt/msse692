@@ -2,7 +2,7 @@
 
 # Quality Assurance Report
 
-Last updated: Nov 8, 2026
+Last updated: Nov 19, 2026
 
 # **Team: *Individual Track***
 
@@ -14,7 +14,7 @@ The prototype transcribes live speech, stores it as observations, and asks a dec
 
 All 570 automated tests pass. Unit tests alone cover 98.40% of statements and branches, above the required 95%. Lint, formatting, type checks, and the dependency audit report no issues.
 
-Twelve film scenes were each replayed three times, and the intervention result never changed. On the 10 scenes also run with the earlier keyword rules, the decision model matched 8 and the rules matched 6. The main open defects are two false positives and missed cruelty, which recur across replays.
+Twelve film scenes, 120 human-rated PersonaConflicts dialogues, and 74 ConvoKit `r/changemyview` threads were each replayed three times. The film intervention result never changed; on the 10 scenes also run with the earlier keyword rules, the decision model matched 8 and the rules matched 6. On PersonaConflicts, the model matched 117, 116, and 118 of 120 cases across the three replays (97.5% overall), and 116 of 120 had the same result in every replay. On the ConvoKit pre-derailment prefixes and civil debate pairs, the model matched 46, 46, and 44 of 74 cases (61.3% overall), with 69 of 74 unchanged across replays. The main open defects are false positives on victim distress, caring confrontation, and sharp civil debate, along with missed cruelty.
 
 The system is ready for research demonstration on one machine. It is not ready for production: it has no authentication and has not been studied with real couples.
 
@@ -28,7 +28,7 @@ The unit suite (350 Python tests) checks decisions in isolation, such as request
 
 The integration suite (182 tests) runs the code against SQLite, HTTP, the worker, and restarts. The decision-model provider is replaced by a mock HTTP transport, so its errors, timeouts, and malformed responses are tested without network calls.
 
-End-to-end testing used the running server. Film scenes and control dialogue were replayed through the HTTP API and scored against written predictions. A stress input measured capacity.
+End-to-end testing used the running server. Film scenes, control dialogue, human-rated PersonaConflicts dialogues, and ConvoKit `r/changemyview` threads were replayed through the HTTP API and scored against written predictions. A stress input measured capacity.
 
 The following were not tested:
 
@@ -65,7 +65,7 @@ Coverage is measured with coverage.py through pytest-cov, with branch measuremen
 
 I did not test with people. The system measures undesired behavior in a person's speech, and running it on participants would require ethics review.
 
-Instead, I wrote down the expected outcome for each scenario and replayed it through the HTTP API at its original pacing. [`scripts/cases/predictions.md`](../scripts/cases/predictions.md) has the predictions, per-case results, and scoring rules.
+Instead, I wrote down the expected outcome for each scenario and replayed it through the HTTP API. [`scripts/cases/predictions.md`](../scripts/cases/predictions.md), [`scripts/cases/persona_conflicts_predictions.md`](../scripts/cases/persona_conflicts_predictions.md), and [`scripts/cases/convokit_cmv_predictions.md`](../scripts/cases/convokit_cmv_predictions.md) have the predictions, per-case results, and scoring rules.
 
 **Film scenes.** Twelve scenes, three replays each.
 
@@ -87,6 +87,25 @@ Intervention counts varied between replays, most in case 1 (4, 5, 3), case 11 (4
 | Conversations 03–06 unchanged | Held |
 | Behavior scores do not differ | Held: mean difference 0.0057 between conditions, 0.0055 within |
 | Whether to intervene | Matched the prediction in all 36 runs |
+
+**PersonaConflicts.** All 120 human-rated dialogues (60 conflict and 60 non-conflict) from Shen et al. (2025), three replays each.
+
+| Result | Outcome |
+| :---- | :---- |
+| Intervention result across replays | Unchanged for 116 of 120 cases (96.7%) |
+| Cases matched per replay | 117, 116, and 118 of 120 (351 of 360 runs, 97.5%) |
+| Conflict cases matched | 59, 59, and 60 of 60 (`pc-19-conflict` missed in 2 runs; raters scored `speaker-2` at 1.75) |
+| Non-conflict cases matched | 58, 57, and 58 of 60 (173 of 180 runs, 96.1%) |
+| Agreement with four-rater threshold (`chosen_ss >= 2.50`) | 109, 108, and 108 of 120 (323 of 330 runs, 97.9%, on the 110 cases where raters and scenario label agree) |
+
+**ConvoKit CGA-CMV.** 74 test threads (37 topic-matched pairs of pre-derailment `awry` prefixes and `civil` debates) from Chang and Danescu-Niculescu-Mizil (2019), three replays each.
+
+| Result | Outcome |
+| :---- | :---- |
+| Intervention result across replays | Unchanged for 69 of 74 cases (93.2%) |
+| Cases matched per replay | 46, 46, and 44 of 74 (136 of 222 runs, 61.3%) |
+| `awry` prefixes with an intervention | 23, 23, and 22 of 37 (the corpus cuts off each thread before the removed Rule-2 comment) |
+| `civil` threads with no intervention | 23, 23, and 22 of 37 (sharp debate turns were flagged as contempt, criticism, or defensiveness in 14–15 threads) |
 
 # **Bug Report & Resolution**
 

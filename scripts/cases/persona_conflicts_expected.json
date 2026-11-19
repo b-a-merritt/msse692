@@ -1,0 +1,362 @@
+{
+  "pc-01-conflict": {
+    "intervene": "yes"
+  },
+  "pc-01-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-02-conflict": {
+    "intervene": "yes"
+  },
+  "pc-02-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-03-conflict": {
+    "intervene": "yes"
+  },
+  "pc-03-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-04-conflict": {
+    "intervene": "yes"
+  },
+  "pc-04-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-05-conflict": {
+    "intervene": "yes"
+  },
+  "pc-05-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-06-conflict": {
+    "intervene": "yes"
+  },
+  "pc-06-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-07-conflict": {
+    "intervene": "yes"
+  },
+  "pc-07-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-08-conflict": {
+    "intervene": "yes"
+  },
+  "pc-08-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-09-conflict": {
+    "intervene": "yes"
+  },
+  "pc-09-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-10-conflict": {
+    "intervene": "yes"
+  },
+  "pc-10-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-11-conflict": {
+    "intervene": "yes"
+  },
+  "pc-11-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-12-conflict": {
+    "intervene": "yes"
+  },
+  "pc-12-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-13-conflict": {
+    "intervene": "yes"
+  },
+  "pc-13-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-14-conflict": {
+    "intervene": "yes"
+  },
+  "pc-14-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-15-conflict": {
+    "intervene": "yes"
+  },
+  "pc-15-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-16-conflict": {
+    "intervene": "yes"
+  },
+  "pc-16-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-17-conflict": {
+    "intervene": "yes"
+  },
+  "pc-17-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-18-conflict": {
+    "intervene": "yes"
+  },
+  "pc-18-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-19-conflict": {
+    "intervene": "yes"
+  },
+  "pc-19-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-20-conflict": {
+    "intervene": "yes"
+  },
+  "pc-20-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-21-conflict": {
+    "intervene": "yes"
+  },
+  "pc-21-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-22-conflict": {
+    "intervene": "yes"
+  },
+  "pc-22-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-23-conflict": {
+    "intervene": "yes"
+  },
+  "pc-23-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-24-conflict": {
+    "intervene": "yes"
+  },
+  "pc-24-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-25-conflict": {
+    "intervene": "yes"
+  },
+  "pc-25-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-26-conflict": {
+    "intervene": "yes"
+  },
+  "pc-26-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-27-conflict": {
+    "intervene": "yes"
+  },
+  "pc-27-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-28-conflict": {
+    "intervene": "yes"
+  },
+  "pc-28-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-29-conflict": {
+    "intervene": "yes"
+  },
+  "pc-29-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-30-conflict": {
+    "intervene": "yes"
+  },
+  "pc-30-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-31-conflict": {
+    "intervene": "yes"
+  },
+  "pc-31-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-32-conflict": {
+    "intervene": "yes"
+  },
+  "pc-32-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-33-conflict": {
+    "intervene": "yes"
+  },
+  "pc-33-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-34-conflict": {
+    "intervene": "yes"
+  },
+  "pc-34-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-35-conflict": {
+    "intervene": "yes"
+  },
+  "pc-35-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-36-conflict": {
+    "intervene": "yes"
+  },
+  "pc-36-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-37-conflict": {
+    "intervene": "yes"
+  },
+  "pc-37-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-38-conflict": {
+    "intervene": "yes"
+  },
+  "pc-38-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-39-conflict": {
+    "intervene": "yes"
+  },
+  "pc-39-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-40-conflict": {
+    "intervene": "yes"
+  },
+  "pc-40-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-41-conflict": {
+    "intervene": "yes"
+  },
+  "pc-41-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-42-conflict": {
+    "intervene": "yes"
+  },
+  "pc-42-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-43-conflict": {
+    "intervene": "yes"
+  },
+  "pc-43-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-44-conflict": {
+    "intervene": "yes"
+  },
+  "pc-44-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-45-conflict": {
+    "intervene": "yes"
+  },
+  "pc-45-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-46-conflict": {
+    "intervene": "yes"
+  },
+  "pc-46-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-47-conflict": {
+    "intervene": "yes"
+  },
+  "pc-47-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-48-conflict": {
+    "intervene": "yes"
+  },
+  "pc-48-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-49-conflict": {
+    "intervene": "yes"
+  },
+  "pc-49-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-50-conflict": {
+    "intervene": "yes"
+  },
+  "pc-50-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-51-conflict": {
+    "intervene": "yes"
+  },
+  "pc-51-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-52-conflict": {
+    "intervene": "yes"
+  },
+  "pc-52-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-53-conflict": {
+    "intervene": "yes"
+  },
+  "pc-53-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-54-conflict": {
+    "intervene": "yes"
+  },
+  "pc-54-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-55-conflict": {
+    "intervene": "yes"
+  },
+  "pc-55-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-56-conflict": {
+    "intervene": "yes"
+  },
+  "pc-56-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-57-conflict": {
+    "intervene": "yes"
+  },
+  "pc-57-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-58-conflict": {
+    "intervene": "yes"
+  },
+  "pc-58-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-59-conflict": {
+    "intervene": "yes"
+  },
+  "pc-59-nonconflict": {
+    "intervene": "no"
+  },
+  "pc-60-conflict": {
+    "intervene": "yes"
+  },
+  "pc-60-nonconflict": {
+    "intervene": "no"
+  }
+}

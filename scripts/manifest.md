@@ -45,6 +45,10 @@ uv run python scripts/send_observations.py scripts/cases/control/control-test-01
 
 `cases/stress.jsonl` is AI-generated synthetic speech for 330 interleaved cases, increasing the offered rate across six phases. Recorded gaps take approximately 11.5 minutes to replay. HTTP response time adds to that duration. The whole file causes about 4,400 decision-model calls. Phases 1–3, the cases with IDs starting `stress-p1`, `stress-p2`, and `stress-p3`, cause about 800 and exceed the worker's capacity.
 
+`cases/persona_conflicts_conflict.jsonl` and `cases/persona_conflicts_nonconflict.jsonl` hold the 120 human-rated dialogues (60 conflict and 60 non-conflict) from Shen et al. (2025). `cases/persona_conflicts_predictions.md` lists the source rows, four-rater averages, predictions, and replay results, and `cases/persona_conflicts_expected.json` holds the expected intervention outcomes.
+
+`cases/convokit_cmv.jsonl` holds 74 test threads (37 pairs) from ConvoKit's `conversations-gone-awry-cmv-corpus` (Chang and Danescu-Niculescu-Mizil, 2019). `cases/convokit_cmv_predictions.md` lists the selection rules, thread IDs, predictions, and replay results, and `cases/convokit_cmv_expected.json` holds the expected intervention outcomes. `extract_external_cases.py` builds both sets of files from the downloaded corpora.
+
 | File | Contents |
 |---|---|
 | `cases/demo-unrepaired.jsonl` | Two interruptions by `speaker-2` |
@@ -92,4 +96,13 @@ Stress phases 1–3 on one server:
 uv run python scripts/evaluate.py run data/eval/stress scripts/cases/stress.jsonl --target-speaker-id speaker-2 --cases 'stress-p[123]'
 uv run python scripts/evaluate.py load data/eval/stress/stress-run-1.sqlite3 --group 'stress-(p\d)'
 uv run python scripts/evaluate.py timing data/eval/stress --group 'stress-(p\d)'
+```
+
+PersonaConflicts and ConvoKit CGA-CMV, three replays each:
+
+```bash
+uv run python scripts/evaluate.py run data/eval/persona-conflicts scripts/cases/persona_conflicts_*.jsonl --target-speaker-id speaker-2 --replicates 3 --concurrency 3 --together
+uv run python scripts/evaluate.py outcomes data/eval/persona-conflicts --expected scripts/cases/persona_conflicts_expected.json
+uv run python scripts/evaluate.py run data/eval/convokit-cmv scripts/cases/convokit_cmv.jsonl --target-speaker-id speaker-2 --replicates 3 --concurrency 3 --together
+uv run python scripts/evaluate.py outcomes data/eval/convokit-cmv --expected scripts/cases/convokit_cmv_expected.json
 ```
