@@ -4,21 +4,27 @@ Expected outcomes for the 120 human-rated dialogues (60 conflict and non-conflic
 
 ## Source data
 
-`mturk_aggregate.csv` has 240 rows: 120 conversations rated twice each by Amazon Mechanical Turk workers, once with a positive backstory for the main character and once with a negative backstory (two raters per condition, four total). All 120 conversations are included here:
+`mturk_aggregate.csv` has 240 rows: 120 conversations rated twice each by Amazon Mechanical Turk workers, once with a positive backstory for the main character (`mturk_positive_backstory.csv`) and once with a negative backstory (`mturk_negative_backstory.csv`), with two raters per condition (four total). All 120 conversations are included here:
 
 - `pc-01` to `pc-50` (`main`): 50 conflict cases (`id` 0-49) paired with 50 non-conflict cases (`id` 125-174) from `dataset_final.csv`.
 - `pc-51` to `pc-60` (`pilot`): the other 20 rated conversations in `mturk_aggregate.csv` (`id` 0-9 for conflict, `id` 10-19 for non-conflict).
 
-The character whose backstory was varied (`chosen_character`) is `speaker-2` (the target), and the other speaker is `speaker-1`. Turn times are spaced 0.2 s apart with neutral signal levels (-50 / -25 / -10 dBFS) so an entire 15-turn conversation fits inside the 30 s context window.
+The character whose backstory was varied (`chosen_character`) is `speaker-2` (the target), and the other speaker is `speaker-1`. Turn times are spaced 0.2 s apart with neutral signal levels (-50 / -25 / -10 dBFS) so an entire 15- or 16-turn conversation fits inside the 30 s context window.
+
+Three source-data anomalies appear in `transformed_conversation`:
+
+- `pc-01-conflict` (`id` 0) and `pc-32-conflict` (`id` 31) have 16 turns (`turn` 1-16); `mturk_aggregate.csv` truncates `turn_problematic_avg` and `turn_vc_union` to 15 elements, whereas the raw MTurk CSVs include `turn_16`.
+- `pc-09-conflict` (`id` 8) has 12 turns because turn numbers `[3, 9, 14]` are skipped in `transformed_conversation`, and `pc-36-nonconflict` (`id` 160) has 14 turns because turn number `[10]` is skipped.
+- `pc-06-conflict` (`id` 5) turn 3 has a stage direction (`(Isabelle sits quietly while Jasmine starts making seemingly unnecessary noise: bouncing a yoga ball, clanging pots and pans in the kitchen, humming loudly.)`) split across the `speaker` and `text` fields and is attributed to `speaker-2` (Jasmine).
 
 ## Labels and ratings
 
 `persona_conflicts_expected.json` uses the scenario label (`convo_type`): **Yes** for `conflict` and **No** for `nonconflict`.
 
-The table also lists the four-rater averages from `mturk_aggregate.csv` (`neg_row` and `pos_row` averaged together):
+Conversation-level ratings (`chosen_ss` and `other_ss`) come from the four-rater averages in `mturk_aggregate.csv` (`neg_row` and `pos_row` averaged together), while turn-level ratings (`tp_max` and `Target VC tags`) are joined directly from `mturk_positive_backstory.csv` and `mturk_negative_backstory.csv` across the four worker rows using each turn's explicit `turn` number (`1-16`):
 
 - `chosen_ss` and `other_ss`: average answer (1-4) to whether `speaker-2` or `speaker-1` said anything they should not have said.
-- `tp_max`: highest turn-level problematic rating (1-4) among `speaker-2`'s turns.
+- `tp_max`: highest four-rater average turn-level problematic rating (1-4, `Answer.is_problematic_turn_<1..16>.*`) among `speaker-2`'s turns.
 - `Target VC tags`: Nonviolent Communication violations marked by raters on `speaker-2`'s turns (`Comparison`, `Demand`, `Denial of Responsibility`, `Deserve Thinking`, `Moralistic Judgment`).
 
 ## Where the raters and scenario label disagree

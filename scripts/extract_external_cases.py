@@ -2,7 +2,6 @@
 """Extract external evaluation cases from PersonaConflicts and ConvoKit CGA-CMV."""
 
 import argparse
-import ast
 import csv
 import json
 from collections import defaultdict
@@ -37,6 +36,12 @@ CANONICAL_VC_TAGS = frozenset(
         "Moralistic Judgment",
     }
 )
+PROBLEMATIC_RATINGS: tuple[tuple[str, int], ...] = (
+    ("Not problematic at all", 1),
+    ("Not really problematic", 2),
+    ("Somewhat problematic", 3),
+    ("Very problematic", 4),
+)
 
 
 @dataclass(frozen=True)
@@ -57,7 +62,6 @@ class _PersonaConflictCase:
     other_ss: float
     tp_max_chosen: float
     vc_tags: tuple[str, ...]
-    other_vc_notes: tuple[str, ...]
     turns: tuple[tuple[str, str], ...]
     peak_quote: str
 
@@ -158,13 +162,37 @@ def _resolve_pc_turn(
     return chosen_character, f"{raw_speaker}: {raw_text}"
 
 
+def _raw_turn_ratings(
+    worker_rows: list[dict[str, str]],
+    turn_number: int,
+) -> tuple[float, set[str]]:
+    scores: list[int] = []
+    tags: set[str] = set()
+    for worker in worker_rows:
+        for label, value in PROBLEMATIC_RATINGS:
+            if worker.get(f"Answer.is_problematic_turn_{turn_number}.{label}") == "True":
+                scores.append(value)
+        for tag in CANONICAL_VC_TAGS:
+            if (
+                worker.get(f"Answer.nvc_turn_{turn_number}.{tag}") == "True"
+                or worker.get(f"Answer.nonvc_turn_{turn_number}.{tag}") == "True"
+            ):
+                tags.add(tag)
+    if len(scores) != len(worker_rows):
+        raise ValueError(
+            f"Expected {len(worker_rows)} problematic ratings for turn {turn_number},"
+            f" found {len(scores)}"
+        )
+    return sum(scores) / len(scores), tags
+
+
 def _build_pc_case(
     case_id: str,
     pair_number: int,
     batch: str,
-    record: tuple[int, int, int | None, dict[str, str], dict[str, str]],
+    record: tuple[int, int, int | None, dict[str, str], dict[str, str], list[dict[str, str]]],
 ) -> _PersonaConflictCase:
-    neg_row, pos_row, df_row, neg_r, pos_r = record
+    neg_row, pos_row, df_row, neg_r, pos_r, worker_rows = record
     chosen = neg_r["chosen_character"]
     a1 = neg_r["agent_1_name"]
     a2 = neg_r["agent_2_name"]
@@ -179,30 +207,20 @@ def _build_pc_case(
     other_ss = (float(neg_r[ss_other_col]) + float(pos_r[ss_other_col])) / 2.0
 
     raw_turns = json.loads(neg_r["transformed_conversation"])
-    neg_tp = ast.literal_eval(neg_r["turn_problematic_avg"])
-    pos_tp = ast.literal_eval(pos_r["turn_problematic_avg"])
-    neg_vc = ast.literal_eval(neg_r["turn_vc_union"])
-    pos_vc = ast.literal_eval(pos_r["turn_vc_union"])
 
     turns: list[tuple[str, str]] = []
     chosen_turn_scores: list[tuple[float, str]] = []
     canonical_tags: set[str] = set()
-    other_notes: set[str] = set()
 
-    for idx, turn_dict in enumerate(raw_turns):
+    for turn_dict in raw_turns:
+        turn_number = int(turn_dict["turn"])
         character, text = _resolve_pc_turn(turn_dict, a1, a2, chosen)
         speaker_id = "speaker-2" if character == chosen else "speaker-1"
         turns.append((speaker_id, text))
         if character == chosen:
-            pooled_tp = (float(neg_tp[idx]) + float(pos_tp[idx])) / 2.0
+            pooled_tp, turn_tags = _raw_turn_ratings(worker_rows, turn_number)
             chosen_turn_scores.append((pooled_tp, text))
-            for tag in neg_vc[idx] + pos_vc[idx]:
-                if not tag or tag == "None of the above":
-                    continue
-                if tag in CANONICAL_VC_TAGS:
-                    canonical_tags.add(tag)
-                else:
-                    other_notes.add(tag)
+            canonical_tags.update(turn_tags)
 
     tp_max_chosen, peak_text = max(chosen_turn_scores, key=lambda item: item[0])
     return _PersonaConflictCase(
@@ -222,7 +240,6 @@ def _build_pc_case(
         other_ss=other_ss,
         tp_max_chosen=tp_max_chosen,
         vc_tags=tuple(sorted(canonical_tags)),
-        other_vc_notes=tuple(sorted(other_notes)),
         turns=tuple(turns),
         peak_quote=_clean_quote(peak_text),
     )
@@ -231,24 +248,46 @@ def _build_pc_case(
 def _load_persona_conflicts(pc_dir: Path) -> list[_PersonaConflictCase]:
     with (pc_dir / "mturk_aggregate.csv").open(encoding="utf-8") as handle:
         mturk_rows = list(csv.DictReader(handle))
+    with (pc_dir / "mturk_negative_backstory.csv").open(encoding="utf-8") as handle:
+        neg_worker_rows = list(csv.DictReader(handle))
+    with (pc_dir / "mturk_positive_backstory.csv").open(encoding="utf-8") as handle:
+        pos_worker_rows = list(csv.DictReader(handle))
     with (pc_dir / "dataset_final.csv").open(encoding="utf-8") as handle:
         df_rows = list(csv.DictReader(handle))
+
+    workers_by_conv: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in neg_worker_rows:
+        workers_by_conv[row["Input.transformed_conversation"]].append(row)
+    for row in pos_worker_rows:
+        workers_by_conv[row["Input.transformed_conversation"]].append(row)
 
     df_by_conv = {row["transformed_conversation"]: idx for idx, row in enumerate(df_rows)}
     by_conv: dict[str, dict[str, tuple[int, dict[str, str]]]] = defaultdict(dict)
     for idx, row in enumerate(mturk_rows):
         by_conv[row["transformed_conversation"]][row["condition"]] = (idx, row)
 
-    main_convs: dict[int, tuple[int, int, int | None, dict[str, str], dict[str, str]]] = {}
-    pilot_convs: dict[int, tuple[int, int, int | None, dict[str, str], dict[str, str]]] = {}
+    main_convs: dict[
+        int, tuple[int, int, int | None, dict[str, str], dict[str, str], list[dict[str, str]]]
+    ] = {}
+    pilot_convs: dict[
+        int, tuple[int, int, int | None, dict[str, str], dict[str, str], list[dict[str, str]]]
+    ] = {}
     for conv, conds in by_conv.items():
         neg_idx, neg_r = conds["negative"]
         pos_idx, pos_r = conds["positive"]
+        worker_rows = workers_by_conv[conv]
         source_id = int(neg_r["id"])
         if conv in df_by_conv:
-            main_convs[source_id] = (neg_idx, pos_idx, df_by_conv[conv], neg_r, pos_r)
+            main_convs[source_id] = (
+                neg_idx,
+                pos_idx,
+                df_by_conv[conv],
+                neg_r,
+                pos_r,
+                worker_rows,
+            )
         else:
-            pilot_convs[source_id] = (neg_idx, pos_idx, None, neg_r, pos_r)
+            pilot_convs[source_id] = (neg_idx, pos_idx, None, neg_r, pos_r, worker_rows)
 
     cases: list[_PersonaConflictCase] = []
     for pair_num in range(1, 51):
@@ -418,8 +457,9 @@ def _write_persona_conflicts_outputs(
         "## Source data",
         "",
         "`mturk_aggregate.csv` has 240 rows: 120 conversations rated twice each by Amazon"
-        " Mechanical Turk workers, once with a positive backstory for the main character and"
-        " once with a negative backstory (two raters per condition, four total). All 120"
+        " Mechanical Turk workers, once with a positive backstory for the main character"
+        " (`mturk_positive_backstory.csv`) and once with a negative backstory"
+        " (`mturk_negative_backstory.csv`), with two raters per condition (four total). All 120"
         " conversations are included here:",
         "",
         "- `pc-01` to `pc-50` (`main`): 50 conflict cases (`id` 0-49) paired with 50"
@@ -429,20 +469,37 @@ def _write_persona_conflicts_outputs(
         "",
         "The character whose backstory was varied (`chosen_character`) is `speaker-2` (the"
         " target), and the other speaker is `speaker-1`. Turn times are spaced 0.2 s apart"
-        " with neutral signal levels (-50 / -25 / -10 dBFS) so an entire 15-turn conversation"
-        " fits inside the 30 s context window.",
+        " with neutral signal levels (-50 / -25 / -10 dBFS) so an entire 15- or 16-turn"
+        " conversation fits inside the 30 s context window.",
+        "",
+        "Three source-data anomalies appear in `transformed_conversation`:",
+        "",
+        "- `pc-01-conflict` (`id` 0) and `pc-32-conflict` (`id` 31) have 16 turns (`turn` 1-16);"
+        " `mturk_aggregate.csv` truncates `turn_problematic_avg` and `turn_vc_union` to 15"
+        " elements, whereas the raw MTurk CSVs include `turn_16`.",
+        "- `pc-09-conflict` (`id` 8) has 12 turns because turn numbers `[3, 9, 14]` are skipped"
+        " in `transformed_conversation`, and `pc-36-nonconflict` (`id` 160) has 14 turns"
+        " because turn number `[10]` is skipped.",
+        "- `pc-06-conflict` (`id` 5) turn 3 has a stage direction (`(Isabelle sits quietly"
+        " while Jasmine starts making seemingly unnecessary noise: bouncing a yoga ball,"
+        " clanging pots and pans in the kitchen, humming loudly.)`) split across the"
+        " `speaker` and `text` fields and is attributed to `speaker-2` (Jasmine).",
         "",
         "## Labels and ratings",
         "",
         "`persona_conflicts_expected.json` uses the scenario label (`convo_type`):"
         " **Yes** for `conflict` and **No** for `nonconflict`.",
         "",
-        "The table also lists the four-rater averages from `mturk_aggregate.csv`"
-        " (`neg_row` and `pos_row` averaged together):",
+        "Conversation-level ratings (`chosen_ss` and `other_ss`) come from the four-rater"
+        " averages in `mturk_aggregate.csv` (`neg_row` and `pos_row` averaged together), while"
+        " turn-level ratings (`tp_max` and `Target VC tags`) are joined directly from"
+        " `mturk_positive_backstory.csv` and `mturk_negative_backstory.csv` across the four"
+        " worker rows using each turn's explicit `turn` number (`1-16`):",
         "",
         "- `chosen_ss` and `other_ss`: average answer (1-4) to whether `speaker-2` or"
         " `speaker-1` said anything they should not have said.",
-        "- `tp_max`: highest turn-level problematic rating (1-4) among `speaker-2`'s turns.",
+        "- `tp_max`: highest four-rater average turn-level problematic rating (1-4,"
+        " `Answer.is_problematic_turn_<1..16>.*`) among `speaker-2`'s turns.",
         "- `Target VC tags`: Nonviolent Communication violations marked by raters on"
         " `speaker-2`'s turns (`Comparison`, `Demand`, `Denial of Responsibility`,"
         " `Deserve Thinking`, `Moralistic Judgment`).",
